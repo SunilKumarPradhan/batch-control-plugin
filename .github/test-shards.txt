@@ -52,6 +52,7 @@ JobRunSidebarEntryTest UnsavedExecutionRecoveryTest
 [run approval and mail]
 Approv*Test
 DiscoverOnlyRequestScreenTest ExpiryAndCancelTest MissedInvalidationGapTest
+DecidedRequestApproverChangeTest
 MultiApproverTest PendingCountTest QueueBlockTest RunControlUsabilityTest
 OwnerScenario*Test
 # notifications
