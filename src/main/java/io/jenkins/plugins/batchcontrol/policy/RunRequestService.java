@@ -380,6 +380,11 @@ public final class RunRequestService {
      * {@link RequestTooLargeException} (an {@link IllegalArgumentException}), its files disposed of
      * and nothing stored. This holds for every overload and for an incident rerun, which all end
      * here; a caller without uploaded parts passes none.
+     *
+     * <p>D-88 (#1.9): a submission identical to a PENDING request of the same user
+     * ({@link #findIdenticalPending}) is not created: {@link IdenticalPendingRequestException}
+     * names the existing request, nothing is stored, the files are disposed of and no approver is
+     * notified. Checked last, under the lock of the save.
      */
     public RunRequest create(Job<?, ?> job, List<ParameterValue> values, String reason,
                              List<String> approvers, String incidentId) {
@@ -426,6 +431,15 @@ public final class RunRequestService {
             }
             lock.lock();
             try {
+                // D-88: checked under the lock that guards the save, so two parallel submissions
+                // cannot both pass. Refused: nothing stored, files disposed of below, nobody notified.
+                RunRequest twin = identicalPending(requester, job.getFullName(), submitted, display, reason, designated,
+                        request.getIncidentId());
+                if (twin != null) {
+                    LOGGER.fine(() -> "Not creating a second run request of '" + requester + "' for job '"
+                            + job.getFullName() + "' identical to the pending " + twin.getId() + " (D-88)");
+                    throw new IdenticalPendingRequestException(twin.getId());
+                }
                 store.saveNewRunRequest(request, present);
                 requesterBuildCache.invalidate(request.getId());
             } finally {
@@ -444,6 +458,103 @@ public final class RunRequestService {
         }
         NotificationDispatcher.run(NotificationEvent.REQUEST_CREATED, request);
         return request;
+    }
+
+    /**
+     * D-88 (#1.9): the current user's PENDING run request for {@code job} that a submission of
+     * {@code values}, {@code reason} and {@code approvers} (and the incident link
+     * {@code incidentId}, {@code null} for none) would repeat, or {@code null}. Identical means
+     * the same requester, job, parameter values, reason (exactly as typed), set of designated
+     * approvers and incident link; a request whose pending time is over counts as no longer
+     * PENDING. A submission with a sensitive or file value is never taken for identical, since its
+     * stored value is not compared (D-74: values are read only to approve, submit, recover or
+     * dispose). Read-only; {@link #create} refuses such a submission by itself.
+     */
+    @CheckForNull
+    public RunRequest findIdenticalPending(Job<?, ?> job, List<ParameterValue> values, String reason,
+                                           List<String> approvers, @CheckForNull String incidentId) {
+        if (job == null || values == null || reason == null || approvers == null) {
+            return null;
+        }
+        Authentication auth = Jenkins.getAuthentication2();
+        if (ACL.isAnonymous2(auth)) {
+            return null;
+        }
+        try {
+            return identicalPending(auth.getName(), job.getFullName(), values, ParameterDisplay.masked(values), reason,
+                    approvers, incidentId);
+        } catch (RuntimeException e) {
+            LOGGER.log(java.util.logging.Level.FINE, "Could not compare a run request submission for job '"
+                    + job.getFullName() + "' with the pending ones", e);
+            return null;
+        }
+    }
+
+    /** {@link #findIdenticalPending} for {@code requester}, with the submission's masked display map. */
+    @CheckForNull
+    private RunRequest identicalPending(String requester, String jobFullName, List<ParameterValue> values,
+                                        Map<String, String> display, String reason, List<String> approvers,
+                                        @CheckForNull String incidentId) {
+        if (!comparable(values)) {
+            return null;
+        }
+        Instant now = BatchClock.now();
+        for (io.jenkins.plugins.batchcontrol.store.RequestSummary summary : store.listRunRequestSummaries()) {
+            if (summary.status() != RequestStatus.PENDING || !jobFullName.equals(summary.jobFullName())
+                    || !Approvers.sameUser(requester, summary.requester())) {
+                continue;
+            }
+            RunRequest candidate = loadCurrent(summary.id());
+            if (candidate != null && candidate.getStatus() == RequestStatus.PENDING && !pendingExpired(candidate, now)
+                    && Approvers.sameUser(requester, candidate.getRequester())
+                    && jobFullName.equals(candidate.getJobFullName())
+                    && reason.equals(candidate.getReason())
+                    && display.equals(candidate.getParameters())
+                    && sameApprovers(approvers, candidate.getApprovers())
+                    && Objects.equals(incidentId, candidate.getIncidentId())) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether every value of a submission is compared by its display text: no sensitive, secret or
+     * file value, and no text that reads like the mask or a file's display.
+     */
+    private static boolean comparable(List<ParameterValue> values) {
+        for (ParameterValue value : values) {
+            if (value == null) {
+                continue; // not stored
+            }
+            if (value.isSensitive() || ParameterDisplay.isFile(value) || value.getValue() instanceof hudson.util.Secret) {
+                return false;
+            }
+            String text = ParameterDisplay.text(value);
+            if (text.equals(io.jenkins.plugins.batchcontrol.store.SecretMasker.MASK)
+                    || text.startsWith(ParameterDisplay.FILE_PREFIX)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The same set of user ids under the user id strategy, whatever the order. */
+    private static boolean sameApprovers(List<String> a, @CheckForNull List<String> b) {
+        if (b == null) {
+            return false;
+        }
+        for (String id : a) {
+            if (!Approvers.contains(b, id)) {
+                return false;
+            }
+        }
+        for (String id : b) {
+            if (!Approvers.contains(a, id)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
