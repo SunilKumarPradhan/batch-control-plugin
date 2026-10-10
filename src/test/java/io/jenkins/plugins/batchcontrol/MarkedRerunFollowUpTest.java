@@ -27,12 +27,13 @@ import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
 import static io.jenkins.plugins.batchcontrol.StrategyFixtures.T0;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * #1 (security-31 and security-32 follow-ups): what a re-run of a run marked under a permission window
- * carries and records. Matrix rows T-02-188 .. (notes 352 ..).
+ * carries and records. Matrix rows T-02-188 and T-02-189 (notes 352 and 353).
  *
  * <p>Basis: SPEC item 2, the D-58c line: "a run started by a Replay, Pipeline Rebuild or Restart from Stage
  * of a grant-only user carries a marker and a {@code REPLAY_UNDER_GRANT} record; ... re-running a marked run
@@ -118,6 +119,42 @@ public class MarkedRerunFollowUpTest {
         post("alice", job.getUrl() + "1/replay/rebuild");
         j.waitUntilNoActivity();
         assertNotNull(job.getBuildByNumber(5), "guard: alice's Pipeline Rebuild of the unmarked #1 builds");
+    }
+
+    /**
+     * T-02-189 (#1.2, S-31-02, D-58c): the administrator re-runs the marked #2 by Pipeline Rebuild (#3,
+     * allowed and marked). The REPLAY_UNDER_GRANT record of #3 names the administrator as the one who re-ran
+     * it (its user), names bob as the user who originally replayed the script under the window, and does not
+     * say that the administrator's permission came only from a permission window. On main the record names
+     * only admin ("Run #3 was started by 'admin' as a re-run of run #2 ..."), so bob, the grant-only
+     * replayer, is lost. Guard: bob's own record of #2 still names bob and says his permission came only from
+     * a permission window.
+     */
+    @Test
+    public void t_02_189_carriedMarkerRecordNamesTheReRunnerAndTheOriginalReplayer() throws Exception {
+        int before = StrategyFixtures.records(ChangeType.REPLAY_UNDER_GRANT).size();
+        post("admin", job.getUrl() + "2/replay/rebuild");
+        j.waitUntilNoActivity();
+        assertNotNull(job.getBuildByNumber(3), "premise: the administrator's re-run of the marked #2 runs as #3");
+
+        List<ChangeRecord> marks = StrategyFixtures.records(ChangeType.REPLAY_UNDER_GRANT);
+        ChangeRecord original = marks.stream().filter(r -> String.valueOf(r.getDetail()).contains("#2")
+                && !String.valueOf(r.getDetail()).contains("#3")).findFirst().orElse(null);
+        assertNotNull(original, "guard: the record of #2 is kept: " + describe(marks));
+        assertEquals("bob", original.getUser(), "guard: the record of #2 names bob");
+        assertTrue(String.valueOf(original.getDetail()).contains("only from a permission window"),
+                "guard: the record of #2 says bob's permission came only from a permission window: " + original.getDetail());
+
+        List<ChangeRecord> added = newer(marks, before);
+        assertEquals(1, added.size(), "the administrator's re-run writes exactly one REPLAY_UNDER_GRANT record: " + describe(added));
+        ChangeRecord carried = added.get(0);
+        String detail = String.valueOf(carried.getDetail());
+        assertEquals("admin", carried.getUser(), "the record of #3 names the administrator who re-ran it");
+        assertTrue(detail.contains("#3"), "the record names run #3: " + detail);
+        assertFalse(detail.matches("(?s).*'admin',? whose permission.*"),
+                "#1.2: the record must not call the administrator a grant-only replayer: " + detail);
+        assertTrue(detail.contains("'bob'"), "#1.2: the record of the carried marker must name bob, who replayed the script under"
+                + " the permission window, not only the administrator who re-ran it: " + detail);
     }
 
     // ---------------------------------------------------------------- helpers
