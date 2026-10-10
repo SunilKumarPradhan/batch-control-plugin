@@ -76,6 +76,7 @@ Trigger*Test
 
 [permission windows]
 ActiveGrantsRealJenkinsTest ComputedItemWindowTest
+BlockedGrantRequestPermissionTest
 Grant*Test
 Window*Test
 JobGrantSidebarEntryTest
