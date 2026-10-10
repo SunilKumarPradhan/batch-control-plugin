@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * #1 (security-31 follow-ups): the Manage Jenkins review list of items changed under a permission window
- * after a restart. Matrix row T-02-190 (note 354).
+ * after a restart. Matrix rows T-02-190 and T-02-191 (notes 354 and 355).
  *
  * <p>Basis: SPEC item 2, the D-58b and D-58c lines ("the review surfaces list such runs"; "Guarding follows
  * renames and moves"; the state ends only through the explicit "Mark as reviewed" action); DECISIONS D-58a
@@ -85,7 +85,72 @@ public class MarkedRunRestartFollowUpTest {
         });
     }
 
+    /**
+     * T-02-191 (#1.4, S-30-06 = S-31-04, D-58b, SPEC 6 usability): Pipeline jobs {@code gone} and
+     * {@code kept}, each with a run bob replayed under his window, are listed. While Jenkins is down the
+     * directory of {@code gone} is removed. After the restart the list still names {@code gone} (premise),
+     * and its row offers a "Mark as reviewed" control (a POST to {@code markReviewed} for the item
+     * {@code gone}), as {@code kept}'s row does (guard). Using it as the administrator succeeds, writes one
+     * GUARD_REVIEWED record and removes {@code gone} from the list; {@code kept} stays listed (guard). On main
+     * the row of {@code gone} is a bare {@code <code>gone</code>} with no control.
+     */
+    @Test
+    public void t_02_191_staleListedNameCanBeMarkedReviewedFromTheList() throws Throwable {
+        session.then(r -> {
+            setUp(r);
+            markedPipeline(r, "gone");
+            markedPipeline(r, "kept");
+            Map<String, Row> before = monitor(r);
+            assertTrue(before.containsKey("gone") && before.containsKey("kept"), "premise: both jobs are listed: " + before);
+        });
+        java.nio.file.Path dir = session.getHome().toPath().resolve("jobs/gone");
+        assertTrue(java.nio.file.Files.isDirectory(dir), "premise: the job directory is " + dir);
+        try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+        }
+        session.then(r -> {
+            assertTrue(r.jenkins.getItemByFullName("gone") == null, "premise: gone no longer exists");
+            Map<String, Row> listed = monitor(r);
+            assertTrue(listed.containsKey("gone"), "premise (S-30-06): after the restart the list still names gone: " + listed);
+            assertTrue(listed.containsKey("kept") && reviewTarget(listed, "kept") != null,
+                    "guard: kept's row offers Mark as reviewed: " + listed);
+            String target = reviewTarget(listed, "gone");
+            assertNotNull(target, "#1.4: the listed stale name gone must offer a Mark as reviewed control (a POST to markReviewed"
+                    + " for gone), like every other row: " + listed);
+
+            int reviews = StrategyFixtures.records(io.jenkins.plugins.batchcontrol.model.ChangeType.GUARD_REVIEWED).size();
+            JenkinsRule.WebClient wc = r.createWebClient().withThrowExceptionOnFailingStatusCode(false).login("admin", "admin");
+            wc.getOptions().setRedirectEnabled(false);
+            org.htmlunit.WebRequest post = new org.htmlunit.WebRequest(new java.net.URL(r.getURL(), target), org.htmlunit.HttpMethod.POST);
+            wc.addCrumb(post);
+            int code = wc.getPage(post).getWebResponse().getStatusCode();
+            assertTrue(code < 400, "using the control must succeed, got " + code);
+            assertEquals(reviews + 1, StrategyFixtures.records(io.jenkins.plugins.batchcontrol.model.ChangeType.GUARD_REVIEWED).size(),
+                    "the review writes one GUARD_REVIEWED record");
+            Map<String, Row> after = monitor(r);
+            assertFalse(after.containsKey("gone"), "after the review gone is no longer listed: " + after);
+            assertTrue(after.containsKey("kept"), "guard: kept stays listed: " + after);
+        });
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /** The target of the row's review control that names {@code name} as its item, or null. */
+    static String reviewTarget(Map<String, Row> listed, String name) {
+        Row row = listed.get(name);
+        if (row == null) {
+            return null;
+        }
+        for (String target : row.reviewTargets) {
+            String query = target.contains("?") ? target.substring(target.indexOf('?') + 1) : "";
+            for (String pair : query.split("&")) {
+                if (pair.equals("item=" + java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8))) {
+                    return target;
+                }
+            }
+        }
+        return null;
+    }
 
     /** One listed item: the paths of its run links and the targets of its review controls. */
     static final class Row {
