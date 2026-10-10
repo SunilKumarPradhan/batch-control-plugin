@@ -323,6 +323,13 @@ UNITS = [
     Unit("r21-reject-color", 0.3, [("r21-arrange", py("r21/arrange.py")), ("r21-reject-color", py("r21/reject_color.py", "RGA"))],
          doc="e2e-21: approver-1's Reject button on the run, permission window and activation request pages renders in "
              "var(--destructive-color) (computed colour vs a probe), the Approve button does not"),
+    # e2e-27 D1 (Wave D, #18.4 and #18.7). r27/titles_revert.py arranges its own folder and items (r27-d1/*), cancels the
+    # requester's pending r27-d1 requests, and reverts the strategy through the moved entry, then restores the Batch
+    # Control strategy through the monitor's migrate endpoint. Weight: 0.4 min on a fresh stack (2026-10-10, local).
+    Unit("r27-titles-revert", 0.6, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+         doc="e2e-27 D1: run, grant and activation request pages titled 'Run request: <job>' etc. (title, heading, "
+             "breadcrumb; escaped) with an ID row and core's copy button; the revert entry hidden in the Batch Control "
+             "section's Advanced control and last; guards: revert still works and is Administer-only"),
     # e2e-25 #41 (Wave C-UI). r25/breadcrumb_menu.py arranges its own folder, job and accounts (r25-team, r25-folder-*)
     # and cancels the folder requester's pending request at its end.
     Unit("r25-breadcrumb-menu", 0.6, [("r25-breadcrumb-menu", py("r25/breadcrumb_menu.py"))],
