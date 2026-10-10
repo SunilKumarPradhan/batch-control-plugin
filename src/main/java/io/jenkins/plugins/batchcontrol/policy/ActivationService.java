@@ -716,7 +716,15 @@ public final class ActivationService {
             ActivationState state = store.loadActivationState(oldFullName);
             if (state != null) {
                 saveState(state.copyFor(newFullName));
-                deleteState(oldFullName);
+                if (store.isSameActivationFile(oldFullName, newFullName)) {
+                    // #32: a case-only rename on a case-insensitive file system: the file just written
+                    // is also the old name's, so it is kept (deleting it would end the activation at
+                    // the next restart) and given the new name's case.
+                    setCached(oldFullName, Cached.NOT_ACTIVATED);
+                    store.matchActivationFileCase(newFullName);
+                } else {
+                    deleteState(oldFullName);
+                }
             } else {
                 // A state left behind under the new name by an earlier job must not be inherited.
                 deleteState(newFullName);

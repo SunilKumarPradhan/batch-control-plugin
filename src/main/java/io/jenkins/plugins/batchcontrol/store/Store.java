@@ -205,6 +205,21 @@ public interface Store {
     /** Removes the activation state of a job; {@code true} if one existed. */
     boolean deleteActivationState(String jobFullName);
 
+    /**
+     * #32: whether the activation states of {@code oldFullName} and {@code newFullName} are stored in
+     * one file: a case-only rename ({@code Nightly} to {@code nightly}) on a case-insensitive file
+     * system (NTFS, default APFS), where deleting the old name's file would delete the new one's.
+     */
+    boolean isSameActivationFile(String oldFullName, String newFullName);
+
+    /**
+     * #32: gives the activation state file of {@code jobFullName} the exact case of its name when a
+     * case-insensitive file system still lists it under another case (after a case-only rename).
+     * The content is not touched; a file that cannot be renamed keeps its old case, which the same
+     * file system still finds under the new name.
+     */
+    void matchActivationFileCase(String jobFullName);
+
     /** Whether the one-time upgrade seeding marker {@code activations/.schema} exists. */
     boolean isActivationSchemaMarked();
 

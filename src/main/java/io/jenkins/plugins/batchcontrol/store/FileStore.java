@@ -637,6 +637,76 @@ public final class FileStore implements Store {
     }
 
     @Override
+    public boolean isSameActivationFile(String oldFullName, String newFullName) {
+        Objects.requireNonNull(oldFullName, "oldFullName");
+        Objects.requireNonNull(newFullName, "newFullName");
+        Path oldFile = activationFile(oldFullName);
+        Path newFile = activationFile(newFullName);
+        if (oldFile.equals(newFile)) {
+            return true;
+        }
+        if (!Files.exists(oldFile) || !Files.exists(newFile)) {
+            return false;
+        }
+        try {
+            return Files.isSameFile(oldFile, newFile);
+        } catch (IOException e) {
+            // Cannot be told apart: a name that differs in case only is taken to be the same file,
+            // so the caller keeps it rather than deleting what may be the new name's state.
+            LOGGER.log(Level.FINE, e, () -> "Could not compare " + oldFile + " and " + newFile);
+            return activationFileName(oldFullName).equalsIgnoreCase(activationFileName(newFullName));
+        }
+    }
+
+    @Override
+    public void matchActivationFileCase(String jobFullName) {
+        Objects.requireNonNull(jobFullName, "jobFullName");
+        String wanted = activationFileName(jobFullName);
+        Path target = PathCodec.resolveUnder(activationDir(), wanted);
+        ReentrantLock lock = lockFor(target);
+        lock.lock();
+        try {
+            String stored = storedName(target);
+            if (stored == null || stored.equals(wanted)) {
+                return;
+            }
+            // A case-only rename of one file: only an atomic rename reaches the file system (a plain
+            // Files.move sees the same file and does nothing).
+            Files.move(target.resolveSibling(stored), target, StandardCopyOption.ATOMIC_MOVE);
+            stored = storedName(target);
+            if (stored != null && !stored.equals(wanted)) {
+                // A file system that keeps the case on a rename onto the same name: via a temporary name.
+                Path tmp = target.resolveSibling("activation-case-" + System.nanoTime() + ".tmp");
+                Files.move(target.resolveSibling(stored), tmp, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+            }
+        } catch (IOException | RuntimeException e) {
+            LOGGER.log(Level.WARNING, e, () -> "Could not give the activation state file of '" + jobFullName
+                    + "' the case of its new name; it is still found under that name on this file system");
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** The name {@code file} is listed under in its directory (its case can differ), or {@code null} if none. */
+    @CheckForNull
+    private static String storedName(Path file) throws IOException {
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+            return null;
+        }
+        Path real = file.toRealPath(LinkOption.NOFOLLOW_LINKS).getFileName();
+        return real == null ? null : real.toString();
+    }
+
+    private Path activationFile(String jobFullName) {
+        return PathCodec.resolveUnder(activationDir(), activationFileName(jobFullName));
+    }
+
+    private static String activationFileName(String jobFullName) {
+        return PathCodec.encode(jobFullName) + ".xml";
+    }
+
+    @Override
     public boolean isActivationSchemaMarked() {
         return Files.isRegularFile(PathCodec.resolveUnder(activationDir(), ACTIVATION_SCHEMA_MARKER));
     }
