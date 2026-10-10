@@ -142,11 +142,17 @@ public class HistoryUsabilityTest {
 
     // ---------------------------------------------------------------- helpers
 
+    /**
+     * The text of the row whose run link reads {@code prefix} ("#1"). Since Wave D D3 (#6) the Run
+     * cell starts with the status icon and the job link, so the row no longer starts with "#n";
+     * the run link's own text is the same before and after.
+     */
     private static String rowStarting(HtmlPage page, String prefix) {
         for (DomElement tr : page.getElementsByTagName("tr")) {
-            String text = tr.asNormalizedText().trim();
-            if (text.startsWith(prefix + "\t") || text.startsWith(prefix + " ")) {
-                return text;
+            for (DomElement a : tr.getElementsByTagName("a")) {
+                if (a.asNormalizedText().trim().equals(prefix)) {
+                    return tr.asNormalizedText().trim();
+                }
             }
         }
         return null;
