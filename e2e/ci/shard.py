@@ -285,6 +285,13 @@ UNITS = [
     Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))],
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
+    # e2e-26 #32 (wave B). r26/case_rename.py deletes and re-creates its own items (r26-Nightly, r26-Weekly, folders r26-Team
+    # and r26-Ops), renames them through the script console, restarts Jenkins (last) and disables its timer jobs at its
+    # end. On the Linux CI volume (case-sensitive) it is the guard of the scenario; with compose.ci-fs.yml on a macOS host
+    # (case-insensitive store) it reproduces #32.
+    Unit("r26-case-rename", 1.5, [("r26-case-rename", py("r26/case_rename.py"))], last=True, group="job ui other roles",
+         doc="e2e-26 #32: after a case-only rename of a job and of a folder (Item.renameTo) and a restart, the jobs are still "
+             "activated and their timer runs; the file system kind of the store is named in every check"),
     Unit("r16-durable", 2.2, [("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
                               ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py"))],
          last=True, doc="e2e-16: a window's end survives a failed grant write and a restart (6325e85); e2e-19: pending and "
