@@ -48,6 +48,7 @@
 Request*Test
 RunRequest*Test
 JobRunSidebarEntryTest UnsavedExecutionRecoveryTest
+IdenticalPendingRequestTest
 
 [run approval and mail]
 Approv*Test
