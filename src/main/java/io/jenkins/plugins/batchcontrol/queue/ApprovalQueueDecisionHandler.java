@@ -178,8 +178,10 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
             ReplayUnderGrantAction inherited = source.run() == null ? null
                     : source.run().getAction(ReplayUnderGrantAction.class);
             if (inherited != null) {
-                // DEF-40: recorded as a marker inherited from the marked run, not as the submitter's grant.
-                actions.add(new ReplayUnderGrantAction(auth.getName(), inherited.getGrantId(), source.run().getNumber()));
+                // DEF-40: recorded as a marker inherited from the marked run, not as the submitter's grant;
+                // #1.2: it keeps naming the grant-only user who replayed the script.
+                actions.add(new ReplayUnderGrantAction(auth.getName(), inherited.getGrantId(), source.run().getNumber(),
+                        inherited.getReplayedBy()));
                 return;
             }
             if (!BatchControlGlobalConfiguration.get().isChangeControlEnabled()) {
