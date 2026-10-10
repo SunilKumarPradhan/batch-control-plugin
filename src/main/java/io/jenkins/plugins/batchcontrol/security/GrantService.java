@@ -589,11 +589,20 @@ public final class GrantService {
 
     /** The marked-run index follows a rename or move, and forgets a deleted item ({@code null}). */
     private void relocateMarkedRuns(String oldFullName, @CheckForNull String newFullName) {
-        for (String job : new ArrayList<>(markedRuns.keySet())) {
+        relocate(markedRuns, oldFullName, newFullName);
+    }
+
+    /**
+     * Moves the entries of {@code index} at or below {@code oldFullName} to {@code newFullName}
+     * (run ids included), or drops them when {@code newFullName} is {@code null}.
+     */
+    private static void relocate(java.util.Map<String, List<String>> index, String oldFullName,
+                                 @CheckForNull String newFullName) {
+        for (String job : new ArrayList<>(index.keySet())) {
             if (!job.equals(oldFullName) && !job.startsWith(oldFullName + "/")) {
                 continue;
             }
-            List<String> runs = markedRuns.remove(job);
+            List<String> runs = index.remove(job);
             if (runs == null || newFullName == null) {
                 continue;
             }
@@ -602,8 +611,22 @@ public final class GrantService {
             for (String runId : runs) {
                 renamed.add(moved + runId.substring(job.length()));
             }
-            markedRuns.put(moved, renamed);
+            index.merge(moved, renamed, GrantService::mergeRuns);
         }
+    }
+
+    /** {@code first}, then the runs of {@code second} it lacks, at most {@value #MAX_MARKED_RUNS}. */
+    private static List<String> mergeRuns(List<String> first, List<String> second) {
+        List<String> merged = new ArrayList<>(first);
+        for (String runId : second) {
+            if (merged.size() >= MAX_MARKED_RUNS) {
+                break;
+            }
+            if (!merged.contains(runId)) {
+                merged.add(runId);
+            }
+        }
+        return merged;
     }
 
     /** D-58c: a marked run started (called by the run listener). */
@@ -657,6 +680,12 @@ public final class GrantService {
      * Rebuilds the index once per session from the REPLAY_UNDER_GRANT records of the retained months
      * (the record's target is the job, its detail starts with "Run #n"). Bounded by
      * {@value #MARKED_RUN_RECORDS} records; a failure leaves the index as it is.
+     *
+     * <p>#1.3 (S-31-03): a record names the job as it was called when the run started. The RENAME,
+     * MOVE and DELETE records written since the oldest of those records (bounded the same way) are
+     * applied in order, as the live index applied them, so after a restart the runs are listed
+     * under the job's current name and a deleted job's runs are forgotten. What happened while
+     * nothing was recorded (both switches off, D-13) cannot be followed.
      */
     private void loadMarkedRunsOnce() {
         if (markedRunsLoaded) {
@@ -668,30 +697,113 @@ public final class GrantService {
             }
             markedRunsLoaded = true;
             try {
-                io.jenkins.plugins.batchcontrol.store.RecordPage<ChangeRecord> page = store.pageChangeRecords(
+                List<ChangeRecord> marks = oldestFirst(store.pageChangeRecords(
                         store.listStoredMonths(), r -> r.getType() == ChangeType.REPLAY_UNDER_GRANT,
-                        0, MARKED_RUN_RECORDS, MARKED_RUN_RECORDS * 20);
-                List<ChangeRecord> records = new ArrayList<>(page.getItems());
-                java.util.Collections.reverse(records); // oldest first, so prepend leaves the newest first
-                for (ChangeRecord record : records) {
-                    String detail = record.getDetail();
-                    if (record.getTarget() == null || detail == null || !detail.startsWith("Run #")) {
-                        continue;
-                    }
-                    int end = 5;
-                    while (end < detail.length() && Character.isDigit(detail.charAt(end))) {
-                        end++;
-                    }
-                    if (end > 5) {
-                        String runId = record.getTarget() + "#" + detail.substring(5, end);
-                        markedRuns.compute(record.getTarget(), (job, runs) -> runs != null && runs.contains(runId)
-                                ? runs : prepend(runs, runId));
+                        0, MARKED_RUN_RECORDS, MARKED_RUN_RECORDS * 20).getItems());
+                if (marks.isEmpty()) {
+                    return;
+                }
+                Instant since = marks.get(0).getAt();
+                List<ChangeRecord> events = new ArrayList<>(marks);
+                events.addAll(oldestFirst(store.pageChangeRecords(store.listStoredMonths(),
+                        r -> isRelocation(r.getType()) && (since == null || (r.getAt() != null && !r.getAt().isBefore(since))),
+                        0, MARKED_RUN_RECORDS, MARKED_RUN_RECORDS * 20).getItems()));
+                // Oldest first; at the same instant a run's start comes before a rename or move,
+                // which then moves it (a run started after a rename names the new name already).
+                events.sort(java.util.Comparator.comparing(ChangeRecord::getAt,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.<Instant>naturalOrder()))
+                        .thenComparing(r -> r.getType() == ChangeType.REPLAY_UNDER_GRANT ? 0 : 1));
+                java.util.Map<String, List<String>> rebuilt = new java.util.HashMap<>();
+                for (ChangeRecord record : events) {
+                    if (record.getType() == ChangeType.REPLAY_UNDER_GRANT) {
+                        String runId = markedRunId(record);
+                        if (runId != null) {
+                            rebuilt.compute(record.getTarget(), (job, runs) -> runs != null && runs.contains(runId)
+                                    ? runs : prepend(runs, runId));
+                        }
+                    } else {
+                        Relocation moved = relocation(record);
+                        if (moved != null) {
+                            relocate(rebuilt, moved.from(), moved.to());
+                        }
                     }
                 }
+                // Runs noted in this session before the first read already carry their current name.
+                rebuilt.forEach((job, runs) -> markedRuns.merge(job, runs, GrantService::mergeRuns));
             } catch (RuntimeException e) {
                 LOGGER.log(java.util.logging.Level.WARNING, "Could not rebuild the index of runs replayed under a grant", e);
             }
         }
+    }
+
+    private static List<ChangeRecord> oldestFirst(List<ChangeRecord> newestFirst) {
+        List<ChangeRecord> records = new ArrayList<>(newestFirst);
+        java.util.Collections.reverse(records);
+        return records;
+    }
+
+    private static boolean isRelocation(ChangeType type) {
+        return type == ChangeType.RENAME || type == ChangeType.MOVE || type == ChangeType.DELETE;
+    }
+
+    /** The run id ({@code job#n}) a REPLAY_UNDER_GRANT record names, or {@code null}. */
+    @CheckForNull
+    private static String markedRunId(ChangeRecord record) {
+        String detail = record.getDetail();
+        if (record.getTarget() == null || detail == null || !detail.startsWith("Run #")) {
+            return null;
+        }
+        int end = 5;
+        while (end < detail.length() && Character.isDigit(detail.charAt(end))) {
+            end++;
+        }
+        return end > 5 ? record.getTarget() + "#" + detail.substring(5, end) : null;
+    }
+
+    /** An item's full name before a rename or move, and after it ({@code null}: deleted). */
+    private record Relocation(String from, @CheckForNull String to) {
+    }
+
+    /**
+     * The old and new full names of a RENAME or MOVE record ({@code ItemChangeListener}'s texts,
+     * read against the record's target, the new full name), or the target and {@code null} for a
+     * DELETE record; {@code null} when the record does not say.
+     */
+    @CheckForNull
+    private static Relocation relocation(ChangeRecord record) {
+        String target = record.getTarget();
+        String detail = record.getDetail();
+        if (target == null || target.isEmpty()) {
+            return null;
+        }
+        if (record.getType() == ChangeType.DELETE) {
+            return new Relocation(target, null);
+        }
+        if (detail == null) {
+            return null;
+        }
+        if (record.getType() == ChangeType.RENAME) {
+            String prefix = "Renamed from '";
+            String suffix = "' to '" + target.substring(target.lastIndexOf('/') + 1) + "'";
+            if (!detail.startsWith(prefix) || !detail.endsWith(suffix) || detail.length() <= prefix.length() + suffix.length()) {
+                return null;
+            }
+            String oldName = detail.substring(prefix.length(), detail.length() - suffix.length());
+            String parent = GrantScope.parentOf(target);
+            return new Relocation(parent.isEmpty() ? oldName : parent + "/" + oldName, target);
+        }
+        if (record.getType() == ChangeType.MOVE) {
+            String prefix = "Moved from '";
+            String to = "' to '" + target + "'";
+            int at = detail.indexOf(to, prefix.length());
+            int end = at + to.length();
+            if (!detail.startsWith(prefix) || at <= prefix.length()
+                    || (end != detail.length() && !detail.startsWith("; ", end))) {
+                return null;
+            }
+            return new Relocation(detail.substring(prefix.length(), at), target);
+        }
+        return null;
     }
 
     /**
