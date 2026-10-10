@@ -1,12 +1,19 @@
 package io.jenkins.plugins.batchcontrol;
 
+import hudson.model.CauseAction;
 import hudson.model.Item;
+import hudson.model.Queue;
+import hudson.model.Run;
+import hudson.model.User;
+import hudson.security.ACL;
+import hudson.security.ACLContext;
 import io.jenkins.plugins.batchcontrol.config.BatchControlGlobalConfiguration;
 import io.jenkins.plugins.batchcontrol.model.ChangeRecord;
 import io.jenkins.plugins.batchcontrol.model.ChangeType;
 import io.jenkins.plugins.batchcontrol.model.GrantAction;
 import io.jenkins.plugins.batchcontrol.security.BatchControlMatrixAuthorizationStrategy;
 import io.jenkins.plugins.batchcontrol.store.BatchClock;
+import java.lang.reflect.Constructor;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -18,7 +25,9 @@ import org.htmlunit.WebRequest;
 import org.jenkinsci.plugins.matrixauth.PermissionEntry;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.cps.replay.ReplayAction;
+import org.jenkinsci.plugins.workflow.cps.replay.ReplayCause;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
+import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * #1 (security-31 and security-32 follow-ups): what a re-run of a run marked under a permission window
- * carries and records. Matrix rows T-02-188 and T-02-189 (notes 352 and 353).
+ * carries and records. Matrix rows T-02-188, T-02-189 and T-02-192 (notes 352, 353 and 356).
  *
  * <p>Basis: SPEC item 2, the D-58c line: "a run started by a Replay, Pipeline Rebuild or Restart from Stage
  * of a grant-only user carries a marker and a {@code REPLAY_UNDER_GRANT} record; ... re-running a marked run
@@ -157,7 +166,70 @@ public class MarkedRerunFollowUpTest {
                 + " the permission window, not only the administrator who re-ran it: " + detail);
     }
 
+    /**
+     * T-02-192 (#1.5, S-32-01, D-58c "a re-run whose source cannot be resolved is refused"): a Replay cause
+     * built from the unmarked build #3, which is then deleted, is submitted by anonymous (who holds
+     * Run/Replay): nothing is queued, and the TRIGGER_BLOCKED record says what fired, as for a person: the
+     * switch {@code unresolvedSource} and that the run it repeats could not be identified, not that a script
+     * was replayed under a permission window. On main the anonymous record says {@code switch=replayedUnderGrant}
+     * and "the run's script was replayed under a permission window". Guard: alice's same submission is
+     * refused and recorded with {@code switch=unresolvedSource} and "could not be identified".
+     */
+    @Test
+    public void t_02_192_unresolvedSourceIsRecordedAsUnresolvedForAnonymous() throws Exception {
+        WorkflowRun third = j.buildAndAssertSuccess(job);
+        hudson.model.Cause cause = replayCause(third);
+        third.delete();
+        org.junit.jupiter.api.Assertions.assertNull(job.getBuildByNumber(3), "premise: the source build #3 is deleted");
+
+        int before = StrategyFixtures.records(ChangeType.TRIGGER_BLOCKED).size();
+        try (ACLContext ignored = ACL.as2(User.getById("alice", true).impersonate2())) {
+            schedule(new CauseAction(cause));
+        }
+        assertNothingQueued(4);
+        List<ChangeRecord> person = newer(StrategyFixtures.records(ChangeType.TRIGGER_BLOCKED), before);
+        assertTrue(person.stream().anyMatch(r -> "alice".equals(r.getUser()) && unresolvedWording(String.valueOf(r.getDetail()))),
+                "guard: alice's refusal is recorded as an unresolved source: " + describe(person));
+
+        before = StrategyFixtures.records(ChangeType.TRIGGER_BLOCKED).size();
+        try (ACLContext ignored = ACL.as2(Jenkins.ANONYMOUS2)) {
+            schedule(new CauseAction(cause));
+        }
+        assertNothingQueued(4);
+        List<ChangeRecord> anonymous = newer(StrategyFixtures.records(ChangeType.TRIGGER_BLOCKED), before);
+        assertEquals(1, anonymous.size(), "anonymous's refusal writes one TRIGGER_BLOCKED record: " + describe(anonymous));
+        String detail = String.valueOf(anonymous.get(0).getDetail());
+        assertFalse(detail.contains("replayed under a permission window") || detail.contains("switch=replayedUnderGrant"),
+                "#1.5: a refused re-run whose source cannot be resolved must not be recorded as a replay under a permission window: " + detail);
+        assertTrue(unresolvedWording(detail), "#1.5: anonymous's record must use the unresolved wording a person gets"
+                + " (switch=unresolvedSource, the run it repeats could not be identified): " + detail);
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    private static boolean unresolvedWording(String detail) {
+        return detail.contains("switch=unresolvedSource") && detail.contains("could not be identified");
+    }
+
+    private void schedule(hudson.model.Action... actions) {
+        try {
+            Queue.getInstance().schedule2(job, 0, Arrays.asList(actions));
+        } catch (RuntimeException refused) {
+            // a refusal may surface as an exception; the queue is asserted either way
+        }
+    }
+
+    private static ReplayCause replayCause(Run<?, ?> original) throws Exception {
+        Constructor<ReplayCause> c = ReplayCause.class.getDeclaredConstructor(Run.class, boolean.class);
+        c.setAccessible(true);
+        return c.newInstance(original, false);
+    }
+
+    private void assertNothingQueued(int nextBuildNumber) throws Exception {
+        assertEquals(0, j.jenkins.getQueue().getItems().length, "nothing may be queued");
+        j.waitUntilNoActivity();
+        assertEquals(nextBuildNumber, job.getNextBuildNumber(), "no build number may be consumed");
+    }
 
     private void switchChangeControl(boolean on) {
         cfg.setChangeControlEnabled(on);
