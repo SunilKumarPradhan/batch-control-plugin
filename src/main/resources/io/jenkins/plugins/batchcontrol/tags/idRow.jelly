@@ -1,0 +1,15 @@
+<?jelly escape-by-default='true'?>
+<!-- #18.4 (Wave D, D1): the summary-table row of a request page that carries the request's full
+     id, since the page is titled with what the request is about. The id is shown whole, in code
+     style, followed by core's copy button (l:copyButton), which copies exactly that id. Escaped
+     by default. -->
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:l="/lib/layout">
+  <st:documentation>
+    A summary-table row headed "ID" with the full id and a copy button.
+    <st:attribute name="value" use="required">The full id.</st:attribute>
+  </st:documentation>
+  <tr>
+    <th style="text-align: left;">ID</th>
+    <td><code>${attrs.value}</code>${' '}<l:copyButton text="${attrs.value}" iconOnly="true" tooltip="Copy the ID" message="ID copied"/></td>
+  </tr>
+</j:jelly>
