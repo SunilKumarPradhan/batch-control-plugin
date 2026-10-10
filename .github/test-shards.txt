@@ -108,6 +108,7 @@ PluginInteraction*Test
 
 [audit history and storage]
 ChangeRecord*Test
+DiffAllocationTest
 ChangeControlWithoutMatrixAuthGapTest ChangesMonthDefaultTest ConfigAuditTest
 DatesClockZoneTest DiffSummaryAndDatesTest RecordHistoryGapTest RunRecordListenerTest
 Csv*Test
