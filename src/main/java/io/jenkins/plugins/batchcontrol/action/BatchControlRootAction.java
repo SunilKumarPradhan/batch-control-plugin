@@ -6,12 +6,14 @@ import hudson.ExtensionList;
 import hudson.model.RootAction;
 import hudson.security.Permission;
 import io.jenkins.plugins.batchcontrol.config.BatchControlConfigurationLink;
+import io.jenkins.plugins.batchcontrol.model.RequestStatus;
 import io.jenkins.plugins.batchcontrol.ui.GrantRequestLinks;
 import io.jenkins.plugins.batchcontrol.ui.GuardInfo;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.ReplayedRuns;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
 import io.jenkins.plugins.batchcontrol.ui.SectionTabs;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import java.util.List;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithContextMenu;
@@ -129,6 +131,15 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
      */
     public String pagerQuery(String parameter, long page) {
         return Paging.query(parameter, page);
+    }
+
+    /**
+     * #18.2: the readable label of a status or cause for {@code bc:status} ({@link StatusLabels}),
+     * reached through this action for the same reason as {@link #pagerQuery}. With
+     * {@code runRequest}, a run request's APPROVED reads "Approved, waiting to run".
+     */
+    public String statusLabel(@CheckForNull Enum<?> value, boolean runRequest) {
+        return runRequest && value instanceof RequestStatus status ? StatusLabels.ofRunRequest(status) : StatusLabels.of(value);
     }
 
     /** The tabs the viewer may open, with their open-item badges (overview page). */

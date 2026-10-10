@@ -54,7 +54,7 @@
                     </j:choose>
                   </td>
                   <td>${r.jobFullName}</td>
-                  <td>${r.causeType}</td>
+                  <td><bc:status value="${r.causeType}"/></td>
                   <td>${r.user}</td>
                   <td style="white-space: pre-wrap;">${it.parameters(r.parameters)}</td>
                   <td>${r.result}</td>

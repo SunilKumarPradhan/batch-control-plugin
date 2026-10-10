@@ -22,6 +22,7 @@ import io.jenkins.plugins.batchcontrol.store.RunMonthStats;
 import io.jenkins.plugins.batchcontrol.store.Store;
 import io.jenkins.plugins.batchcontrol.ui.CsvWriter;
 import io.jenkins.plugins.batchcontrol.ui.Dates;
+import io.jenkins.plugins.batchcontrol.ui.FilterOptions;
 import io.jenkins.plugins.batchcontrol.ui.FilterParser;
 import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
@@ -328,6 +329,31 @@ public class HistorySection implements ModelObject, StaplerProxy {
             }
         }
         return "runs";
+    }
+
+    /**
+     * #18.3: the Result dropdown's options ({@link FilterOptions#results}), on the tabs whose
+     * records carry a result (runs and incidents); {@code null} elsewhere, where the view keeps a
+     * result from the URL as a hidden field so switching tabs does not drop it.
+     */
+    @CheckForNull
+    public List<FilterOptions.Option> getResultOptions() {
+        String kind = getKind();
+        return "runs".equals(kind) || "incidents".equals(kind) ? FilterOptions.results(getFilter().getResult(), getFilter().getIgnoredResult()) : null;
+    }
+
+    /**
+     * #18.3: the Status dropdown's options: the incident statuses on incidents, the run request
+     * statuses on requests; {@code null} elsewhere (kept as a hidden field, as the result).
+     */
+    @CheckForNull
+    public List<FilterOptions.Option> getStatusOptions() {
+        String kind = getKind();
+        String status = getFilter().getStatus();
+        if ("incidents".equals(kind)) {
+            return FilterOptions.incidentStatuses(status, getFilter().getIgnoredStatus());
+        }
+        return "requests".equals(kind) ? FilterOptions.runRequestStatuses(status, getFilter().getIgnoredStatus()) : null;
     }
 
     /** The filter as a query fragment (no kind, no page) for CSV links. */

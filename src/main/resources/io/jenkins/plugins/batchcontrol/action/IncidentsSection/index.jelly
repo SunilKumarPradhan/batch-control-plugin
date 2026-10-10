@@ -67,7 +67,7 @@
                   </td>
                   <td>${i.jobFullName}</td>
                   <td>${i.result}</td>
-                  <td>${i.status}</td>
+                  <td><bc:status value="${i.status}"/></td>
                   <td>${it.format(it.createdAt(i))}</td>
                 </tr>
               </j:forEach>

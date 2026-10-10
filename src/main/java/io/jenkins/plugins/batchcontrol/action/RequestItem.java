@@ -23,6 +23,7 @@ import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import io.jenkins.plugins.batchcontrol.ui.RequestScope;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Instant;
@@ -278,6 +279,15 @@ public class RequestItem implements ModelObject {
     public boolean isQueueCancelled() {
         return request.getStatus() == RequestStatus.APPROVED && request.getExecutedRunId() == null
                 && request.getQueueCancelledAt() != null;
+    }
+
+    /**
+     * #18.2: the Status row's label ({@link StatusLabels#ofRunRequest}): an approved request reads
+     * "Approved, waiting to run", except once its queued run was cancelled, when it will not run
+     * and reads "Approved" (the row then says why).
+     */
+    public String getStatusLabel() {
+        return isQueueCancelled() ? StatusLabels.of(request.getStatus()) : StatusLabels.ofRunRequest(request.getStatus());
     }
 
     /**

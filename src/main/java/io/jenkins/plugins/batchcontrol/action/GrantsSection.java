@@ -32,6 +32,7 @@ import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.RecordLookup;
 import io.jenkins.plugins.batchcontrol.ui.ScopeDisplay;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Instant;
@@ -919,7 +920,7 @@ public class GrantsSection implements ModelObject, StaplerProxy {
             case INVALIDATED:
                 return "Invalidated";
             default:
-                return status.name().charAt(0) + status.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+                return StatusLabels.of(status);
         }
     }
 
