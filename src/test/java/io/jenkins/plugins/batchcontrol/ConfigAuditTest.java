@@ -363,9 +363,22 @@ public class ConfigAuditTest {
         fail("fixture: the settings form must offer an approver text field; form was: " + excerpt(form.asXml()));
     }
 
+    /**
+     * True if the page offers the revert anywhere in its DOM, visible or not: since #18.7 (Wave D,
+     * D1) the control sits inside core's Advanced control, whose body is hidden until Advanced is
+     * pressed, and it is a confirmation link that names its endpoint in {@code data-url}.
+     */
     private static boolean offersRevert(HtmlPage page) throws Exception {
-        if (page.asNormalizedText().contains("Revert to the plain strategy")) {
+        if (page.asNormalizedText().contains("Revert to the plain strategy")
+                || page.getDocumentElement().getTextContent().contains("Revert to the plain strategy")) {
             return true;
+        }
+        for (org.htmlunit.html.HtmlElement e : page.getHtmlElementDescendants()) {
+            for (String attribute : new String[] {"data-url", "formaction"}) {
+                if (e.getAttribute(attribute).contains("batch-control-strategy/revert")) {
+                    return true;
+                }
+            }
         }
         for (String action : UsabilityFixtures.formActions(page)) {
             if (action != null && action.contains("batch-control-strategy/revert")) {
