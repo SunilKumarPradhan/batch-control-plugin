@@ -279,9 +279,12 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
                             : "' - the run's script was replayed under a permission window"),
                     unresolved ? "unresolvedSource" : "replayedUnderGrant");
         } else {
-            recordTriggerBlocked(job, KIND_REPLAY, "replayedUnderGrant", "Blocked a re-run of job '"
-                    + job.getFullName() + "' build #" + source1 + " - the run's script was replayed under a"
-                    + " permission window");
+            // #1.5 (S-32-01): anonymous gets the same wording and switch as a person. SYSTEM never
+            // gets here: it holds Overall/Administer, so its re-run is let through above (D-58c).
+            recordTriggerBlocked(job, KIND_REPLAY, unresolved ? "unresolvedSource" : "replayedUnderGrant",
+                    "Blocked a re-run of job '" + job.getFullName() + "' build #" + source1
+                            + (unresolved ? " - the run it repeats could not be identified"
+                                    : " - the run's script was replayed under a permission window"));
         }
         if (CLICommand.getCurrent() != null) {
             throw new IllegalStateException(message);
