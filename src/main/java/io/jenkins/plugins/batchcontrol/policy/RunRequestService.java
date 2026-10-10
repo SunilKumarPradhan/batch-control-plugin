@@ -754,8 +754,7 @@ public final class RunRequestService {
                         + "may change the approvers of request " + id + ".");
             }
             if (request.getStatus() != RequestStatus.PENDING) {
-                throw new IllegalStateException("Request " + id + " is "
-                        + request.getStatus() + "; the approvers can only be changed while PENDING.");
+                throw new RequestNotPendingException("run request", request.getStatus());
             }
             // Resolved as SYSTEM after the requester check above (ApprovalPolicy.jobForPolicy).
             Job<?, ?> job = ApprovalPolicy.jobForPolicy(request.getJobFullName());

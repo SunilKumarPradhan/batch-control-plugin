@@ -611,8 +611,7 @@ public final class ActivationService {
                         + "may change the approvers of activation request " + id + ".");
             }
             if (request.getStatus() != RequestStatus.PENDING) {
-                throw new IllegalStateException("Activation request " + id + " is "
-                        + request.getStatus() + "; the approvers can only be changed while PENDING.");
+                throw new RequestNotPendingException("activation request", request.getStatus());
             }
             // Resolved as SYSTEM after the requester check above (ApprovalPolicy.jobForPolicy).
             Job<?, ?> job = ApprovalPolicy.jobForPolicy(request.getJobFullName());
