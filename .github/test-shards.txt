@@ -90,6 +90,7 @@ Authorization*Test
 FailClosedGapTest PlainMatrixMoveGuardTest ResponsePassThroughTest SecurityRegressionTest
 Guard*Test
 MarkedRerunFollowUpTest
+MarkedRunRestartFollowUpTest
 PermissionBoundaryGapTest
 # what a viewer is shown: actions, links, job URLs, section tabs
 ActionVisibilityTest JobUrlRoutingRealJenkinsTest ModelLinkTest RunLinkRuleTest
