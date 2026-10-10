@@ -715,11 +715,16 @@ public final class ActivationService {
         try {
             ActivationState state = store.loadActivationState(oldFullName);
             if (state != null) {
+                // #32: decided before the write, while only the old name's file exists. Asked after
+                // it, a Linux kernel over a case-insensitive host directory can still answer from the
+                // entry it cached for the old spelling ("another file"), and deleting that name then
+                // deletes the state just written.
+                boolean oneFile = store.isSameActivationFile(oldFullName, newFullName);
                 saveState(state.copyFor(newFullName));
-                if (store.isSameActivationFile(oldFullName, newFullName)) {
-                    // #32: a case-only rename on a case-insensitive file system: the file just written
-                    // is also the old name's, so it is kept (deleting it would end the activation at
-                    // the next restart) and given the new name's case.
+                if (oneFile) {
+                    // A case-only rename on a case-insensitive file system: the atomic write replaced
+                    // the one file both names find, so it is never deleted (that would end the
+                    // activation at the next restart), only given the new name's case.
                     setCached(oldFullName, Cached.NOT_ACTIVATED);
                     store.matchActivationFileCase(newFullName);
                 } else {

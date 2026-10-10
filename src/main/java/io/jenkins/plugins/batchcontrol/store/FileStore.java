@@ -640,21 +640,50 @@ public final class FileStore implements Store {
     public boolean isSameActivationFile(String oldFullName, String newFullName) {
         Objects.requireNonNull(oldFullName, "oldFullName");
         Objects.requireNonNull(newFullName, "newFullName");
-        Path oldFile = activationFile(oldFullName);
-        Path newFile = activationFile(newFullName);
-        if (oldFile.equals(newFile)) {
+        String oldName = activationFileName(oldFullName);
+        String newName = activationFileName(newFullName);
+        if (oldName.equals(newName)) {
             return true;
         }
-        if (!Files.exists(oldFile) || !Files.exists(newFile)) {
-            return false;
-        }
+        boolean caseOnly = oldName.equalsIgnoreCase(newName);
+        Path oldFile = PathCodec.resolveUnder(activationDir(), oldName);
+        Path newFile = PathCodec.resolveUnder(activationDir(), newName);
         try {
-            return Files.isSameFile(oldFile, newFile);
-        } catch (IOException e) {
-            // Cannot be told apart: a name that differs in case only is taken to be the same file,
-            // so the caller keeps it rather than deleting what may be the new name's state.
+            // #32: a probe file under a fresh name decides a case-only difference. A directory entry the
+            // kernel cached for either job name cannot answer for a name nobody looked up before (a
+            // Linux kernel over a case-insensitive host directory caches one entry per spelling, and
+            // a negative one for a spelling looked up before the file existed).
+            if (caseOnly && isCaseInsensitive(activationDir())) {
+                return true;
+            }
+            return Files.exists(oldFile, LinkOption.NOFOLLOW_LINKS) && Files.exists(newFile, LinkOption.NOFOLLOW_LINKS)
+                    && Files.isSameFile(oldFile, newFile);
+        } catch (IOException | RuntimeException e) {
+            // Cannot be told apart: a name that differs in case only is taken to be the same file, so
+            // the caller never deletes it (on a case-sensitive file system that only leaves the old
+            // name's file behind, which is not read for a job of any other name).
             LOGGER.log(Level.FINE, e, () -> "Could not compare " + oldFile + " and " + newFile);
-            return activationFileName(oldFullName).equalsIgnoreCase(activationFileName(newFullName));
+            return caseOnly;
+        }
+    }
+
+    /**
+     * Whether names that differ in case only name one file in {@code dir}: a probe file is created
+     * under a fresh name, looked up under its lower-case spelling, and removed. A dot file, so the
+     * {@code *.xml} listing never sees one a crash left behind.
+     */
+    private static boolean isCaseInsensitive(Path dir) throws IOException {
+        Files.createDirectories(dir);
+        Path probe = Files.createTempFile(dir, ".CaseProbe-", ".tmp");
+        try {
+            Path fileName = probe.getFileName();
+            if (fileName == null) {
+                return false;
+            }
+            Path lower = probe.resolveSibling(fileName.toString().toLowerCase(Locale.ROOT));
+            return Files.exists(lower, LinkOption.NOFOLLOW_LINKS) && Files.isSameFile(probe, lower);
+        } finally {
+            deleteQuietly(probe);
         }
     }
 
@@ -670,16 +699,11 @@ public final class FileStore implements Store {
             if (stored == null || stored.equals(wanted)) {
                 return;
             }
-            // A case-only rename of one file: only an atomic rename reaches the file system (a plain
-            // Files.move sees the same file and does nothing).
+            // A case-only rename of one file, in one atomic rename (a plain Files.move sees the same file
+            // and does nothing): a crash leaves it under one spelling or the other, and this file system
+            // finds it under both. Never via a temporary name, where a crash would hide the state from
+            // the next start. A file system that keeps the old case on this rename keeps it.
             Files.move(target.resolveSibling(stored), target, StandardCopyOption.ATOMIC_MOVE);
-            stored = storedName(target);
-            if (stored != null && !stored.equals(wanted)) {
-                // A file system that keeps the case on a rename onto the same name: via a temporary name.
-                Path tmp = target.resolveSibling("activation-case-" + System.nanoTime() + ".tmp");
-                Files.move(target.resolveSibling(stored), tmp, StandardCopyOption.ATOMIC_MOVE);
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
-            }
         } catch (IOException | RuntimeException e) {
             LOGGER.log(Level.WARNING, e, () -> "Could not give the activation state file of '" + jobFullName
                     + "' the case of its new name; it is still found under that name on this file system");
@@ -696,10 +720,6 @@ public final class FileStore implements Store {
         }
         Path real = file.toRealPath(LinkOption.NOFOLLOW_LINKS).getFileName();
         return real == null ? null : real.toString();
-    }
-
-    private Path activationFile(String jobFullName) {
-        return PathCodec.resolveUnder(activationDir(), activationFileName(jobFullName));
     }
 
     private static String activationFileName(String jobFullName) {
