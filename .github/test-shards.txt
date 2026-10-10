@@ -141,3 +141,5 @@ ConfigPagePolishTest ConfigUsabilityTest ConfigurationValidationGapTest Dashboar
 FilterFormCrumbTest FormRefusalUsabilityTest PolishMarkupTest SwitchSaveFailureTest
 XssEscapingTest
 Global*Test
+PageTitleIdRowTest
+RevertPlacementTest

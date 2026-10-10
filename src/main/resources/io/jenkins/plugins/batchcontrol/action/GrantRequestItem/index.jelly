@@ -10,9 +10,9 @@
      approval (GrantsSection#getTarget), with the message above the details and no forms. -->
 <j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form"
          xmlns:bc="/io/jenkins/plugins/batchcontrol/tags">
-  <l:layout title="Grant Request ${it.id}" type="one-column" permissions="${it.viewPermissions}">
+  <l:layout title="${it.displayName}" type="one-column" permissions="${it.viewPermissions}">
     <l:main-panel>
-      <l:app-bar title="Grant Request ${it.id}"/>
+      <l:app-bar title="${it.displayName}"/>
       <bc:tabs active="grants"/>
 
       <!-- DEF-09: a refusal whose form is no longer shown (the request was decided or cancelled
@@ -69,6 +69,7 @@
               <td style="white-space: pre-wrap;">${it.request.decisionComment}</td>
             </tr>
           </j:if>
+          <bc:idRow value="${it.id}"/>
         </tbody>
       </table>
 
