@@ -159,13 +159,16 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
      * natively puts the job into the "changed under a grant" state: the replayed script is a
      * configuration change that is never saved. Only reads the grant cache and, rarely, writes the
      * grant file; never throws.
+     *
+     * <p>#1.1 (S-31-01): a re-run of a marked run carries the marker whatever the switches say, so
+     * its script is still tracked once change control is on again. The marker is an invisible
+     * action and changes no Jenkins behaviour; refusing a re-run of it stays gated on the switch
+     * ({@link #refuseMarkedSource}). A new mark from a grant needs change control on, since only
+     * then does a window confer anything.
      */
     private static void markReplayUnderGrant(Queue.Task p, List<Action> actions) {
         try {
-            if (!(p instanceof Job) || !BatchControlGlobalConfiguration.get().isChangeControlEnabled()) {
-                return;
-            }
-            if (!isScriptRerun(actions)) {
+            if (!(p instanceof Job) || !isScriptRerun(actions)) {
                 return;
             }
             org.springframework.security.core.Authentication auth = Jenkins.getAuthentication2();
@@ -177,6 +180,9 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
             if (inherited != null) {
                 // DEF-40: recorded as a marker inherited from the marked run, not as the submitter's grant.
                 actions.add(new ReplayUnderGrantAction(auth.getName(), inherited.getGrantId(), source.run().getNumber()));
+                return;
+            }
+            if (!BatchControlGlobalConfiguration.get().isChangeControlEnabled()) {
                 return;
             }
             if (ACL.SYSTEM2.equals(auth) || ACL.isAnonymous2(auth)) {

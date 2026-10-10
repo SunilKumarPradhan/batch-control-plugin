@@ -17,6 +17,10 @@ import org.kohsuke.accmod.restrictions.NoExternalUse;
  * D-58c: when a run marked {@link ReplayUnderGrantAction} starts, a {@code REPLAY_UNDER_GRANT}
  * change record names the user, the run and the grant, and the run is added to the marked runs
  * the review surfaces list. Never throws.
+ *
+ * <p>#1.1: a re-run of a marked run is marked whatever the switches say. The record follows the
+ * activity gate of every other record (D-13, SPEC item 9: written while either switch is on), so
+ * with both switches off the run is marked and listed but nothing is written.
  */
 @Extension
 @Restricted(NoExternalUse.class)
@@ -32,6 +36,10 @@ public class ReplayUnderGrantListener extends RunListener<Run<?, ?>> {
         }
         String job = run.getParent().getFullName();
         String runId = job + "#" + run.getNumber();
+        if (!ChangeRecording.isActive()) {
+            GrantService.get().noteMarkedRun(job, runId);
+            return;
+        }
         try {
             String detail = marker.getInheritedFrom() != null
                     ? "Run #" + run.getNumber() + " was started by '" + marker.getUser() + "' as a re-run of run #"
