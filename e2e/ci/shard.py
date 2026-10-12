@@ -284,6 +284,12 @@ UNITS = [
          doc="e2e-25 #45: paging one list on the Run Requests, Grants or Activations page keeps the other lists' page "
              "parameters and pages; guards: the own list pages, every list honours its parameter, markup in a "
              "parameter is escaped"),
+    # e2e-26 #34 (wave B). r26/store_force.py re-creates its own item (r26-sf) and runs an strace sidecar
+    # (r26/strace.Dockerfile, --pid=container:<jenkins> --cap-add SYS_PTRACE) only for its traced section; the Jenkins
+    # container gets no extra capability. It revokes its window at its end.
+    Unit("r26-store-force", 0.5, [("r26-store-force", py("r26/store_force.py"))], group="job ui windows and disk",
+         doc="e2e-26 #34: fsync/fdatasync (strace) of the temporary file, the directory and the month file of a grant "
+             "approval, a revocation, a run request and its decision and an activation decision; writes behave as before"),
     Unit("role", 6.0, [
         ("role-setup", py("r14/role/setup.py")),
         ("role-manage", py("r14/role/manage_roles.py")),
@@ -327,6 +333,13 @@ UNITS = [
          doc="e2e-25 #42: every run link on History, the Run Dashboard, Incidents and the incident pages resolves (200) "
              "to the run's own URL for a matrix configuration; guards: a Freestyle job, a job in a folder, the matrix "
              "parent and the request page's executed run"),
+    # e2e-26 #33 (wave B). r26/month_zone.py writes its own items (r26-zone-*-<tag>, a new tag per run) with the plugin
+    # clock fixed for a moment, and re-creates the Jenkins container in another zone and back with `docker compose` from
+    # the container's labels (same JENKINS_HOME volume): two restarts (last).
+    Unit("r26-month-zone", 1.0, [("r26-month-zone", py("r26/month_zone.py"))], last=True, group="crawls and multibranch",
+         doc="e2e-26 #33: records written near a month boundary in one zone are listed for their day on the History runs "
+             "and changes listings and in runs.csv/changes.csv after the controller restarts in another zone (both "
+             "directions); the neighbouring day does not list them"),
     # e2e-21 (71d267b). r21/arrange.py is idempotent (item r21-reject).
     Unit("r21-reject-color", 0.3, [("r21-arrange", py("r21/arrange.py")), ("r21-reject-color", py("r21/reject_color.py", "RGA"))],
          doc="e2e-21: approver-1's Reject button on the run, permission window and activation request pages renders in "
