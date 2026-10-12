@@ -453,23 +453,32 @@ behind any of them.
 
 Releases are made by continuous delivery (JEP-229). The maintainer runs the CD
 workflow (`.github/workflows/cd.yaml`) by hand on `main`, and it publishes a
-version of the form `<revision>.<commit count>.v<commit hash>`, for example
-`1.0.1130.vabcdef456789`: the "manually controlled prefix" of the
+version of the form `<commit count>.v<commit hash>`, for example
+`1300.vabcdef456789`: the default format of the
 [CD documentation](https://www.jenkins.io/doc/developer/publishing/releasing-cd/).
-`revision` is a property in `pom.xml` (now `1.0`); the rest is set by the
-changelist extension (`.mvn/maven.config`, `-Dchangelist.format=%d.v%s`). A
-local build is `1.0.999999-SNAPSHOT`.
+`pom.xml` has `<version>${changelist}</version>`, and the changelist extension
+(`.mvn/extensions.xml`, and `.mvn/maven.config` with
+`-Dchangelist.format=%d.v%s`) fills it in at release time. A local build is
+`999999-SNAPSHOT`. The commit count only grows on `main`, so each release
+compares higher than the one before, as long as the history of `main` is never
+rewritten.
 
-- **Bump `revision` only for a new line**: `1.1` when a release adds features
-  worth marking, `2.0` when it breaks compatibility (settings, stored data or
-  behaviour). Do it in its own pull request, labelled like the change it marks.
-  The commit count keeps growing, so versions within a line and across lines
-  stay ordered (`1.0.1130.v…` < `1.0.1131.v…` < `1.1.1140.v…`).
-- **Never lower it.** Every new version must compare higher than every version
-  on the update center. The first release, `1124.vfe83a_6d946c3`, compares higher
-  than any `1.x` version, so it has to be removed from the update center once
-  `1.0.x` is out, and anyone who installed it reinstalls the plugin (see the
-  release notes of the first `1.0.x` release).
+- **No `${revision}` prefix.** The CD documentation also offers a "manually
+  controlled prefix", `${revision}.${changelist}`, which gives versions such as
+  `1.0.1300.v…`. It is not used: the first release, `1124.vfe83a_6d946c3`, is
+  already out in the default format, and Jenkins and the update center compare
+  `1.0.1300.v…` as **lower** than `1124.v…`, so the plugin manager would never
+  offer a later release as an update. A version must never go down.
+- **Before any change of the format** (`<version>` in `pom.xml` or
+  `changelist.format` in `.mvn/maven.config`), evaluate the version the next
+  release would get, on a clean checkout of the branch:
+  `mvn -q -Dset.changelist help:evaluate -Dexpression=project.version -DforceStdout`.
+  Compare it with the latest released version using `hudson.util.VersionNumber`
+  (`org.jenkins-ci:version-number`, the class Jenkins core and the update center
+  use), for example in `jshell` with that jar on the class path:
+  `new VersionNumber("<next>").isNewerThan(new VersionNumber("<latest>"))`.
+  Merge only if it is `true`, and put both versions and the result in the pull
+  request.
 
 The release notes are drafted by release-drafter from the
 titles and labels of the pull requests merged since the previous release, so:
