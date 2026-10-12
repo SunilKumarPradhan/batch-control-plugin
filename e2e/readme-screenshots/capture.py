@@ -279,7 +279,7 @@ def shot_permission_window():
 def shot_history():
     s = lib.Session("approver-1")
     s.go("/batch-control/history/?kind=requests")
-    save(s.page, "dashboard", s.page.get_by_text(re.compile(r"matching records")).first)
+    save(s.page, "history", s.page.get_by_text(re.compile(r"matching records")).first)
     s.done()
 
 
