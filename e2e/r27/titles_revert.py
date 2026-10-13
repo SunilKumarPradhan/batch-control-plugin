@@ -2,7 +2,7 @@
 core's copy button; the "Revert to the plain strategy" entry sits at the end of the Batch Control section inside core's
 Advanced control.
 
-usage: python titles_revert.py [ATGVELNCDXHRP]   rows: out/titles_revert.jsonl, shots: screenshots/run-27/R27-D1-*.png
+usage: python titles_revert.py [ATGVEFKLNCDXSHRP]   rows: out/titles_revert.jsonl, shots: screenshots/run-27/R27-D1-*.png
 Items (each name ends in -nightly-settlement, left out below: core cuts a breadcrumb wider than about 224 px and only
 then gives it a tooltip, so the titles must be long): folder r27-d1 with r27-d1/batch, r27-d1/act (not activated),
 r27-d1/hold (activated once through the real ACTIVATE flow, so a HOLD request can be filed), r27-d1/q"x'y{z} (core
@@ -33,6 +33,11 @@ E  #18.4 escaping (approver-1): the run, grant and activation request pages of r
    off at a quote; nothing is shown double-escaped; the run request page of "r27-d1/배치 a+b" reads the name as it is
    (not URL-encoded). Guard: markup cannot become a subject at all: core refuses an item name with <, > or &, and the
    plugin refuses a permission window request whose scope names no existing item (both 400, nothing stored).
+F  #18.4 a refusal re-rendered at the POST URL (approver-1 presses Reject without a comment on the run and on the
+   ACTIVATE request, HTTP 400 at …/reject): title, heading, breadcrumb, tooltip and ID row as on the page itself; the
+   breadcrumb links back to the request's page. Guard: the message, and the request still PENDING.
+K  #18.4 other kinds of subject (approver-1): a Pipeline job as the subject of a run request and of an ACTIVATE
+   request; a CONFIGURE window on the multibranch project team-mb ("Grant request: team-mb", cancelled afterwards).
 L  #18.4 top-level job (approver-1): "Run request: r27-d1-top", "Grant request: r27-d1-top" (DELETE),
    "Activation request: r27-d1-top".
 N  guards, who may not see a request: nobc (no Batch Control permission) and an anonymous visitor get an error page
@@ -43,12 +48,23 @@ C  guard, classic job page (the experimental flag off for approver-1 and admin, 
    placed the same on both configuration pages. The flags are put back.
 D  guard, decided requests: the rejected run request, the approved grant request (window open) and the cancelled
    activation request keep their titles and ID rows.
-X  a subject renamed afterwards: r27-d1/ren-a is re-created, a run request, an ACTIVATE request and an approved
-   CONFIGURE window name it, then the administrator renames it to r27-d1/ren-b. The run and activation requests are
-   INVALIDATED and keep the only name they have. The window follows its item (D-74); which name its page's title
-   shows is NOT judged here: the title must be one of the two names in all three places, and a NOTE says which and
-   what the Scope row shows. SPEC 8 (D-75 (1)) has the grant pages show a viewer who may read the item its current
-   name; r16/follow.py W and r17/s39.py R hold the whole page to that ("neither earlier name").
+X  a subject renamed or moved afterwards (T-UI-236..238, SPEC 8 D-74/D-75 (1)): the page of a permission window is
+   titled with the item its Scope row names for the same viewer. r27-d1/ren-a is re-created; a run request, an ACTIVATE
+   request and an approved CONFIGURE window (designated approvers approver-1 and approver-disc, who holds no
+   Item/Read) name it; the administrator renames it to ren-b, then to ren-c, then moves it into r27-d1-vault, a folder
+   only administrators read. After each step, for a viewer who may read the item where it is (requester, approver-1,
+   manager, admin; after the move admin only): title, heading, breadcrumb and tooltip read
+   "Grant request: <current name>", no earlier name is in any of them, and the Scope row names the same item. For a
+   viewer who may open the page but not read the item (approver-disc from the first rename on; requester, approver-1
+   and manager after the move): the three read exactly "Grant request: r27-d1/ren-a", the name as approved, the Scope
+   row adds the fixed "moved" note, and neither the new name nor the vault is anywhere in the page's HTML (as rendered
+   and as served) or in the answers of the page's contextMenu, childrenContextMenu and api/json. Also: a PENDING
+   request that was never approved keeps the name it was made for when its item is renamed (T-UI-238); a window on a
+   job below a renamed folder follows; the run and activation requests, INVALIDATED by the rename, keep their name.
+   (The same title after a restart: r27/title_restart.py, run inside the unit r16-durable.)
+S  #18.4 requests that ran or expired: the run request approved in A on the activated job is EXECUTED; the run, window
+   and ACTIVATE requests on r27-d1/exp, made two hours old in the store in A, were expired by the plugin's periodic
+   work. Titles and ID rows as everywhere else.
 H  #18.4 ID row over plain HTTP on a host that is not localhost (not a "secure context", where core's copy button
    cannot write the clipboard; a second browser reaches the same Jenkins as http://r27-plain-http.test): the row still
    shows the full id as text; core disables the button and its tooltip says "Copy is only supported with a secure
@@ -63,14 +79,19 @@ R  #18.7 (administrator) on Manage Jenkins > System and on the Batch Control con
    then offers neither the entry nor an Advanced button); the driver restores the Batch Control strategy through the
    monitor's migrate endpoint (entries unchanged) and repeats this on the second page. A refused save of the Batch
    Control page re-renders the entry inside Advanced; a save with Advanced open changes neither strategy nor switches.
-   Who gets it: manager (BatchControl/Manage) opens the Batch Control page and finds no revert, not even hidden, and
-   Advanced tells them to ask an administrator; manager cannot open Manage Jenkins > System; requester, approver-1 and
-   nobc can open neither page. The endpoint: GET 405 for the administrator, POST 403 for everyone else and for the
-   administrator without a crumb; the strategy stays installed after all of them.
+   Escape on the confirmation posts nothing either. Who gets it (T-UI-239): manager (BatchControl/Manage) opens the
+   Batch Control page and reads "Only a Jenkins administrator can change the authorization strategy." as the page
+   loads, in the section, outside any Advanced body; the section has no Advanced button for them; nothing of the
+   revert is rendered, not even hidden; manager cannot open Manage Jenkins > System; requester, approver-1 and nobc
+   can open neither page. The endpoint: GET 405 for the administrator, POST 403 for everyone else and for the
+   administrator without a crumb; the strategy stays installed after all of them; the administrator's own crumbed POST
+   (REST, no browser) installs the plain strategy with every entry kept (restored through migrate).
+   (Holders of Overall/Manage and Overall/SystemRead: r27/revert_permissions.py.)
 P  #18.7 under the role strategy ("Batch Control: Role-Based Strategy" applied through JCasC for this section; the
-   matrix strategy object is saved first and put back): the same placement on both pages; OK (from System) installs the
-   plain RoleBasedAuthorizationStrategy with every role kept; manager (a global role with BatchControl/Manage) is
-   offered no revert and gets 403.
+   matrix strategy object is saved first and put back): the same placement on both pages; pressed from each page, OK
+   installs the plain RoleBasedAuthorizationStrategy with every role kept (the Batch Control role strategy is
+   re-installed through migrate in between); manager (a global role with BatchControl/Manage) reads the sentence
+   without Advanced, is offered no revert and gets 403.
 cleanup: the saved strategy put back if section P left the role profile; the Batch Control strategy restored if a
 section left the plain one; approver-1's job page flag on; the requester's pending r27-d1 requests cancelled and windows
 revoked."""
@@ -93,7 +114,13 @@ FOLDER = "r27-d1"
 TAIL = "-nightly-settlement"
 BATCH, ACT, HOLD = f"{FOLDER}/batch{TAIL}", f"{FOLDER}/act{TAIL}", f"{FOLDER}/hold{TAIL}"
 ODD, UNI, TOP = FOLDER + "/q\"x'y{z}" + TAIL, FOLDER + "/배치 a+b" + TAIL, "r27-d1-top" + TAIL
-JOBS = (BATCH, ACT, HOLD, ODD, UNI, TOP)
+EXP, PIPE, MB = f"{FOLDER}/exp{TAIL}", f"{FOLDER}/pipe{TAIL}", "team-mb"
+JOBS = (BATCH, ACT, HOLD, ODD, UNI, TOP, EXP)
+VAULT = "r27-d1-vault"
+REN = tuple(f"{FOLDER}/ren-{x}{TAIL}" for x in "abc")
+PEND = (f"{FOLDER}/pend-a{TAIL}", f"{FOLDER}/pend-b{TAIL}")
+FOLD, FOLD_JOB = (f"{FOLDER}/fold-a", f"{FOLDER}/fold-b"), "job" + TAIL
+MOVED = " (moved; its new location is not visible to you)"
 REN_A, REN_B = f"{FOLDER}/ren-a{TAIL}", f"{FOLDER}/ren-b{TAIL}"
 VIEWERS = ("requester", "approver-1", "manager", "admin")
 S = {}
@@ -137,7 +164,10 @@ PAGE_JS = """([stem, full]) => { const n = t => (t || '').replace(/\\s+/g, ' ').
     carrying++; if (!a.value.includes(full)) cut.push({tag: e.tagName.toLowerCase(), attr: a.name, value: a.value.slice(0, 120)}); } });
   const shown = document.body.innerText;
   return {title: document.title, h1: [...document.querySelectorAll('h1')].map(h => n(h.innerText)),
-    crumbs: crumbs.map(li => n(li.innerText)), last_current: last ? last.getAttribute('aria-current') : null, tips, rows,
+    crumbs: crumbs.map(li => n(li.innerText)), last_current: last ? last.getAttribute('aria-current') : null,
+    last_href: last && last.querySelector('a') ? last.querySelector('a').getAttribute('href') : null, tips, rows,
+    scope: (() => { const th = [...document.querySelectorAll('#main-panel table tr > th')].find(x => n(x.textContent) === 'Scope');
+      return th && th.parentElement.querySelector('td') ? n(th.parentElement.querySelector('td').innerText) : null; })(),
     carrying, cut, entities: ['&quot;', '&#39;', '&apos;', '&amp;', '&lt;', '&#'].filter(x => shown.includes(x))}; }"""
 
 
@@ -174,6 +204,67 @@ def settings():
   notify: cfg.notifyBeforeExpiryMinutes, selfApproval: cfg.allowAdminSelfApproval])""")
 
 
+def window_of(rid):
+    """Server state: the permission window of grant request `rid` ({} when it has none): the item it names now and
+    whether it is open."""
+    return lib.facts("""def f = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control/grants/""" + rid + """.xml')
+if (!f.exists()) return '{}'
+def x = new XmlSlurper().parse(f)
+return groovy.json.JsonOutput.toJson([scope: x.scope.fullName.text(), open: x.revokedAtMillis.text() == ''
+  && ((x.expiresAtMillis.text() ?: '0') as long) > System.currentTimeMillis()])""")
+
+
+def exists(item):
+    return api("admin", lib.jpath(item) + "/api/json").status_code == 200
+
+
+def remove(*items):
+    """Arrangement: deletes the items that exist (administrator, REST)."""
+    return {i: api("admin", lib.jpath(i) + "/doDelete", "POST").status_code for i in items if exists(i)}
+
+
+def rename(item, leaf):
+    """Arrangement: the administrator renames `item` (core's confirmRename, as the Rename page posts it)."""
+    return api("admin", lib.jpath(item) + "/confirmRename", "POST", data={"newName": leaf}).status_code
+
+
+def move(item, dest):
+    """Arrangement: the administrator moves `item` into the folder `dest` (the folders plugin's move/move)."""
+    return api("admin", lib.jpath(item) + "/move/move", "POST", data={"destination": "/" + dest}).status_code
+
+
+def may_read(item, users):
+    """Server state: who of `users` holds Item/Read on `item` (false when it does not exist)."""
+    return lib.facts("""import hudson.model.*
+def i = jenkins.model.Jenkins.get().getItemByFullName(""" + json.dumps(item) + """)
+return groovy.json.JsonOutput.toJson(""" + json.dumps(list(users)) + """.collectEntries { u ->
+  [u, i != null && i.getACL().hasPermission2(User.getById(u, true).impersonate2(), Item.READ)] })""")
+
+
+def ensure_vault():
+    """Arrangement (as r18/arrange.py): the folder r27-d1-vault, whose matrix blocks inheritance, so that only
+    administrators read what is inside (D-75 (1))."""
+    return gv("""def j = jenkins.model.Jenkins.get(); def vault = j.getItem('""" + VAULT + """')
+if (vault == null) { vault = j.createProject(com.cloudbees.hudson.plugins.folder.Folder, '""" + VAULT + """')
+  def uber = j.pluginManager.uberClassLoader
+  def prop = uber.loadClass('com.cloudbees.hudson.plugins.folder.properties.AuthorizationMatrixProperty').getConstructor(List).newInstance([])
+  prop.setInheritanceStrategy(uber.loadClass('org.jenkinsci.plugins.matrixauth.inheritance.NonInheritingStrategy').getConstructor().newInstance())
+  vault.addProperty(prop); vault.save(); return 'created' }
+return 'exists'""")
+
+
+def backdate(pairs, hours=2):
+    """Arrangement: makes the stored requests `pairs` ((kind, id), ...) `hours` old by rewriting createdAtMillis in
+    their files, so that the plugin's own periodic work expires them (pendingTimeoutHours cannot be set below 1, and
+    the plugin clock cannot be moved ahead on a shared Jenkins: the store refuses appends more than 60 s out of order)."""
+    return gv("""def root = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control'); def out = []
+def old = System.currentTimeMillis() - """ + str(hours) + """ * 3600 * 1000L
+""" + json.dumps([[lib.STORE_DIRS[k], v] for k, v in pairs]) + """.each { d, id -> def f = new File(root, d + '/' + id + '.xml')
+  def t = f.getText('UTF-8'); def n = t.replaceFirst(/<createdAtMillis>\\d+<\\/createdAtMillis>/, '<createdAtMillis>' + old + '</createdAtMillis>')
+  if (n != t) { f.setText(n, 'UTF-8'); out << id } }
+return out.size()""")
+
+
 def anonymous(path, method="GET"):
     return requests.request(method, lib.BASE + path, allow_redirects=False, timeout=60)
 
@@ -188,7 +279,8 @@ def sec_A():
     lib.ensure_folder(FOLDER)
     xml = lib.job_xml("fs", shell="echo e2e-27 D1")
     created = {n: lib.ensure_item(n, xml) for n in JOBS}
-    props = {n: lib.set_property(n, approval=True) for n in JOBS}
+    created[PIPE] = lib.ensure_item(PIPE, lib.job_xml("wf", script="echo 'e2e-27 D1'"))
+    props = {n: lib.set_property(n, approval=True) for n in JOBS + (PIPE,)}
     swept = lib.sweep("requester", FOLDER)
     S["hold_before"] = activation_of(HOLD)
     if S["hold_before"] != "activated":  # the real flow, once per Jenkins: ACTIVATE requested and approved
@@ -204,47 +296,80 @@ def sec_A():
     for key, job in (("act", ACT), ("act_odd", ODD), ("act_top", TOP)):
         S[key] = lib.submit_activation("requester", job, "ACTIVATE", f"e2e-27 D1 activation ({key})")
     S["hold"] = lib.submit_activation("requester", HOLD, "HOLD", "e2e-27 D1 hold")
+    S["run_pipe"] = lib.submit_run("requester", PIPE, "e2e-27 D1 titles (Pipeline job)")
+    S["act_pipe"] = lib.submit_activation("requester", PIPE, "ACTIVATE", "e2e-27 D1 activation (Pipeline job)")
+    S["grant_mb"] = lib.submit_grant("requester", MB, ["CONFIGURE"], reason="e2e-27 D1 window on a multibranch project")
+    S["run_exp"] = lib.submit_run("requester", EXP, "e2e-27 D1 titles (left to expire)")
+    S["grant_exp"] = lib.submit_grant("requester", EXP, ["CONFIGURE"], reason="e2e-27 D1 window (left to expire)")
+    S["act_exp"] = lib.submit_activation("requester", EXP, "ACTIVATE", "e2e-27 D1 activation (left to expire)")
     keys = ("run", "run_odd", "run_uni", "run_top", "run_hold", "grant", "grant_odd", "grant_folder", "grant_top", "act",
-            "act_odd", "act_top", "hold")
+            "act_odd", "act_top", "hold", "run_pipe", "act_pipe", "grant_mb", "run_exp", "grant_exp", "act_exp")
     ids = {k: S[k][1] for k in keys}
     kinds = {k: lib.stored("run" if k.startswith("run") else "grant" if k.startswith("grant") else "activation", v)
              for k, v in ids.items() if v}
-    check("A", "arrangement: six jobs that need approval (five in the folder r27-d1, one top-level); r27-d1/hold is "
-          "activated, r27-d1/act is not; five run, four grant, three ACTIVATE and one HOLD request filed (REST, requester), "
-          "each stored PENDING", all(ids.values()) and all("approvalRequired=true" in p for p in props.values())
+    kind_of = {n: (api("admin", lib.jpath(n) + "/api/json?tree=_class").json() or {}).get("_class", "").rsplit(".", 1)[-1]
+               for n in (BATCH, PIPE, MB)}
+    check("A", "arrangement: seven Freestyle jobs and one Pipeline job that need approval (seven in the folder r27-d1, one "
+          "top-level) and the multibranch project team-mb; r27-d1/hold is activated, r27-d1/act is not; seven run, six "
+          "grant, five ACTIVATE and one HOLD request filed (REST, requester), each stored PENDING",
+          all(ids.values()) and all("approvalRequired=true" in p for p in props.values())
+          and kind_of == {BATCH: "FreeStyleProject", PIPE: "WorkflowJob", MB: "WorkflowMultiBranchProject"}
           and S["hold_state"] == "activated" and S["act_state"] == "not activated"
           and all(v.get("status") == "PENDING" and v.get("requester") == "requester" for v in kinds.values()),
           created=created, swept=swept, ids=ids, codes={k: S[k][0] for k in keys}, hold_before=S["hold_before"],
-          hold_activated_by=S.get("hold_activated_by"), activation={"hold": S["hold_state"], "act": S["act_state"]})
+          hold_activated_by=S.get("hold_activated_by"), activation={"hold": S["hold_state"], "act": S["act_state"]},
+          kinds=kind_of)
+    # For section S, started now so that the unit does not wait for it: the run request on the activated job is approved
+    # and runs; the three requests on r27-d1/exp are made two hours old, for the periodic work to expire them.
+    S["ran"] = lib.decide("approver-1", "requests", S["run_hold"][1], "approve", "e2e-27 D1 run it") if S["run_hold"][1] else None
+    S["backdated"] = backdate((("run", S["run_exp"][1]), ("grant", S["grant_exp"][1]), ("activation", S["act_exp"][1]))) \
+        if all(S[k][1] for k in ("run_exp", "grant_exp", "act_exp")) else None
 
 
 # ---------------------------------------------------------------- one request page
-def titled(sec, who, kind, key, expected, what, shot, copy=False, either=None, name=None, cut=True):
-    """Opens the request S[key] of `kind` (run | grant | activation) as `who` and checks the titles and the ID row.
-    `either`: a second accepted title (T-UI-232: a HOLD page). `name`: (stem, full) of a job name with quotes.
-    `cut`: the title is long, so core cuts the breadcrumb and gives it a tooltip."""
+def titled(sec, who, kind, key, expected, what, shot, **kw):
+    """Opens the request S[key] of `kind` (run | grant | activation) as `who` and judges the page (judge())."""
     rid = S[key][1]
     s = Session(who)
     r = s.go(f"/batch-control/{lib.KIND_URL[kind]}/{rid}/")
+    shown = judge(sec, s, r.status if r else None, who, kind, rid, expected, what, shot, **kw)
+    s.done()
+    return shown
+
+
+def judge(sec, s, status, who, kind, rid, expected, what, shot, copy=False, either=None, name=None, cut=True,
+          want_status=200, absent=(), scope=None, raw_absent=()):
+    """The checks of one request page as `s` shows it now: the titles and the ID row.
+    `either`: a second accepted title (T-UI-232: a HOLD page). `name`: (stem, full) of a job name with quotes.
+    `cut`: the title is long, so core cuts the breadcrumb and gives it a tooltip. `want_status`: the HTTP status the
+    page was answered with (400: a refusal re-rendered at a POST URL). `absent`: names that title, heading,
+    breadcrumbs and tooltip must not hold. `scope`: the exact text of the Scope row, whose item the title must name.
+    `raw_absent`: strings that the page's HTML (as rendered and as served) and the answers of the page's
+    contextMenu, childrenContextMenu and api/json must not hold. Returns the title shown."""
     if cut:  # core's script adds the tooltip after it measured the breadcrumb
-        lib._r6.until(s.page, lambda: s.page.locator(".jenkins-breadcrumbs__list-item[aria-current] [tooltip]").count(), 3000)
+        lib._r6.until(s.page, lambda: s.page.locator(".jenkins-breadcrumbs__list-item").last.locator("[tooltip]").count(), 3000)
     p = s.page.evaluate(PAGE_JS, list(name or ("", "")))
     t = lib.titles(s.page)
     lib.page_shot(s, f"{shot}-page")
     s.shot("#main-panel table", f"{shot}-summary")
-    check(sec, f"guard: {who} opens the {what} page (200)", r is not None and r.status == 200,
-          status=r.status if r else None)
+    check(sec, f"guard: {who} opens the {what} page (200)" if want_status == 200 else
+          f"guard: {who} is answered the {what} page with HTTP {want_status}", status == want_status, status=status)
     accepted = [expected] + ([either] if either else [])
     check(sec, f"D1 #18.4 title: the {what} page's <title>, app bar heading and last breadcrumb read "
           + " or ".join(f"'{x}'" for x in accepted) + f" ({who})",
           t[0] in accepted and list(t) == [t[0]] * 3 and p["title"] == t[0] + " - Jenkins",
           expected=accepted, shown=t, document_title=p["title"])
+    # At the page's own URL core marks the last breadcrumb as the current page; a refusal is rendered at the POST URL
+    # below it (…/reject), where core keeps that breadcrumb a link back to the request's page.
+    own_url = want_status == 200
     check(sec, f"D1 #18.4 title: the id is in none of the {what} page's title, heading and breadcrumbs, the heading is "
-          f"the page's only h1 and the last breadcrumb is the current page ({who})",
-          all(x and rid not in x for x in t) and not any(rid in c for c in p["crumbs"]) and p["h1"] == [t[1]]
-          and p["last_current"] == "page", id=rid, shown=t, h1=p["h1"], breadcrumbs=p["crumbs"])
-    # Core 2.568.3 renders the current page's breadcrumb as a <span>; its script gives the span a `tooltip` (and
-    # `title`) with the full text only when the text is wider than the breadcrumb's 224 px and is shown cut.
+          "the page's only h1 and the last breadcrumb is " + ("the current page" if own_url else "a link to the request's "
+          "page") + f" ({who})", all(x and rid not in x for x in t) and not any(rid in c for c in p["crumbs"])
+          and p["h1"] == [t[1]] and (p["last_current"] == "page" if own_url else (p["last_href"] or "").endswith(f"/{rid}/")),
+          id=rid, shown=t, h1=p["h1"], breadcrumbs=p["crumbs"], last=[p["last_current"], p["last_href"]])
+    # Core 2.568.3 renders the current page's breadcrumb as a <span> and gives it a `tooltip` (and `title`) with the
+    # full text only when the text is long (27 characters and more were seen with one, 26 and fewer without) and the
+    # breadcrumb, at most 224 px wide, shows it cut.
     tips = p["tips"]
     tooltip = [x["value"] for x in tips if x["attr"] == "tooltip"]
     if cut:
@@ -264,6 +389,26 @@ def titled(sec, who, kind, key, expected, what, shot, copy=False, either=None, n
           len(rows) == 1 and row.get("table") == 0 and {"Status", "Requester"} <= set(row.get("headers", []))
           and row.get("cell") == rid and row.get("code") == rid and len(btn) == 1 and btn[0].get("text") == rid
           and btn[0].get("tooltip") == "Copy the ID", id=rid, rows=rows)
+    crumb_texts = list(t) + list(p["crumbs"]) + [x["value"] for x in tips]
+    if absent:
+        check(sec, f"guard (T-UI-236/237): none of the {what} page's title, heading, breadcrumbs and tooltip holds "
+              + " or ".join(f"'{x}'" for x in absent) + f" ({who})",
+              not [x for x in crumb_texts for a in absent if x and a in x], shown=t, tooltips=[x["value"] for x in tips])
+    if scope is not None:
+        check(sec, f"D1 #18.4 (T-UI-236/237): the {what} page's title names the item its Scope row names for {who}: "
+              f"'{scope}'", p["scope"] == scope and t[0] == expected and scope.startswith("Freestyle project ")
+              and scope[len("Freestyle project "):].split(" (moved")[0] == t[0][len("Grant request: "):],
+              scope_row=p["scope"], title=t[0])
+    if raw_absent:
+        page = f"/batch-control/{lib.KIND_URL[kind]}/{rid}/"
+        served = {"page": api(who, page)}
+        served.update({x: api(who, page + x) for x in ("contextMenu", "childrenContextMenu", "api/json")})
+        html = s.page.content()
+        found = {a: [k for k, v in served.items() if a in v.text] + (["rendered"] if a in html else []) for a in raw_absent}
+        check(sec, f"guard (D-75 (1), T-UI-237): the HTML of {who}'s {what} page, as rendered and as served, and the "
+              "answers of its contextMenu, childrenContextMenu and api/json hold none of "
+              + ", ".join(f"'{x}'" for x in raw_absent), served["page"].status_code == 200 and len(html) > 2000
+              and not any(found.values()), found=found, status={k: v.status_code for k, v in served.items()})
     if name:
         check(sec, f"guard (escaping): on the {what} page no attribute holds the name cut off at a quote and nothing is "
               f"shown double-escaped ({who}); {p['carrying']} attribute(s) carry the name", not p["cut"] and not p["entities"],
@@ -292,7 +437,6 @@ def titled(sec, who, kind, key, expected, what, shot, copy=False, either=None, n
               f"full id on the clipboard and marks the button copied ({who}, {what})",
               bool(usable) and "Copy the ID" in hover and clip == rid and marked, clipboard=clip, id=rid, hover=hover,
               marked=marked, enabled=usable)
-    s.done()
     return t[0]
 
 
@@ -357,6 +501,45 @@ return groovy.json.JsonOutput.toJson([n: d.exists() ? d.listFiles().length : 0])
           "no request stored)", all(v == 400 for v in made.values()) and all(v == 404 for v in exists.values())
           and all(tuple(v) == (400, None) for v in asked.values()) and after == before, create=made, items=exists,
           window_requests={k: list(v) for k, v in asked.items()}, stored_before=before, stored_after=after)
+
+
+# ---------------------------------------------------------------- F: a refusal re-rendered at the POST URL
+def sec_F():
+    cases = (("run", "run", f"Run request: {BATCH}", "run request"),
+             ("activation", "act", f"Activation request: {ACT}", "activation request"))
+    for i, (kind, key, expected, what) in enumerate(cases, 1):
+        rid = S[key][1]
+        s = Session("approver-1")
+        s.go(f"/batch-control/{lib.KIND_URL[kind]}/{rid}/")
+        form = s.page.locator("form[name=reject]")
+        status = None
+        if form.count():  # Reject without a comment: the plugin refuses and re-renders the page inside the POST
+            with s.page.expect_navigation() as nav:
+                form.locator("button[name=Submit], button[type=submit], input[type=submit]").first.click()
+            s.page.wait_for_load_state("load")
+            status = nav.value.status if nav.value else None
+        url, text = s.page.url.replace(lib.BASE, ""), norm(s.text())
+        judge("F", s, status, "approver-1", kind, rid, expected, f"refused rejection of the {what}",
+              f"R27-D1-F-0{i}-{key}-request-rejection-refused", want_status=400)
+        s.done()
+        check("F", f"guard: the refusal of the {what}'s rejection is the request's own page at the POST URL …/reject, "
+              "says 'Enter a rejection comment', and the request is still PENDING",
+              url == f"/batch-control/{lib.KIND_URL[kind]}/{rid}/reject" and "Enter a rejection comment" in text
+              and lib.stored(kind, rid).get("status") == "PENDING", url=url,
+              state=lib.stored(kind, rid).get("status"), text=text[:300])
+
+
+# ---------------------------------------------------------------- K: other kinds of subject
+def sec_K():
+    titled("K", "approver-1", "run", "run_pipe", f"Run request: {PIPE}", "run request (Pipeline job)",
+           "R27-D1-K-01-run-request-pipeline")
+    titled("K", "approver-1", "activation", "act_pipe", f"Activation request: {PIPE}", "activation request (Pipeline job)",
+           "R27-D1-K-02-activation-request-pipeline")
+    titled("K", "approver-1", "grant", "grant_mb", f"Grant request: {MB}", "grant request (CONFIGURE, multibranch project)",
+           "R27-D1-K-03-grant-request-multibranch", cut=False)
+    gone = api("requester", f"/batch-control/grants/{S['grant_mb'][1]}/cancel", "POST").status_code
+    check("K", "arrangement: the requester cancelled the window request on team-mb (an item this unit does not own)",
+          lib.stored("grant", S["grant_mb"][1]).get("status") == "CANCELLED", code=gone)
 
 
 def sec_L():
@@ -435,36 +618,114 @@ def sec_D():
 
 # ---------------------------------------------------------------- X: the subject renamed afterwards
 def sec_X():
-    for n in (REN_A, REN_B):
-        if api("admin", lib.jpath(n) + "/api/json").status_code == 200:
-            api("admin", lib.jpath(n) + "/doDelete", "POST")
-    lib.ensure_item(REN_A, lib.job_xml("fs", shell="echo e2e-27 D1"))
-    lib.set_property(REN_A, approval=True)
-    S["run_ren"] = lib.submit_run("requester", REN_A, "e2e-27 D1 renamed later")
-    S["act_ren"] = lib.submit_activation("requester", REN_A, "ACTIVATE", "e2e-27 D1 renamed later")
-    S["grant_ren"] = lib.submit_grant("requester", REN_A, ["CONFIGURE"], reason="e2e-27 D1 renamed later")
-    approved = lib.decide("approver-1", "grants", S["grant_ren"][1], "approve", "e2e-27 D1") if S["grant_ren"][1] else None
-    renamed = api("admin", lib.jpath(REN_A) + "/confirmRename", "POST", data={"newName": REN_B.rsplit("/", 1)[1]}).status_code
-    state = {"run": lib.stored("run", S["run_ren"][1]).get("status"), "activation": lib.stored("activation", S["act_ren"][1]).get("status"),
-             "grant": lib.stored("grant", S["grant_ren"][1]).get("status"),
-             "old": api("admin", lib.jpath(REN_A) + "/api/json").status_code, "new": api("admin", lib.jpath(REN_B) + "/api/json").status_code}
-    check("X", "arrangement: a run request, an ACTIVATE request and an approved CONFIGURE window name r27-d1/ren-a; the "
-          "administrator renamed it to r27-d1/ren-b (the two requests are INVALIDATED, the window stays APPROVED)",
-          state == {"run": "INVALIDATED", "activation": "INVALIDATED", "grant": "APPROVED", "old": 404, "new": 200},
-          approved=approved, renamed=renamed, state=state)
-    titled("X", "approver-1", "run", "run_ren", f"Run request: {REN_A}", "run request (job renamed afterwards)",
-           "R27-D1-X-01-run-request-renamed")
-    titled("X", "approver-1", "activation", "act_ren", f"Activation request: {REN_A}",
-           "activation request (job renamed afterwards)", "R27-D1-X-02-activation-request-renamed")
-    shown = titled("X", "requester", "grant", "grant_ren", f"Grant request: {REN_B}",
-                   "grant request (item renamed under its window)", "R27-D1-X-03-grant-request-renamed",
-                   either=f"Grant request: {REN_A}")
-    r = api("requester", f"/batch-control/grants/{S['grant_ren'][1]}/")
-    m = re.search(r"Scope (.*?) Actions", lib.text_of(r.text))
-    note("X", "not judged here (SPEC 8, D-75 (1); r16/follow.py W and r17/s39.py R judge it): the name in the title of a "
-         "window whose item was renamed, for a viewer who may read the item, next to what its Scope row shows",
-         title=shown, title_names="the current name" if shown.endswith(REN_B) else "the name as approved (the item no "
-         "longer has it)" if shown.endswith(REN_A) else "neither", scope_row=m.group(1) if m else None)
+    leaf = lambda full: full.rsplit("/", 1)[1]  # noqa: E731
+    in_vault = f"{VAULT}/{leaf(REN[2])}"
+    removed = remove(in_vault, *REN, *PEND, *FOLD)
+    vault = ensure_vault()
+    xml = lib.job_xml("fs", shell="echo e2e-27 D1")
+    for n in (REN[0], PEND[0]):
+        lib.ensure_item(n, xml)
+    lib.set_property(REN[0], approval=True)
+    lib.ensure_folder(FOLD[0])
+    lib.ensure_item(f"{FOLD[0]}/{FOLD_JOB}", xml)
+    S["run_ren"] = lib.submit_run("requester", REN[0], "e2e-27 D1 renamed later")
+    S["act_ren"] = lib.submit_activation("requester", REN[0], "ACTIVATE", "e2e-27 D1 renamed later")
+    S["grant_ren"] = lib.submit_grant("requester", REN[0], ["CONFIGURE"], minutes=30, reason="e2e-27 D1 renamed later",
+                                      approvers=("approver-1", "approver-disc"))
+    S["grant_pend"] = lib.submit_grant("requester", PEND[0], ["CONFIGURE"], reason="e2e-27 D1 never approved, renamed")
+    S["grant_fold"] = lib.submit_grant("requester", f"{FOLD[0]}/{FOLD_JOB}", ["CONFIGURE"], minutes=30,
+                                       reason="e2e-27 D1 folder renamed later")
+    gid, pid, fid = S["grant_ren"][1], S["grant_pend"][1], S["grant_fold"][1]
+    approved = [lib.decide("approver-1", "grants", x, "approve", "e2e-27 D1") if x else None for x in (gid, fid)]
+    check("X", "arrangement: approved CONFIGURE windows on r27-d1/ren-a (designated approvers approver-1 and approver-disc, "
+          "who holds no Item/Read) and on r27-d1/fold-a/job, a PENDING window request on r27-d1/pend-a, a run and an ACTIVATE "
+          "request on r27-d1/ren-a; the vault folder lets only administrators read",
+          window_of(gid) == {"scope": REN[0], "open": True} and window_of(fid) == {"scope": f"{FOLD[0]}/{FOLD_JOB}", "open": True}
+          and window_of(pid) == {} and lib.stored("grant", pid).get("status") == "PENDING"
+          and may_read(REN[0], VIEWERS + ("approver-disc",)) == {**{u: True for u in VIEWERS}, "approver-disc": False},
+          approved=approved, removed=removed, vault=vault, window=window_of(gid))
+    reader = lambda name: "Freestyle project " + name  # noqa: E731
+    elsewhere = reader(REN[0]) + MOVED
+    titled("X", "requester", "grant", "grant_ren", f"Grant request: {REN[0]}", "window request before the rename",
+           "R27-D1-X-01-window-before-rename", scope=reader(REN[0]))
+
+    # ---- the first rename: the window follows; a pending request does not; a folder above the item counts as well
+    done = {"ren": rename(REN[0], leaf(REN[1])), "pend": rename(PEND[0], leaf(PEND[1])), "fold": rename(FOLD[0], leaf(FOLD[1]))}
+    state = {"window": window_of(gid), "folder_window": window_of(fid), "pending": lib.stored("grant", pid).get("status"),
+             "pending_window": window_of(pid), "run": lib.stored("run", S["run_ren"][1]).get("status"),
+             "activation": lib.stored("activation", S["act_ren"][1]).get("status"),
+             "read": may_read(REN[1], VIEWERS + ("approver-disc",))}
+    check("X", "arrangement: the administrator renamed ren-a to ren-b, pend-a to pend-b and the folder fold-a to fold-b: "
+          "both windows are open and name the new full names, the pending request is still PENDING without a window, "
+          "the run and ACTIVATE requests are INVALIDATED; approver-disc may not read ren-b, the other four may",
+          state == {"window": {"scope": REN[1], "open": True}, "folder_window": {"scope": f"{FOLD[1]}/{FOLD_JOB}", "open": True},
+                    "pending": "PENDING", "pending_window": {}, "run": "INVALIDATED", "activation": "INVALIDATED",
+                    "read": {**{u: True for u in VIEWERS}, "approver-disc": False}}, codes=done, state=state)
+    for i, who in enumerate(VIEWERS, 2):
+        titled("X", who, "grant", "grant_ren", f"Grant request: {REN[1]}", "window whose item was renamed (a reader)",
+               f"R27-D1-X-0{i}-window-renamed-{who}", absent=(REN[0],), scope=reader(REN[1]))
+    titled("X", "approver-disc", "grant", "grant_ren", f"Grant request: {REN[0]}",
+           "window whose item was renamed (a viewer who may not read the item)", "R27-D1-X-06-window-renamed-approver-disc",
+           absent=(REN[1],), scope=elsewhere, raw_absent=("ren-b",))
+    for i, who in enumerate(("requester", "approver-1"), 7):
+        titled("X", who, "grant", "grant_pend", f"Grant request: {PEND[0]}", "never approved window request whose item was "
+               "renamed", f"R27-D1-X-0{i}-pending-renamed-{who}", absent=(PEND[1],))
+    for i, who in enumerate(("requester", "admin"), 9):
+        titled("X", who, "grant", "grant_fold", f"Grant request: {FOLD[1]}/{FOLD_JOB}", "window on an item below a renamed "
+               "folder", f"R27-D1-X-{i:02d}-window-folder-renamed-{who}", absent=(FOLD[0] + "/",),
+               scope=reader(f"{FOLD[1]}/{FOLD_JOB}"))
+    titled("X", "approver-1", "run", "run_ren", f"Run request: {REN[0]}", "run request (job renamed afterwards)",
+           "R27-D1-X-11-run-request-renamed")
+    titled("X", "approver-1", "activation", "act_ren", f"Activation request: {REN[0]}",
+           "activation request (job renamed afterwards)", "R27-D1-X-12-activation-request-renamed")
+
+    # ---- a second rename is followed
+    done = rename(REN[1], leaf(REN[2]))
+    check("X", "arrangement: the administrator renamed ren-b to ren-c; the window is open and names ren-c",
+          window_of(gid) == {"scope": REN[2], "open": True}, code=done, window=window_of(gid))
+    for i, who in enumerate(("requester", "approver-1", "admin"), 13):
+        titled("X", who, "grant", "grant_ren", f"Grant request: {REN[2]}", "window whose item was renamed twice (a reader)",
+               f"R27-D1-X-{i}-window-renamed-twice-{who}", absent=(REN[0], REN[1]), scope=reader(REN[2]))
+    titled("X", "approver-disc", "grant", "grant_ren", f"Grant request: {REN[0]}",
+           "window whose item was renamed twice (a viewer who may not read the item)",
+           "R27-D1-X-16-window-renamed-twice-approver-disc", absent=(REN[1], REN[2]), scope=elsewhere,
+           raw_absent=("ren-b", "ren-c"))
+
+    # ---- moved to where only administrators read
+    done = move(REN[2], VAULT)
+    read = may_read(in_vault, VIEWERS + ("approver-disc",))
+    check("X", "arrangement: the administrator moved ren-c into r27-d1-vault; the window is open and names it there; only "
+          "admin may read it", window_of(gid) == {"scope": in_vault, "open": True}
+          and read == {"requester": False, "approver-1": False, "manager": False, "admin": True, "approver-disc": False},
+          code=done, window=window_of(gid), read=read)
+    for i, who in enumerate(("requester", "approver-1", "manager", "approver-disc"), 17):
+        titled("X", who, "grant", "grant_ren", f"Grant request: {REN[0]}",
+               "window whose item was moved out of the viewer's sight", f"R27-D1-X-{i}-window-moved-{who}",
+               absent=(VAULT, REN[2]), scope=elsewhere,
+               raw_absent=(VAULT,) + (("ren-b", "ren-c") if who == "approver-disc" else ()))
+    titled("X", "admin", "grant", "grant_ren", f"Grant request: {in_vault}", "window whose item was moved (administrator)",
+           "R27-D1-X-21-window-moved-admin", absent=(FOLDER + "/ren-",), scope=reader(in_vault))
+
+
+# ---------------------------------------------------------------- S: requests that ran or expired
+def sec_S():
+    ran = lib.wait_until(lambda: lib.stored("run", S["run_hold"][1]).get("status") == "EXECUTED", timeout=120, step=3)
+    exp = {"run": S["run_exp"][1], "grant": S["grant_exp"][1], "activation": S["act_exp"][1]}
+    lib.wait_until(lambda: all(lib.stored(k, v).get("status") == "EXPIRED" for k, v in exp.items()), timeout=180, step=5)
+    state = {k: lib.stored(k, v).get("status") for k, v in exp.items()}
+    check("S", "arrangement: the approved run request on the activated job ran (EXECUTED); the run, window and ACTIVATE "
+          "requests on r27-d1/exp, made two hours old in the store, were expired by the plugin's periodic work "
+          "(pendingTimeoutHours is 1, its minimum)", bool(ran) and state == {k: "EXPIRED" for k in exp},
+          approve=S.get("ran"), backdated=S.get("backdated"), executed=lib.stored("run", S["run_hold"][1]).get("status"),
+          expired=state)
+    titled("S", "requester", "run", "run_hold", f"Run request: {HOLD}", "executed run request",
+           "R27-D1-S-01-run-request-executed")
+    titled("S", "requester", "run", "run_exp", f"Run request: {EXP}", "expired run request",
+           "R27-D1-S-02-run-request-expired")
+    titled("S", "approver-1", "grant", "grant_exp", f"Grant request: {EXP}", "expired grant request",
+           "R27-D1-S-03-grant-request-expired")
+    titled("S", "requester", "activation", "act_exp", f"Activation request: {EXP}", "expired activation request",
+           "R27-D1-S-04-activation-request-expired")
 
 
 # ---------------------------------------------------------------- H: plain HTTP, not a secure context
@@ -617,6 +878,15 @@ def revert_through(sec, s, path, tag, n, plain):
     s.page.on("response", lambda r: posts.append((r.status, r.url)) if r.request.method == "POST" else None)
     ctl = s.page.locator(REVERT_SEL).filter(visible=True).first
     ctl.click()
+    esc = lib.opened(s.page)
+    closed = False
+    if esc:
+        s.page.keyboard.press("Escape")
+        closed = lib.gone(s.page)
+    check(sec, f"guard: {path}: Escape closes the revert confirmation, posts nothing and keeps {before}",
+          bool(esc) and closed and not posts and lib.strategy() == before, opened=esc, closed=closed, posts=list(posts),
+          strategy=lib.strategy())
+    ctl.click()
     ok = lib.opened(s.page)
     s.shot("dialog[open]", f"R27-D1-{sec}-{n}3-{tag}-revert-confirmation")
     dlg_text = norm(s.page.locator("dialog[open]").first.inner_text()) if ok else None
@@ -651,6 +921,40 @@ def revert_through(sec, s, path, tag, n, plain):
           "entry nor an Advanced button", gone["section"] and not gone["controls"] and not gone["advanced"]
           and REVERT_TEXT not in html, controls=gone["controls"], advanced_buttons=gone["advanced"])
     return kept
+
+
+HOLDER_JS = """(sentence) => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length) && getComputedStyle(e).visibility !== 'hidden';
+  const sec = document.querySelector('[name="_.runControlEnabled"]')?.closest('section') || null;
+  const holds = [...document.querySelectorAll('#main-panel *')].filter(e => n(e.textContent).includes(sentence));
+  const inner = holds.filter(e => !holds.some(o => o !== e && e.contains(o)));
+  return {section: !!sec, sentence: inner.map(e => ({text: n(e.textContent), displayed: vis(e), inSection: !!(sec && sec.contains(e)),
+      inAdvancedBody: !!e.closest('.advancedBody')})),
+    advancedButtons: sec ? sec.querySelectorAll('button.advanced-button, button.advancedButton').length : null,
+    advancedBodies: sec ? sec.querySelectorAll('.advancedBody').length : null,
+    fields: sec ? sec.querySelectorAll('[name^="_."]').length : 0}; }"""
+
+
+def told_without_advanced(sec, who, path, shot, what):
+    """T-UI-239 for a viewer who is no administrator and is shown the Batch Control section on `path`: the sentence
+    naming whom to ask is displayed as the page loads, in the section, outside any Advanced body; the section has no
+    Advanced control; nothing of the revert is rendered. Nothing is pressed."""
+    s = Session(who)
+    r = s.go(path)
+    h = s.page.evaluate(HOLDER_JS, ASK_ADMIN)
+    st = s.page.evaluate(STATE_JS, REVERT_SEL)
+    html = s.page.content()
+    end_shot(s, shot)
+    s.done()
+    one = h["sentence"][0] if len(h["sentence"]) == 1 else {}
+    check(sec, f"guard (T-UI-239): {what} opens {path} (200) and reads '{ASK_ADMIN}' as the page loads, nothing pressed: "
+          "displayed, in the Batch Control section, not inside div.advancedBody; the section has no Advanced button and "
+          "no Advanced body", r is not None and r.status == 200 and h["section"] and one.get("text") == ASK_ADMIN
+          and one.get("displayed") is True and one.get("inSection") is True and one.get("inAdvancedBody") is False
+          and h["advancedButtons"] == 0 and h["advancedBodies"] == 0, status=r.status if r else None, page=h)
+    check(sec, f"guard: {what} is offered no revert on {path}, not even hidden: no control in the DOM, neither its URL "
+          "nor its caption in the HTML", r is not None and r.status == 200 and not st["controls"] and REVERT not in html
+          and REVERT_TEXT not in html, controls=st["controls"])
 
 
 def refused(who, method="POST", crumb=True):
@@ -701,33 +1005,11 @@ def sec_R():
           "settings", open_ == 1 and status is not None and status < 400 and lib.strategy() == matrix
           and settings() == cfg, status=status, strategy=lib.strategy(), before=cfg, after=settings())
     # who gets it
-    m = Session("manager")
-    r = m.go(CONFIG_PAGES[1][0])
-    html = m.page.content()
-    st = m.page.evaluate(STATE_JS, REVERT_SEL)
-    hidden = list(st["hiddenText"])
-    adv = m.page.locator(f"{SECTION} button.advanced-button")
-    pressed = adv.count()
-    if pressed:
-        adv.first.click()
-        lib._r6.until(m.page, lambda: m.page.get_by_text(ASK_ADMIN).first.is_visible(), 3000)
-    told = m.page.get_by_text(ASK_ADMIN).first.is_visible() if m.page.get_by_text(ASK_ADMIN).count() else False
-    after = m.page.evaluate(STATE_JS, REVERT_SEL)
-    end_shot(m, "R27-D1-R-41-manager-bc-config-advanced-open")
-    r2 = m.go(CONFIG_PAGES[0][0])
-    html2 = m.page.content()
-    m.done()
-    check("R", "guard: the BatchControl/Manage holder (manager) opens the Batch Control page (200) and is offered no "
-          "revert, not even hidden, before or after pressing Advanced", r is not None and r.status == 200
-          and not st["controls"] and not after["controls"] and REVERT not in html and REVERT_TEXT not in html,
-          page=r.status if r else None, advanced_buttons=pressed)
-    check("R", "guard: the manager is told whom to ask ('" + ASK_ADMIN + "')", told, shown=told, advanced_buttons=pressed,
-          advanced_text=hidden)
-    note("R", "UX: the manager reads that sentence only after pressing Advanced, which then holds no setting and no "
-         "button for them", advanced_buttons=pressed, advanced_text=hidden)
+    told_without_advanced("R", "manager", CONFIG_PAGES[1][0], "R27-D1-R-41-manager-bc-config",
+                          "the BatchControl/Manage holder (manager)")
+    r2 = api("manager", CONFIG_PAGES[0][0])
     check("R", "guard: the manager cannot open Manage Jenkins > System (403) and its page names no revert",
-          r2 is not None and r2.status == 403 and REVERT not in html2 and REVERT_TEXT not in html2,
-          status=r2.status if r2 else None)
+          r2.status_code == 403 and REVERT not in r2.text and REVERT_TEXT not in r2.text, status=r2.status_code)
     pages = {f"{who or 'anonymous'} {path}": (api(who, path) if who else anonymous(path))
              for who in ("requester", "approver-1", "nobc", None) for path, _, _ in CONFIG_PAGES}
     check("R", "guard: requester, approver-1, nobc and an anonymous visitor open neither configuration page (403) and are "
@@ -740,6 +1022,16 @@ def sec_R():
           "approver-1, nobc, an anonymous visitor and the administrator without a crumb; the Batch Control strategy is "
           "still installed", codes.pop("admin GET") == 405 and all(v == 403 for v in codes.values())
           and lib.strategy() == matrix, codes=codes, strategy=lib.strategy())
+    # the endpoint itself, without a browser: the administrator's POST with a crumb
+    kept = entries()
+    r = api("admin", "/manage/" + REVERT, "POST")
+    after, after_entries = lib.strategy(), entries()
+    restored = lib.restore_strategy()
+    check("R", "guard: the administrator's own POST of the revert endpoint with a crumb (REST, no browser) is answered "
+          "below 400 and installs the plain ProjectMatrixAuthorizationStrategy with every entry kept; the Batch Control "
+          "strategy is then restored through migrate", r.status_code < 400 and after == "ProjectMatrixAuthorizationStrategy"
+          and after_entries == kept and restored[1] == matrix and entries() == kept, status=r.status_code, after=after,
+          restored=restored)
 
 
 def role_profile(apply):
@@ -768,23 +1060,19 @@ def sec_P():
         check("P", "arrangement: 'Batch Control: Role-Based Strategy' installed through JCasC (admin: Administer; "
               "manager: Overall/Read + BatchControl/Manage)", role == "BatchControlRoleBasedAuthorizationStrategy",
               before=matrix, strategy=role)
-        path, tag, _ = CONFIG_PAGES[0]
-        s = revert_place("P", path, tag + "-role", 1, role)
-        m = Session("manager")
-        r = m.go(CONFIG_PAGES[1][0])
-        html = m.page.content()
-        st = m.page.evaluate(STATE_JS, REVERT_SEL)
-        m.done()
+        told_without_advanced("P", "manager", CONFIG_PAGES[1][0], "R27-D1-P-41-manager-bc-config-role",
+                              "under the role strategy the holder of a role with BatchControl/Manage (manager)")
         post = refused("manager")
-        check("P", "guard: under the role strategy the BatchControl/Manage holder opens the Batch Control page (200), is "
-              "offered no revert, not even hidden, and the endpoint answers 403; the role strategy stays",
-              r is not None and r.status == 200 and not st["controls"] and REVERT not in html and REVERT_TEXT not in html
-              and post == 403 and lib.strategy() == role, page=r.status if r else None, post=post, strategy=lib.strategy())
-        s2 = revert_place("P", CONFIG_PAGES[1][0], CONFIG_PAGES[1][1] + "-role", 2, role)
-        if s2 is not None:
-            s2.done()
-        if s is not None:
-            revert_through("P", s, path, tag + "-role", 1, "RoleBasedAuthorizationStrategy")
+        check("P", "guard: under the role strategy the manager's POST of the revert answers 403 and the role strategy "
+              "stays", post == 403 and lib.strategy() == role, post=post, strategy=lib.strategy())
+        for path, tag, n in CONFIG_PAGES:  # pressed from each page; the Batch Control role strategy re-installed between
+            s = revert_place("P", path, tag + "-role", n, role)
+            if s is None:
+                continue
+            kept = revert_through("P", s, path, tag + "-role", n, "RoleBasedAuthorizationStrategy")
+            again = lib.restore_strategy()
+            check("P", "arrangement: the Batch Control role strategy installed again through the monitor's migrate "
+                  "endpoint, every role kept", again[1] == role and entries() == kept, restored=again)
     finally:
         back = role_profile(False)
     check("P", "arrangement: the saved matrix strategy is installed again with its entries", back == matrix
@@ -793,8 +1081,12 @@ def sec_P():
 
 def cleanup():
     note("cleanup", "restore", saved_strategy=role_profile(False), strategy=lib.restore_strategy(),
-         flag=[set_flag(u, "true") for u in ("approver-1", "admin")], swept=lib.sweep("requester", FOLDER))
+         flag=[set_flag(u, "true") for u in ("approver-1", "admin")], swept=lib.sweep("requester", FOLDER),
+         team_mb_request=api("requester", f"/batch-control/grants/{S['grant_mb'][1]}/cancel", "POST").status_code
+         if S.get("grant_mb", (0, None))[1] and lib.stored("grant", S["grant_mb"][1]).get("status") == "PENDING" else None)
 
 
-lib.run(sys.argv, {"A": sec_A, "T": sec_T, "G": sec_G, "V": sec_V, "E": sec_E, "L": sec_L, "N": sec_N, "C": sec_C,
-                   "D": sec_D, "X": sec_X, "H": sec_H, "R": sec_R, "P": sec_P}, cleanup)
+if __name__ == "__main__":  # r27/title_restart.py and r27/revert_permissions.py import this file for its helpers
+    lib.run(sys.argv, {"A": sec_A, "T": sec_T, "G": sec_G, "V": sec_V, "E": sec_E, "F": sec_F, "K": sec_K, "L": sec_L,
+                       "N": sec_N, "C": sec_C, "D": sec_D, "X": sec_X, "S": sec_S, "H": sec_H, "R": sec_R, "P": sec_P},
+            cleanup)
