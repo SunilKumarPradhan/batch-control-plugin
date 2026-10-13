@@ -350,7 +350,8 @@ UNITS = [
          doc="e2e-21: approver-1's Reject button on the run, permission window and activation request pages renders in "
              "var(--destructive-color) (computed colour vs a probe), the Approve button does not"),
     # e2e-27 D1 (Wave D, #18.4 and #18.7). r27/titles_revert.py arranges its own items (folder r27-d1, r27-d1-top-*, the
-    # vault folder r27-d1-vault only administrators read), files one window request on the seed's team-mb and cancels it,
+    # vault folder r27-d1-vault only administrators read, the multibranch project r27-d1/mb over repos/r27-d1.git, a
+    # copy of the seed's repository with one more branch), files one window request on the seed's team-mb and cancels it,
     # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
     # entry on both configuration pages and over REST and restores it through the monitor's migrate endpoint each time;
     # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
@@ -359,9 +360,9 @@ UNITS = [
     Unit("r27-titles-revert", 2.6, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
          doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
              "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
-             "names, classic flag, decided, executed and expired requests, refusals at the POST URL) with an ID row and "
-             "core's copy button; a window's title follows its renamed or moved item for a reader and keeps the approved "
-             "name for anyone else; the revert entry inside the Batch Control section's Advanced control and last, on "
+             "names, branch jobs, classic flag, decided, executed and expired requests, refusals at the POST URL) with an "
+             "ID row and core's copy button; a window's title follows its renamed or moved item for a reader and keeps the "
+             "approved name for anyone else, also after the window ended; the revert entry inside the Batch Control section's Advanced control and last, on "
              "both configuration pages, under the matrix and the role strategy; guards: revert still works and keeps "
              "every entry, Administer-only (403/405), a Manage holder is told so without Advanced"),
     # e2e-27 D1 (#18.7 for Overall/Manage and Overall/SystemRead). r27/revert_permissions.py saves the strategy, adds four
