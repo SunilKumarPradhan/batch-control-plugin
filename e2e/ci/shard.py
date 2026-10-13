@@ -309,7 +309,8 @@ UNITS = [
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
     # e2e-27 D1 (T-UI-236 across a restart): r27/title_restart.py does not restart Jenkins itself; its `before` step
     # opens a window and renames its item, its `after` step reads the window's page after this unit's two restarts.
-    Unit("r16-durable", 2.2, [("r27-title-restart-before", py("r27/title_restart.py", "before")),
+    # They took 3.6 s and 2.4 s (2026-10-13, local): the unit's weight went from 2.2 to 2.3.
+    Unit("r16-durable", 2.3, [("r27-title-restart-before", py("r27/title_restart.py", "before")),
                               ("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
                               ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py")),
                               ("r27-title-restart-after", py("r27/title_restart.py", "after"))],
@@ -353,9 +354,9 @@ UNITS = [
     # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
     # entry on both configuration pages and over REST and restores it through the monitor's migrate endpoint each time;
     # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
-    # (as r22/rename_queue.py, so it needs no `last`). Weight: about 2.4 min on a
-    # development stack (2026-10-13, local).
-    Unit("r27-titles-revert", 2.4, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+    # (as r22/rename_queue.py, so it needs no `last`). Weight: 147.5 to 171 s in six
+    # runs on a fresh stack through ci/run.sh, three or four stacks at a time (2026-10-13, local, 528 checks).
+    Unit("r27-titles-revert", 2.6, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
          doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
              "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
              "names, classic flag, decided, executed and expired requests, refusals at the POST URL) with an ID row and "
@@ -365,8 +366,9 @@ UNITS = [
              "every entry, Administer-only (403/405), a Manage holder is told so without Advanced"),
     # e2e-27 D1 (#18.7 for Overall/Manage and Overall/SystemRead). r27/revert_permissions.py saves the strategy, adds four
     # accounts (r27-ovm*, r27-sysread*), switches Overall/SystemRead on for its pass when the stack was not started with
-    # compose.permissions.yml, and puts everything back (no `last`). Weight: 10 s on a development stack (2026-10-13, local).
-    Unit("r27-revert-permissions", 0.3, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
+    # compose.permissions.yml, and puts everything back (no `last`). Weight: 12.4 to 14.2 s in seven runs on a fresh stack
+    # (2026-10-13, local, 34 checks).
+    Unit("r27-revert-permissions", 0.2, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
          group="admin and role strategy",
          doc="e2e-27 D1: holders of Overall/Manage and Overall/SystemRead (with and without BatchControl/Manage) get "
              "nothing of the revert on Manage Jenkins > System and the Batch Control page, no Advanced control, the "

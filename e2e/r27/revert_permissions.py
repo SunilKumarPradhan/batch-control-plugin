@@ -96,7 +96,7 @@ def sec_V():
             one = h["sentence"][0] if len(h["sentence"]) == 1 else {}
             shown[f"{who} {path}"] = {"status": status, "section": h["section"], "fields": h["fields"],
                                       "sentence": bool(one.get("displayed")), "advanced": h["advancedButtons"], "save": saves}
-            check("V", f"D1 #18.7 administrators only: {who} gets {path} with HTTP {want} and nothing of the revert is "
+            check("V", f"guard (#18.7 administrators only): {who} gets {path} with HTTP {want} and nothing of the revert is "
                   "rendered, not even hidden: no control in the DOM, neither its URL nor its caption in the HTML",
                   status == want and not st["controls"] and D.REVERT not in html and D.REVERT_TEXT not in html,
                   status=status, controls=st["controls"])
