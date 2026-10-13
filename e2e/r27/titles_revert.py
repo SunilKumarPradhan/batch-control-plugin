@@ -63,8 +63,9 @@ X  a subject renamed or moved afterwards (T-UI-236..238, SPEC 8 D-74/D-75 (1)): 
    job below a renamed folder follows; the run and activation requests, INVALIDATED by the rename, keep their name.
    (The same title after a restart: r27/title_restart.py, run inside the unit r16-durable.)
 S  #18.4 requests that ran or expired: the run request approved in A on the activated job is EXECUTED; the run, window
-   and ACTIVATE requests on r27-d1/exp, made two hours old in the store in A, were expired by the plugin's periodic
-   work. Titles and ID rows as everywhere else.
+   and ACTIVATE requests on r27-d1/exp, made an hour older than pendingTimeoutHours in the store in A (the setting's
+   minimum is 1 hour and CI sets 24, so waiting cannot do it), were expired by the plugin's periodic work. Titles and
+   ID rows as everywhere else.
 H  #18.4 ID row over plain HTTP on a host that is not localhost (not a "secure context", where core's copy button
    cannot write the clipboard; a second browser reaches the same Jenkins as http://r27-plain-http.test): the row still
    shows the full id as text; core disables the button and its tooltip says "Copy is only supported with a secure
@@ -253,10 +254,11 @@ if (vault == null) { vault = j.createProject(com.cloudbees.hudson.plugins.folder
 return 'exists'""")
 
 
-def backdate(pairs, hours=2):
+def backdate(pairs, hours):
     """Arrangement: makes the stored requests `pairs` ((kind, id), ...) `hours` old by rewriting createdAtMillis in
-    their files, so that the plugin's own periodic work expires them (pendingTimeoutHours cannot be set below 1, and
-    the plugin clock cannot be moved ahead on a shared Jenkins: the store refuses appends more than 60 s out of order)."""
+    their files, so that the plugin's own periodic work expires them (pendingTimeoutHours cannot be set below 1 and
+    ci/arrange_ci.py sets it to 24; the plugin clock cannot be moved ahead on a shared Jenkins: the store refuses
+    appends more than 60 s out of order)."""
     return gv("""def root = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control'); def out = []
 def old = System.currentTimeMillis() - """ + str(hours) + """ * 3600 * 1000L
 """ + json.dumps([[lib.STORE_DIRS[k], v] for k, v in pairs]) + """.each { d, id -> def f = new File(root, d + '/' + id + '.xml')
@@ -320,10 +322,12 @@ def sec_A():
           hold_activated_by=S.get("hold_activated_by"), activation={"hold": S["hold_state"], "act": S["act_state"]},
           kinds=kind_of)
     # For section S, started now so that the unit does not wait for it: the run request on the activated job is approved
-    # and runs; the three requests on r27-d1/exp are made two hours old, for the periodic work to expire them.
+    # and runs; the three requests on r27-d1/exp are made an hour older than pendingTimeoutHours, for the periodic work
+    # to expire them.
     S["ran"] = lib.decide("approver-1", "requests", S["run_hold"][1], "approve", "e2e-27 D1 run it") if S["run_hold"][1] else None
-    S["backdated"] = backdate((("run", S["run_exp"][1]), ("grant", S["grant_exp"][1]), ("activation", S["act_exp"][1]))) \
-        if all(S[k][1] for k in ("run_exp", "grant_exp", "act_exp")) else None
+    S["timeout_hours"] = settings()["pending"]
+    S["backdated"] = backdate((("run", S["run_exp"][1]), ("grant", S["grant_exp"][1]), ("activation", S["act_exp"][1])),
+                              S["timeout_hours"] + 1) if all(S[k][1] for k in ("run_exp", "grant_exp", "act_exp")) else None
 
 
 # ---------------------------------------------------------------- one request page
@@ -714,10 +718,10 @@ def sec_S():
     lib.wait_until(lambda: all(lib.stored(k, v).get("status") == "EXPIRED" for k, v in exp.items()), timeout=180, step=5)
     state = {k: lib.stored(k, v).get("status") for k, v in exp.items()}
     check("S", "arrangement: the approved run request on the activated job ran (EXECUTED); the run, window and ACTIVATE "
-          "requests on r27-d1/exp, made two hours old in the store, were expired by the plugin's periodic work "
-          "(pendingTimeoutHours is 1, its minimum)", bool(ran) and state == {k: "EXPIRED" for k in exp},
-          approve=S.get("ran"), backdated=S.get("backdated"), executed=lib.stored("run", S["run_hold"][1]).get("status"),
-          expired=state)
+          "requests on r27-d1/exp, made an hour older than pendingTimeoutHours in the store, were expired by the plugin's "
+          "periodic work", bool(ran) and state == {k: "EXPIRED" for k in exp}, approve=S.get("ran"),
+          backdated=S.get("backdated"), pending_timeout_hours=S.get("timeout_hours"),
+          executed=lib.stored("run", S["run_hold"][1]).get("status"), expired=state)
     titled("S", "requester", "run", "run_hold", f"Run request: {HOLD}", "executed run request",
            "R27-D1-S-01-run-request-executed")
     titled("S", "requester", "run", "run_exp", f"Run request: {EXP}", "expired run request",
