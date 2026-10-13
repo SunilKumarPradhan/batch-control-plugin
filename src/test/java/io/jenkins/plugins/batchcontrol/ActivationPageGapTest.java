@@ -112,7 +112,11 @@ public class ActivationPageGapTest {
         HtmlPage before = UsabilityFixtures.htmlPage(j, "r", "batch-control/activations/");
         DomElement rejectedRow = row(before, WindowStateFixtures.ENDED_LIST, rejected);
         assertNotNull(rejectedRow, "the rejected ACTIVATE is among the ended rows: " + excerpt(main(before)));
-        assertTrue(rejectedRow.asNormalizedText().contains("REJECTED"), "the ended row says REJECTED: " + rejectedRow.asNormalizedText());
+        // Wave D D2 (#18.2): the status is a readable label carrying the enum in data-batch-control-status
+        DomNode rejectedStatus = rejectedRow.querySelector("[data-batch-control-status='REJECTED']");
+        assertNotNull(rejectedStatus, "the ended row says REJECTED (data-batch-control-status): " + rejectedRow.asXml());
+        assertTrue(!rejectedStatus.asNormalizedText().isBlank() && !rejectedStatus.asNormalizedText().contains("REJECTED"),
+                "the ended row shows REJECTED as a readable label: '" + rejectedStatus.asNormalizedText() + "'");
         assertNull(row(before, WindowStateFixtures.ACTIVE_LIST, rejected), "the rejected ACTIVATE is not among the active rows");
         assertNotNull(row(before, WindowStateFixtures.ACTIVE_LIST, activate), "guard: the approved ACTIVATE in effect is among the active rows: "
                 + excerpt(main(before)));

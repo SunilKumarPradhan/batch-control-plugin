@@ -84,7 +84,7 @@
                   <td>${r.jobFullName}</td>
                   <td>${r.requester}</td>
                   <td>${it.join(r.approvers)}</td>
-                  <td data-batch-control-status="${r.status}">${r.status}</td>
+                  <td><bc:status value="${r.status}" runRequest="true"/></td>
                   <td>${it.format(r.createdAt)}</td>
                 </tr>
               </j:forEach>

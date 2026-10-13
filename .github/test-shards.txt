@@ -136,6 +136,9 @@ PagerRealJenkinsTest
 Typed*Test
 ValuesFile*Test
 # pages, forms and the global configuration
+FilterDropdownTest
+StatusLabelPageTest
+StatusLabelsTest
 ConfigPagePolishTest ConfigUsabilityTest ConfigurationValidationGapTest DashboardLimitTest
 FilterFormCrumbTest FormRefusalUsabilityTest PolishMarkupTest SwitchSaveFailureTest
 XssEscapingTest

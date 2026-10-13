@@ -37,7 +37,7 @@
           </tr>
           <tr><th style="text-align: left;">Job</th><td>${it.incident.jobFullName}</td></tr>
           <tr><th style="text-align: left;">Result</th><td>${it.incident.result}</td></tr>
-          <tr><th style="text-align: left;">Status</th><td>${it.incident.status}</td></tr>
+          <tr><th style="text-align: left;">Status</th><td><bc:status value="${it.incident.status}"/></td></tr>
           <tr><th style="text-align: left;">Created</th><td>${it.format(it.createdAt)}</td></tr>
           <j:if test="${it.incident.resolvedByRunId != null}">
             <tr>
@@ -105,7 +105,7 @@
         <tbody>
           <j:forEach var="t" items="${it.incident.transitions}">
             <tr>
-              <td>${t.status}</td>
+              <td><bc:status value="${t.status}"/></td>
               <td>${t.by}</td>
               <td>${it.format(t.at)}</td>
               <td style="white-space: pre-wrap;">${t.comment}</td>

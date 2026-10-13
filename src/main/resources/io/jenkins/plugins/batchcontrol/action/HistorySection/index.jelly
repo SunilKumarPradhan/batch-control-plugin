@@ -44,14 +44,55 @@
           <label for="filter-user">User</label><br/>
           <input type="text" id="filter-user" name="user" value="${it.filter.user}" class="jenkins-input" style="width: 10rem;"/>
         </div>
-        <div>
-          <label for="filter-result">Result</label><br/>
-          <input type="text" id="filter-result" name="result" value="${it.filter.result}" class="jenkins-input" style="width: 8rem;" placeholder="SUCCESS"/>
-        </div>
-        <div>
-          <label for="filter-status">Status</label><br/>
-          <input type="text" id="filter-status" name="status" value="${it.filter.status}" class="jenkins-input" style="width: 8rem;" placeholder="OPEN"/>
-        </div>
+        <!-- #18.3 (Wave D, D2): Result and Status are core jenkins-select dropdowns starting with
+             "Any" (no filter), on the tabs whose records carry them (HistorySection#getResultOptions,
+             #getStatusOptions). The option values are the enum names, so URLs, bookmarks and
+             FilterParser tokens are unchanged; the texts are readable labels. A token from a
+             hand-edited URL that names no option is kept as one extra selected option (SPEC 6).
+             On a tab without the dropdown, a value from the URL is kept as a hidden field, as the
+             tab links keep it. Escaped by default. -->
+        <j:set var="resultOptions" value="${it.resultOptions}"/>
+        <j:choose>
+          <j:when test="${resultOptions != null}">
+            <div>
+              <label for="filter-result">Result</label><br/>
+              <div class="jenkins-select">
+                <select id="filter-result" name="result" class="jenkins-select__input">
+                  <j:forEach var="o" items="${resultOptions}">
+                    <option value="${o.value}" selected="${o.selected ? 'selected' : null}">${o.label}</option>
+                  </j:forEach>
+                </select>
+              </div>
+              <j:if test="${filter.ignoredResult != null}">
+                <div class="jenkins-!-warning-color" role="status" data-batch-control-field-error="result">Not a result name: not applied.</div>
+              </j:if>
+            </div>
+          </j:when>
+          <j:when test="${filter.result != null}">
+            <input type="hidden" name="result" value="${filter.result}"/>
+          </j:when>
+        </j:choose>
+        <j:set var="statusOptions" value="${it.statusOptions}"/>
+        <j:choose>
+          <j:when test="${statusOptions != null}">
+            <div>
+              <label for="filter-status">Status</label><br/>
+              <div class="jenkins-select">
+                <select id="filter-status" name="status" class="jenkins-select__input">
+                  <j:forEach var="o" items="${statusOptions}">
+                    <option value="${o.value}" selected="${o.selected ? 'selected' : null}">${o.label}</option>
+                  </j:forEach>
+                </select>
+              </div>
+              <j:if test="${filter.ignoredStatus != null}">
+                <div class="jenkins-!-warning-color" role="status" data-batch-control-field-error="status">Not a status name: not applied.</div>
+              </j:if>
+            </div>
+          </j:when>
+          <j:when test="${filter.status != null}">
+            <input type="hidden" name="status" value="${filter.status}"/>
+          </j:when>
+        </j:choose>
         <button type="submit" class="jenkins-button jenkins-button--primary">Filter</button>
       </form>
 
@@ -159,7 +200,7 @@
                       </td>
                       <td>${i.jobFullName}</td>
                       <td>${i.result}</td>
-                      <td>${i.status}</td>
+                      <td><bc:status value="${i.status}"/></td>
                       <td>${it.format(it.incidentCreatedAt(i))}</td>
                     </tr>
                   </j:forEach>
@@ -212,7 +253,7 @@
                       <td>${q.requester}</td>
                       <td>${it.join(q.approvers)}</td>
                       <td>${q.decidedBy}</td>
-                      <td>${q.status}</td>
+                      <td><bc:status value="${q.status}" runRequest="true"/></td>
                       <td>${it.format(q.createdAt)}</td>
                       <td>${it.format(q.decidedAt)}</td>
                     </tr>
@@ -237,7 +278,7 @@
                         </j:choose>
                       </td>
                       <td>${r.jobFullName}</td>
-                      <td>${r.causeType}</td>
+                      <td><bc:status value="${r.causeType}"/></td>
                       <td>${r.user}</td>
                       <td style="white-space: pre-wrap;">${it.parameters(r.parameters)}</td>
                       <td>${r.result}</td>
