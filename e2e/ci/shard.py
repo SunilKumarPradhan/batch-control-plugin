@@ -304,7 +304,9 @@ UNITS = [
     # e2e-22 R2-04 (bug-hunt batch B). r22/rename_queue.py saves the authorization strategy, applies a Batch Control
     # role-based profile through JCasC for its own items (r22-team-a-*), and restores the strategy, the change-control
     # switch and the built-in node's labels exactly at its end (so it needs no `last`).
-    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))],
+    # Since e2e-27 (2026-10-13) in the group "runs and switches" (it was in "admin and role strategy", which r27-titles-revert
+    # would have taken to 20.3 min, above the heaviest group's 19.5); it restores what it changes, so its place is free.
+    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
     # e2e-27 D1 (T-UI-236 across a restart): r27/title_restart.py does not restart Jenkins itself; its `before` step
@@ -357,7 +359,7 @@ UNITS = [
     # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
     # (as r22/rename_queue.py, so it needs no `last`). Weight: 178.5 to 180 s in four
     # runs on a fresh stack through ci/run.sh, four stacks at a time (2026-10-13, local, 620 checks).
-    Unit("r27-titles-revert", 3.0, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+    Unit("r27-titles-revert", 3.5, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
          doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
              "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
              "names, branch jobs, classic flag, decided, executed and expired requests, refusals at the POST URL) with an "
@@ -370,7 +372,7 @@ UNITS = [
     # compose.permissions.yml, and puts everything back (no `last`). Weight: 12.2 to 14.2 s on a fresh stack
     # (2026-10-13, local, 34 checks).
     Unit("r27-revert-permissions", 0.2, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
-         group="admin and role strategy",
+         group="job ui other roles",  # other accounts' view of the configuration pages; keeps group 3 under 19.5
          doc="e2e-27 D1: holders of Overall/Manage and Overall/SystemRead (with and without BatchControl/Manage) get "
              "nothing of the revert on Manage Jenkins > System and the Batch Control page, no Advanced control, the "
              "administrator-only sentence where the section is shown, 403 on the endpoint; a save of System by an "
@@ -411,7 +413,7 @@ GROUPS = [
     ("crawls and multibranch", [  # the crawls of admin, reqonly, approver-1 and nobc, the multibranch job pages
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
-        "jobui-new-admin", "jobui-classic-admin", "r22-rename-queue", "role"]),
+        "jobui-new-admin", "jobui-classic-admin", "role"]),
     ("job ui params and restart", [  # requester's job UI, typed parameters, requests with typed values across a
         "jobui-new-requester", "jobui-classic-requester", "r16-params", "r16-durable"]),  # restart (last)
     ("job ui windows and disk", [  # reqonly's job UI, permission windows on items and renames, item kinds, items
