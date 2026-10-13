@@ -30,20 +30,25 @@ V  #18.4 activation request page, same four roles: "Activation request: r27-d1/a
    "Hold request: r27-d1/hold" or "Activation request: r27-d1/hold" (T-UI-232 accepts both) in all three places.
 E  #18.4 escaping (approver-1): the run, grant and activation request pages of r27-d1/q"x'y{z} read the name exactly in
    the title, heading, breadcrumb and the breadcrumb's tooltip attribute; no attribute of the page holds the name cut
-   off at a quote; nothing is shown double-escaped; the run request page of "r27-d1/배치 a+b" reads the name as it is (not URL-encoded).
+   off at a quote; nothing is shown double-escaped; the run request page of "r27-d1/배치 a+b" reads the name as it is
+   (not URL-encoded). Guard: markup cannot become a subject at all: core refuses an item name with <, > or &, and the
+   plugin refuses a permission window request whose scope names no existing item (both 400, nothing stored).
 L  #18.4 top-level job (approver-1): "Run request: r27-d1-top", "Grant request: r27-d1-top" (DELETE),
    "Activation request: r27-d1-top".
 N  guards, who may not see a request: nobc (no Batch Control permission) and an anonymous visitor get an error page
    that names neither the subject nor the job for all four kinds, on the screen and over REST; approver-2 (Approve, not
    designated) gets the same for the grant and activation requests.
-C  guard, classic job page (the experimental flag off for approver-1, as the classic passes of the suite set it): the
-   run, grant, activation and hold request pages read the same titles and ID rows. The flag is put back.
+C  guard, classic job page (the experimental flag off for approver-1 and admin, as the classic passes of the suite set
+   it): the run, grant, activation and hold request pages read the same titles and ID rows, and the revert entry is
+   placed the same on both configuration pages. The flags are put back.
 D  guard, decided requests: the rejected run request, the approved grant request (window open) and the cancelled
    activation request keep their titles and ID rows.
-X  guard, a subject renamed afterwards: r27-d1/ren-a is re-created, a run request, an ACTIVATE request and an approved
-   CONFIGURE window name it, then the administrator renames it to r27-d1/ren-b. The three pages keep the name the
-   request was made for in title, heading and breadcrumb (the run and activation requests are INVALIDATED; the window
-   follows the item, and its Scope row, not the title, shows the new name to a viewer who may see the item).
+X  a subject renamed afterwards: r27-d1/ren-a is re-created, a run request, an ACTIVATE request and an approved
+   CONFIGURE window name it, then the administrator renames it to r27-d1/ren-b. The run and activation requests are
+   INVALIDATED and keep the only name they have. The window follows its item (D-74); which name its page's title
+   shows is NOT judged here: the title must be one of the two names in all three places, and a NOTE says which and
+   what the Scope row shows. SPEC 8 (D-75 (1)) has the grant pages show a viewer who may read the item its current
+   name; r16/follow.py W and r17/s39.py R hold the whole page to that ("neither earlier name").
 H  #18.4 ID row over plain HTTP on a host that is not localhost (not a "secure context", where core's copy button
    cannot write the clipboard; a second browser reaches the same Jenkins as http://r27-plain-http.test): the row still
    shows the full id as text; core disables the button and its tooltip says "Copy is only supported with a secure
@@ -51,7 +56,8 @@ H  #18.4 ID row over plain HTTP on a host that is not localhost (not a "secure c
 R  #18.7 (administrator) on Manage Jenkins > System and on the Batch Control configuration page: the revert entry is
    inside core's Advanced control (div.advancedBody of the form item whose button is button.advanced-button) of the
    Batch Control section and not visible; pressing that Advanced button moves it out and shows it; no Batch Control
-   field follows it. Guards: one entry per page, it keeps the destructive colour and posts to
+   field follows it. Guards: one entry per page, it keeps the destructive colour (the class and the computed colour
+   of var(--destructive-color)) and posts to
    <context>/manage/administrativeMonitor/batch-control-strategy/revert; pressing it opens core's confirmation (Cancel
    changes nothing, OK posts once, below 400, and installs the plain strategy with every matrix entry kept; the page
    then offers neither the entry nor an Advanced button); the driver restores the Batch Control strategy through the
@@ -62,7 +68,7 @@ R  #18.7 (administrator) on Manage Jenkins > System and on the Batch Control con
    nobc can open neither page. The endpoint: GET 405 for the administrator, POST 403 for everyone else and for the
    administrator without a crumb; the strategy stays installed after all of them.
 P  #18.7 under the role strategy ("Batch Control: Role-Based Strategy" applied through JCasC for this section; the
-   matrix strategy object is saved first and put back): the same placement on Manage Jenkins > System; OK installs the
+   matrix strategy object is saved first and put back): the same placement on both pages; OK (from System) installs the
    plain RoleBasedAuthorizationStrategy with every role kept; manager (a global role with BatchControl/Manage) is
    offered no revert and gets 403.
 cleanup: the saved strategy put back if section P left the role profile; the Batch Control strategy restored if a
@@ -70,8 +76,9 @@ section left the plain one; approver-1's job page flag on; the requester's pendi
 revoked."""
 import json
 import os
+import re
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -137,7 +144,6 @@ PAGE_JS = """([stem, full]) => { const n = t => (t || '').replace(/\\s+/g, ' ').
 # ---------------------------------------------------------------- arrangement helpers (script console, REST)
 def activation_of(job):
     """'activated' / 'not activated', as the job page's notice says it (names URL-encoded, unlike lib.activation)."""
-    import re
     m = re.search(r"Batch Control: this (?:job|folder) is ([a-z ]+?)\.", lib.text_of(api("admin", lib.jpath(job) + "/").text))
     return m.group(1) if m else None
 
@@ -333,6 +339,26 @@ def sec_E():
            "R27-D1-E-04-run-request-non-ascii-name", name=(FOLDER + "/배치", UNI))
 
 
+    # Guard: the boundary of the escaping checks. Markup never gets into a subject: core refuses such an item name and
+    # the plugin refuses a window request for an item that does not exist (so no free text becomes a scope).
+    count = """def d = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control/requests/grant')
+return groovy.json.JsonOutput.toJson([n: d.exists() ? d.listFiles().length : 0])"""
+    before = lib.facts(count)["n"]
+    hostile = ("<b>x</b>", "a&b", "<img src=x onerror=window.__r27=1>")
+    made = {leaf: api("admin", f"{lib.jpath(FOLDER)}/createItem?name={quote(leaf, safe='')}", "POST",
+                      data=lib.job_xml("fs", shell="echo e2e-27 D1").encode("utf-8"),
+                      headers={"Content-Type": "application/xml"}).status_code for leaf in hostile}
+    asked = {leaf: lib.submit_grant("requester", f"{FOLDER}/{leaf}", ["CONFIGURE"], reason="e2e-27 D1 markup scope")
+             for leaf in hostile + ("no-such-item",)}
+    after = lib.facts(count)["n"]
+    exists = {leaf: api("admin", f"{lib.jpath(FOLDER + '/' + leaf)}/api/json").status_code for leaf in hostile}
+    check("E", "guard (escaping): markup cannot become a subject: core refuses to create an item named with <, > or & "
+          "(400, no item) and the plugin refuses a permission window request whose scope names no existing item (400, "
+          "no request stored)", all(v == 400 for v in made.values()) and all(v == 404 for v in exists.values())
+          and all(tuple(v) == (400, None) for v in asked.values()) and after == before, create=made, items=exists,
+          window_requests={k: list(v) for k, v in asked.items()}, stored_before=before, stored_after=after)
+
+
 def sec_L():
     titled("L", "approver-1", "run", "run_top", f"Run request: {TOP}", "run request (top-level job)",
            "R27-D1-L-01-run-request-top-level")
@@ -367,10 +393,10 @@ def sec_N():
 
 # ---------------------------------------------------------------- C: classic job page flag
 def sec_C():
-    S["flag"] = set_flag("approver-1", "false")
+    S["flag"] = [set_flag(u, "false") for u in ("approver-1", "admin")]
     try:
-        check("C", "arrangement: the new job page flag is off for approver-1 (classic job pages)", S["flag"] == "false",
-              flag=S["flag"])
+        check("C", "arrangement: the new job page flag is off for approver-1 and admin (classic job pages)",
+              S["flag"] == ["false", "false"], flag=S["flag"])
         titled("C", "approver-1", "run", "run", f"Run request: {BATCH}", "run request (classic flag)",
                "R27-D1-C-01-run-request-classic")
         titled("C", "approver-1", "grant", "grant", f"Grant request: {BATCH}", "grant request (classic flag)",
@@ -379,9 +405,13 @@ def sec_C():
                "R27-D1-C-03-activation-request-classic")
         titled("C", "approver-1", "activation", "hold", f"Hold request: {HOLD}", "hold request (classic flag)",
                "R27-D1-C-04-hold-request-classic", either=f"Activation request: {HOLD}")
+        for path, tag, n in CONFIG_PAGES:
+            s = revert_place("C", path, tag + "-classic", n, lib.strategy())
+            if s is not None:
+                s.done()
     finally:
-        S["flag"] = set_flag("approver-1", "true")
-    check("C", "arrangement: the flag is on again for approver-1", S["flag"] == "true", flag=S["flag"])
+        S["flag"] = [set_flag(u, "true") for u in ("approver-1", "admin")]
+    check("C", "arrangement: the flag is on again for approver-1 and admin", S["flag"] == ["true", "true"], flag=S["flag"])
 
 
 # ---------------------------------------------------------------- D: decided requests
@@ -426,12 +456,15 @@ def sec_X():
            "R27-D1-X-01-run-request-renamed")
     titled("X", "approver-1", "activation", "act_ren", f"Activation request: {REN_A}",
            "activation request (job renamed afterwards)", "R27-D1-X-02-activation-request-renamed")
-    titled("X", "requester", "grant", "grant_ren", f"Grant request: {REN_A}", "grant request (item renamed under its window)",
-           "R27-D1-X-03-grant-request-renamed")
+    shown = titled("X", "requester", "grant", "grant_ren", f"Grant request: {REN_B}",
+                   "grant request (item renamed under its window)", "R27-D1-X-03-grant-request-renamed",
+                   either=f"Grant request: {REN_A}")
     r = api("requester", f"/batch-control/grants/{S['grant_ren'][1]}/")
-    note("X", "UX: after the rename the permission window page is titled with the name the request was made for, while "
-         "its Scope row shows the item's new name to a viewer who may see it", title=f"Grant request: {REN_A}",
-         scope_row_names_new=REN_B in lib.text_of(r.text), scope_row_names_old=lib.text_of(r.text).count(REN_A))
+    m = re.search(r"Scope (.*?) Actions", lib.text_of(r.text))
+    note("X", "not judged here (SPEC 8, D-75 (1); r16/follow.py W and r17/s39.py R judge it): the name in the title of a "
+         "window whose item was renamed, for a viewer who may read the item, next to what its Scope row shows",
+         title=shown, title_names="the current name" if shown.endswith(REN_B) else "the name as approved (the item no "
+         "longer has it)" if shown.endswith(REN_A) else "neither", scope_row=m.group(1) if m else None)
 
 
 # ---------------------------------------------------------------- H: plain HTTP, not a secure context
@@ -482,6 +515,8 @@ STATE_JS = """(sel) => { const fieldSel = 'input[name^="_."], select[name^="_."]
   const sec = document.querySelector('[name="_.runControlEnabled"]')?.closest('section') || null;
   const ctl = [...document.querySelectorAll(sel)];
   const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length) && getComputedStyle(e).visibility !== 'hidden';
+  const probe = host => { const p = document.createElement('span'); p.setAttribute('style', 'color: var(--destructive-color)');
+    p.textContent = 'probe'; host.appendChild(p); const c = getComputedStyle(p).color; p.remove(); return c; };
   const chain = e => { const out = []; for (let p = e.parentElement; p && out.length < 7; p = p.parentElement)
     out.push(p.tagName.toLowerCase() + (p.className && typeof p.className === 'string' ? '.' + p.className.trim().split(/\\s+/).join('.') : ''));
     return out.join(' < '); };
@@ -492,6 +527,7 @@ STATE_JS = """(sel) => { const fieldSel = 'input[name^="_."], select[name^="_."]
         itemInSection: !!(item && sec && sec.contains(item)), advancedButton: btn ? btn.textContent.replace(/\\s+/g, ' ').trim() : null,
         advancedButtonVisible: btn ? vis(btn) : null, url: e.getAttribute('data-url') || e.getAttribute('formaction') || e.getAttribute('href'),
         destructive: e.className.includes('jenkins-!-destructive-color'), text: e.textContent.replace(/\\s+/g, ' ').trim(),
+        color: getComputedStyle(e).color, probe: probe(e.parentElement), around: getComputedStyle(e.parentElement).color,
         fieldsAfter: sec ? [...sec.querySelectorAll(fieldSel)].filter(f => e.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING
           && !(e.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_CONTAINED_BY)).map(f => f.name) : null}; }),
     advanced: sec ? [...sec.querySelectorAll('button.advanced-button, button.advancedButton')].map(b => (
@@ -566,8 +602,10 @@ def revert_place(sec, path, tag, n, strategy_name):
     check(sec, f"guard (#18.7 keeps it last): {path}: the revert entry is the last entry of the Batch Control section "
           f"(none of its {after['fields']} fields follows it)", ctl.get("fieldsAfter") == [] and after["fields"] >= 10,
           fields_after=ctl.get("fieldsAfter"), chain=ctl.get("chain"))
-    check(sec, f"guard: {path}: the revert entry keeps the destructive colour", bool(ctl.get("destructive")),
-          text=ctl.get("text"))
+    check(sec, f"guard: {path}: the revert entry keeps the destructive colour: the class jenkins-!-destructive-color "
+          "and, shown, the computed colour of var(--destructive-color), which is not the colour of the text around it",
+          bool(ctl.get("destructive")) and ctl.get("color") == ctl.get("probe") and ctl.get("probe") != ctl.get("around"),
+          text=ctl.get("text"), color=ctl.get("color"), probe=ctl.get("probe"), around=ctl.get("around"))
     return s
 
 
@@ -742,6 +780,9 @@ def sec_P():
               "offered no revert, not even hidden, and the endpoint answers 403; the role strategy stays",
               r is not None and r.status == 200 and not st["controls"] and REVERT not in html and REVERT_TEXT not in html
               and post == 403 and lib.strategy() == role, page=r.status if r else None, post=post, strategy=lib.strategy())
+        s2 = revert_place("P", CONFIG_PAGES[1][0], CONFIG_PAGES[1][1] + "-role", 2, role)
+        if s2 is not None:
+            s2.done()
         if s is not None:
             revert_through("P", s, path, tag + "-role", 1, "RoleBasedAuthorizationStrategy")
     finally:
@@ -752,7 +793,7 @@ def sec_P():
 
 def cleanup():
     note("cleanup", "restore", saved_strategy=role_profile(False), strategy=lib.restore_strategy(),
-         flag=set_flag("approver-1", "true"), swept=lib.sweep("requester", FOLDER))
+         flag=[set_flag(u, "true") for u in ("approver-1", "admin")], swept=lib.sweep("requester", FOLDER))
 
 
 lib.run(sys.argv, {"A": sec_A, "T": sec_T, "G": sec_G, "V": sec_V, "E": sec_E, "L": sec_L, "N": sec_N, "C": sec_C,
