@@ -379,6 +379,17 @@ def u=hudson.model.User.getById('%s',true); def m=new HashMap(); m.put('new-job-
 
 
 # ---------------------------------------------------------------- S
+def reveal_revert(page):
+    """Wave D D1 (#18.7): the revert entry sits inside the Advanced control at the end of the Batch Control section, so
+    a person presses Advanced first. Returns True when it had to be revealed (False: visible at once, or no entry)."""
+    rv = page.locator("a[data-url*='/revert']")
+    if not rv.count() or rv.first.is_visible():
+        return False
+    page.locator("section:has([name='_.runControlEnabled']) button.advanced-button").last.click()
+    rv.first.wait_for(state="visible", timeout=5000)
+    return True
+
+
 def sec_S():
     s = Session("admin")
     s.go("/manage/")
@@ -408,6 +419,7 @@ def sec_S():
     s.go("/manage/batch-control-configuration/")
     rv = s.page.locator("a[data-url*='/revert']")
     row["revert_link"] = rv.count()
+    row["revert_behind_advanced"] = reveal_revert(s.page)
     if rv.count():
         rv.first.click(); opened(s.page)
         s.page.locator("dialog[open] button[data-id=cancel]").click(); gone(s.page)
