@@ -305,7 +305,7 @@ UNITS = [
     # role-based profile through JCasC for its own items (r22-team-a-*), and restores the strategy, the change-control
     # switch and the built-in node's labels exactly at its end (so it needs no `last`).
     # Since e2e-27 (2026-10-13) in the group "runs and switches" (it was in "admin and role strategy", which r27-titles-revert
-    # would have taken to 20.3 min, above the heaviest group's 19.5); it restores what it changes, so its place is free.
+    # would have taken to 20.1 min, above the heaviest group's 19.5); it restores what it changes, so its place is free.
     Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
@@ -357,9 +357,9 @@ UNITS = [
     # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
     # entry on both configuration pages and over REST and restores it through the monitor's migrate endpoint each time;
     # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
-    # (as r22/rename_queue.py, so it needs no `last`). Weight: 178.5 to 180 s in four
-    # runs on a fresh stack through ci/run.sh, four stacks at a time (2026-10-13, local, 620 checks).
-    Unit("r27-titles-revert", 3.5, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+    # (as r22/rename_queue.py, so it needs no `last`). Weight: 190 to 199 s in four
+    # runs on a fresh stack through ci/run.sh, four stacks at a time (2026-10-14, local, 827 checks).
+    Unit("r27-titles-revert", 3.3, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
          doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
              "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
              "names, branch jobs, classic flag, decided, executed and expired requests, refusals at the POST URL) with an "
