@@ -223,7 +223,7 @@ no Batch Control record. A save that changes nothing writes nothing.
 | Retention period (months) | 24 | Month files older than this are deleted, and the deletion is recorded |
 | Notify before expiry (minutes) | 10 | How long before a pending request or an active grant window expires its requester or holder is notified |
 | Send e-mail notifications | off | Shown only while the Mailer plugin is installed; no mail is sent while it is off |
-| Batch Control strategy | shown only while installed | Not a saved field: **Revert to the plain strategy** appears here while a Batch Control authorization strategy variant is installed (step 2); using it needs `Overall/Administer` |
+| Batch Control strategy | shown only while installed | Not a saved field: while a Batch Control authorization strategy variant is installed (step 2), a Jenkins administrator (`Overall/Administer`) finds **Revert to the plain strategy** under the section's **Advanced** button, as its last entry; anyone else gets no Advanced button and reads "Only a Jenkins administrator can change the authorization strategy." instead |
 
 A request cannot be created unless every designated approver is on the Approvers
 list, and `BatchControl/Approve` is checked on them again when they decide.
@@ -261,8 +261,9 @@ is on; run control and recording need neither.
 - From Jenkins' built-in global "Matrix-based security", read [the conversion
   note](#converting-from-the-global-matrix-strategy-turns-on-per-item-permissions)
   first.
-- To go back, use **Revert to the plain strategy** in the Batch Control section
-  of **Manage Jenkins → System**, shown while a variant is installed.
+- To go back, a Jenkins administrator uses **Revert to the plain strategy**,
+  under the **Advanced** button of the Batch Control section of **Manage
+  Jenkins → System**, shown while a variant is installed.
 
 While a window is open, the variant *adds* its action (`Item/Create`,
 `Item/Configure` or `Item/Delete`) on the one item it names (`Item/Create`
