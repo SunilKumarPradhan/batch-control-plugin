@@ -348,9 +348,9 @@ UNITS = [
     # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
     # entry on both configuration pages and restores it through the monitor's migrate endpoint each time; for its last
     # section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back (as
-    # r22/rename_queue.py, so it needs no `last`). Weight: 97 to 98 s in six runs on a fresh
-    # stack through ci/run.sh, alone and inside its group (2026-10-13, local; it was 0.4 min with the 2026-10-10 checks).
-    Unit("r27-titles-revert", 1.6, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+    # r22/rename_queue.py, so it needs no `last`). Weight: 101.6 to 102.1 s in three runs on a
+    # fresh stack through ci/run.sh (2026-10-13, local, 306 checks; the driver as first assembled on 2026-10-10 was noted at 0.4 min).
+    Unit("r27-titles-revert", 1.7, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
          doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
              "breadcrumb and its tooltip; four roles, folder and top-level, escaped odd names, classic flag, decided and "
              "renamed subjects) with an ID row and core's copy button; the revert entry inside the Batch Control "
