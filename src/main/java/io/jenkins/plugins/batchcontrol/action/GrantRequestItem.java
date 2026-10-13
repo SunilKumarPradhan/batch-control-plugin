@@ -82,9 +82,14 @@ public class GrantRequestItem implements ModelObject {
         return request.getId();
     }
 
+    /**
+     * #18.4: titled with the item the request names, as approved (never the followed name of
+     * D-75 (1), which only some viewers may see); the id is in the summary table's ID row.
+     */
     @Override
     public String getDisplayName() {
-        return "Grant Request " + request.getId();
+        GrantScope scope = request.getScope();
+        return "Grant request: " + (scope == null ? request.getId() : scope.getFullName());
     }
 
     /** Jelly helper: human-readable timestamp. */
