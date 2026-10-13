@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,6 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * renders each global configuration as a {@code section.jenkins-section}), else its form; "a Batch
  * Control field" is a named setting of that section ({@code name} starting with {@code _.}).
  *
+ * <p>Row T-UI-239 (note 360 (9)): what a BatchControl/Manage holder, who is offered no revert, sees
+ * in its place. On origin/main the Batch Control configuration page told that user "Only a Jenkins
+ * administrator can change the authorization strategy." among the settings; that sentence must stay
+ * readable without pressing anything, and an Advanced button that reveals nothing the user can use
+ * must not be there.
+ *
  * <p>Written from the Wave D contract (D1, frozen 2026-10-10), issue #18, core 2.568.3's
  * {@code lib/form/advanced.jelly} and pages rendered on origin/main (d80e5fe); no src/main
  * knowledge.
@@ -46,6 +53,8 @@ public class RevertPlacementTest {
 
     private static final String REVERT = "administrativeMonitor/batch-control-strategy/revert";
     private static final List<String> PAGES = List.of("manage/configure", "manage/batch-control-configuration/");
+    /** What a user who may not change the strategy is told where the administrator finds the revert. */
+    private static final String ADMINISTRATOR_ONLY = "Only a Jenkins administrator can change the authorization strategy.";
 
     private JenkinsRule j;
 
@@ -142,7 +151,86 @@ public class RevertPlacementTest {
                 "the revert installs the plain parent");
     }
 
+    /**
+     * T-UI-239 (#18.7): m1 (BatchControl/Manage only) reads "Only a Jenkins administrator can
+     * change the authorization strategy." on the Batch Control configuration page without pressing
+     * anything: the sentence is in the page and not inside core's {@code div.advancedBody}, and
+     * the Batch Control section shows m1 no Advanced button at all (there is nothing behind it for
+     * this user). With JavaScript on the sentence is displayed as the page loads. Guards (T-UI-235):
+     * no revert control in the DOM, no "Revert to the plain strategy" in the HTML, POST 403.
+     */
+    @Test
+    public void t_ui_239_manageHolderReadsTheAdministratorOnlySentenceWithoutAnAdvancedButton() throws Exception {
+        String path = "manage/batch-control-configuration/";
+        HtmlPage manager = page("m1", path, false);
+        DomElement sentence = elementReading(manager, ADMINISTRATOR_ONLY);
+        assertNotNull(sentence, "m1's Batch Control configuration page must say '" + ADMINISTRATOR_ONLY + "': "
+                + excerpt(manager));
+
+        List<DomElement> sections = batchControlSections(manager);
+        assertFalse(sections.isEmpty(), "fixture: the page has a section with Batch Control settings (name=\"_.…\")");
+        List<String> advancedButtons = new ArrayList<>();
+        for (DomElement section : sections) {
+            for (DomNode b : section.querySelectorAll("button.advanced-button")) {
+                advancedButtons.add(b.asNormalizedText().trim() + " in " + parentChain(b));
+            }
+        }
+
+        HtmlPage live = page("m1", path, true);
+        live.getWebClient().waitForBackgroundJavaScript(2000);
+        DomElement liveSentence = elementReading(live, ADMINISTRATOR_ONLY);
+
+        assertAll(
+                () -> assertEquals(null, ancestorWithClass(sentence, "advancedBody"), "m1 must read the sentence"
+                        + " without pressing Advanced, so it must not be inside core's div.advancedBody; it sits in: "
+                        + parentChain(sentence)),
+                () -> assertEquals(List.of(), advancedButtons, "the Batch Control section must show m1 no Advanced"
+                        + " button: there is nothing behind it that m1 may use"),
+                () -> assertTrue(liveSentence != null && liveSentence.isDisplayed(), "with JavaScript on, the sentence"
+                        + " must be displayed to m1 as the page loads (no click)"));
+
+        assertEquals(null, revertControl(manager), "guard (T-UI-235): m1 is offered no revert");
+        assertFalse(manager.getWebResponse().getContentAsString().contains("Revert to the plain strategy"),
+                "guard (T-UI-235): the revert is not in m1's page, not even hidden");
+        assertEquals(403, post("m1"), "guard (T-UI-235): the revert endpoint keeps its Overall/Administer check");
+        assertSame(BatchControlMatrixAuthorizationStrategy.class, j.jenkins.getAuthorizationStrategy().getClass(),
+                "guard: m1's refused POST leaves the Batch Control strategy installed");
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    /** The innermost element whose text holds {@code text}, or null. */
+    private static DomElement elementReading(HtmlPage page, String text) {
+        DomElement found = null;
+        for (DomElement e : page.getBody().getDomElementDescendants()) {
+            if (!"script".equals(e.getTagName()) && e.getTextContent().replaceAll("\\s+", " ").contains(text)) {
+                found = e; // document order: a descendant comes after its ancestors
+                if (!e.getChildElements().iterator().hasNext()) {
+                    break;
+                }
+            }
+        }
+        return found;
+    }
+
+    /** The {@code section} elements of the main panel that hold a Batch Control setting ({@code name="_.…"}). */
+    private static List<DomElement> batchControlSections(HtmlPage page) {
+        List<DomElement> out = new ArrayList<>();
+        for (DomNode n : page.querySelectorAll("#main-panel section")) {
+            for (DomNode f : n.querySelectorAll("input[name], select[name], textarea[name]")) {
+                if (((DomElement) f).getAttribute("name").startsWith("_.")) {
+                    out.add((DomElement) n);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    private static String excerpt(HtmlPage page) {
+        String text = page.asNormalizedText();
+        return text.length() > 1500 ? text.substring(0, 1500) + "..." : text;
+    }
 
     /** The element that triggers the revert: a link, a confirmation link (data-url) or a form button. */
     static HtmlElement revertControl(HtmlPage page) {
