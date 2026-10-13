@@ -66,35 +66,43 @@
     <!-- Not a form field: a Batch Control strategy is installed/reverted through the
          batch-control-strategy administrative monitor, never through this form's own submit
          (D-35a). Shown only while that strategy is actually installed.
-         #18.7 (Wave D, D1): the last entry of the section, inside core's Advanced control, so the
-         destructive revert is not among the routine settings. Keep it last: nothing may follow
-         it in this section. -->
+         #18.7 (Wave D, D1): the last entry of the section. For an administrator it sits inside
+         core's Advanced control, so the destructive revert is not among the routine settings.
+         Keep it last: nothing may follow it in this section.
+         e2e-04 FD-01: the revert endpoint needs Overall/Administer, so only its holders get the
+         control. A BatchControl/Manage holder who may open this page gets no Advanced control
+         (there would be nothing behind it for that user) and is told whom to ask in a plain
+         entry, readable as the page loads; nothing of the revert is rendered for that user. -->
     <j:set var="strategyMonitor" value="${app.getAdministrativeMonitor('batch-control-strategy')}"/>
     <j:if test="${strategyMonitor != null and strategyMonitor.revertable}">
-      <f:advanced>
-        <f:entry title="Batch Control strategy">
-          <div>
-            A Batch Control authorization strategy is installed. Reverting stops active grants
-            from conferring any permission immediately.
-          </div>
-          <!-- e2e-04 FD-01: the revert endpoint needs Overall/Administer, so only its holders get
-               the control; a BatchControl/Manage holder who may open this page is told whom to ask. -->
-          <j:choose>
-            <j:when test="${app.hasPermission(app.ADMINISTER)}">
+      <j:choose>
+        <j:when test="${app.hasPermission(app.ADMINISTER)}">
+          <f:advanced>
+            <f:entry title="Batch Control strategy">
+              <div>
+                A Batch Control authorization strategy is installed. Reverting stops active grants
+                from conferring any permission immediately.
+              </div>
               <l:confirmationLink class="jenkins-button jenkins-!-destructive-color" destructive="true" href="${rootURL}/manage/administrativeMonitor/batch-control-strategy/revert"
                                    post="true" title="Revert to the plain strategy?" okText="Revert to plain strategy"
                                    message="Active grants stop conferring any permission immediately. This cannot be undone from here.">
                 Revert to the plain strategy
               </l:confirmationLink>
-            </j:when>
-            <j:otherwise>
-              <div class="jenkins-description">
-                Only a Jenkins administrator can change the authorization strategy.
-              </div>
-            </j:otherwise>
-          </j:choose>
-        </f:entry>
-      </f:advanced>
+            </f:entry>
+          </f:advanced>
+        </j:when>
+        <j:otherwise>
+          <f:entry title="Batch Control strategy">
+            <div>
+              A Batch Control authorization strategy is installed. Reverting stops active grants
+              from conferring any permission immediately.
+            </div>
+            <div class="jenkins-description">
+              Only a Jenkins administrator can change the authorization strategy.
+            </div>
+          </f:entry>
+        </j:otherwise>
+      </j:choose>
     </j:if>
   </f:section>
 </j:jelly>
