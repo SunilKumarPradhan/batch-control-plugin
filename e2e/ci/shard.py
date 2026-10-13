@@ -225,6 +225,12 @@ UNITS = [
     Unit("r24-json-params", 0.4, [("r24-json-params", py("r24/json_params.py"))], group="crawl and ui checks",
          doc="e2e-24 #40: a json submission with all, some or no parameters (url-encoded and multipart) stores every "
              "parameter, the approver's page lists them, and the build runs with them after the defaults changed"),
+    # e2e-27 D2 (Wave D, #18.3 and #18.2). r27/labels_filters.py arranges its own items (r27-d2-*), activates r27-d2-timer
+    # once through the request flow, runs each job once per pass and cancels what it leaves pending or queued.
+    Unit("r27-labels-filters", 1.2, [("r27-labels-filters", py("r27/labels_filters.py"))], group="crawl and ui checks",
+         doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns starting with 'Any' (enum values, "
+             "submitted from the dropdown, hand-edited values kept); readable labels with data-batch-control-status for "
+             "request, grant, activation and incident statuses and run causes; guards: CSV, filters, JSON keep enums"),
     # e2e-19 (gap audit, docs/reports/e2e-19.md): SPEC acceptance lines no CI step checked before. r19/arrange.py is
     # idempotent and self-contained (items r19-*, accounts from JCasC). Each driver exits non-zero and prints FAIL lines,
     # and restores what it changes globally (executors, authorize-project's authenticator). Weights: minutes measured on
