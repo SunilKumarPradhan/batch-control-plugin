@@ -2,7 +2,7 @@
 core's copy button; the "Revert to the plain strategy" entry sits at the end of the Batch Control section inside core's
 Advanced control.
 
-usage: python titles_revert.py [ATGVELNCDXRP]   rows: out/titles_revert.jsonl, shots: screenshots/run-27/R27-D1-*.png
+usage: python titles_revert.py [ATGVELNCDXHRP]   rows: out/titles_revert.jsonl, shots: screenshots/run-27/R27-D1-*.png
 Items (each name ends in -nightly-settlement, left out below: core cuts a breadcrumb wider than about 224 px and only
 then gives it a tooltip, so the titles must be long): folder r27-d1 with r27-d1/batch, r27-d1/act (not activated),
 r27-d1/hold (activated once through the real ACTIVATE flow, so a HOLD request can be filed), r27-d1/q"x'y{z} (core
@@ -13,7 +13,7 @@ page.
 
 Every check looks at content (the text of the title, the heading and the breadcrumb, attributes, the position in the
 DOM), never only at an HTTP status. A check named "D1 #18.4" / "D1 #18.7" fails on a plugin without the change; one
-named "guard:" already holds there and must keep holding.
+named "guard" already holds there and must keep holding.
 
 A  arrangement: the items; sweeps the requester's pending r27-d1 requests and windows of an earlier pass; files a run
    request on five jobs, a permission window request for CONFIGURE (job in the folder, odd name), CREATE (the folder
@@ -44,6 +44,10 @@ X  guard, a subject renamed afterwards: r27-d1/ren-a is re-created, a run reques
    CONFIGURE window name it, then the administrator renames it to r27-d1/ren-b. The three pages keep the name the
    request was made for in title, heading and breadcrumb (the run and activation requests are INVALIDATED; the window
    follows the item, and its Scope row, not the title, shows the new name to a viewer who may see the item).
+H  #18.4 ID row over plain HTTP on a host that is not localhost (not a "secure context", where core's copy button
+   cannot write the clipboard; a second browser reaches the same Jenkins as http://r27-plain-http.test): the row still
+   shows the full id as text; core disables the button and its tooltip says "Copy is only supported with a secure
+   (HTTPS) connection."
 R  #18.7 (administrator) on Manage Jenkins > System and on the Batch Control configuration page: the revert entry is
    inside core's Advanced control (div.advancedBody of the form item whose button is button.advanced-button) of the
    Batch Control section and not visible; pressing that Advanced button moves it out and shows it; no Batch Control
@@ -65,7 +69,9 @@ cleanup: the saved strategy put back if section P left the role profile; the Bat
 section left the plain one; approver-1's job page flag on; the requester's pending r27-d1 requests cancelled and windows
 revoked."""
 import json
+import os
 import sys
+from urllib.parse import urlsplit
 
 import requests
 
@@ -240,8 +246,8 @@ def titled(sec, who, kind, key, expected, what, shot, copy=False, either=None, n
               f"title unchanged, as does everything else it carries ({who})", tooltip == [t[0]] and t[0] in accepted
               and all(x["value"] == t[0] for x in tips), attributes=tips)
     else:
-        check(sec, f"D1 #18.4 tooltip: nothing the {what} page's last breadcrumb carries besides its text differs from "
-              f"the title ({who}); the short title fits, core adds {len(tooltip)} tooltip(s)",
+        check(sec, f"guard (tooltip): nothing the {what} page's last breadcrumb carries besides its text differs from "
+              f"the title ({who}); a short title fits and gets no tooltip from core (here: {len(tooltip)})",
               all(x["value"] == t[0] for x in tips), attributes=tips)
     rows = p["rows"]
     row = rows[0] if rows else {}
@@ -253,7 +259,7 @@ def titled(sec, who, kind, key, expected, what, shot, copy=False, either=None, n
           and row.get("cell") == rid and row.get("code") == rid and len(btn) == 1 and btn[0].get("text") == rid
           and btn[0].get("tooltip") == "Copy the ID", id=rid, rows=rows)
     if name:
-        check(sec, f"D1 #18.4 escaping: on the {what} page no attribute holds the name cut off at a quote and nothing is "
+        check(sec, f"guard (escaping): on the {what} page no attribute holds the name cut off at a quote and nothing is "
               f"shown double-escaped ({who}); {p['carrying']} attribute(s) carry the name", not p["cut"] and not p["entities"],
               cut=p["cut"], entities=p["entities"])
     check(sec, f"guard: the {what} page raises no script error ({who})", not page_errors(s), errors=page_errors(s)[:3])
@@ -312,7 +318,7 @@ def sec_V():
         shown.add(titled("V", who, "activation", "hold", f"Hold request: {HOLD}", "activation request (HOLD)",
                          f"R27-D1-V-0{i}-hold-request-{who}", either=f"Activation request: {HOLD}", copy=(who == "requester")))
     note("V", "the HOLD request's page is titled", titles=sorted(shown))
-    check("V", "D1 #18.4 title: every viewer gets the same title for the HOLD request", len(shown) == 1, titles=sorted(shown))
+    check("V", "guard: every viewer gets the same title for the HOLD request", len(shown) == 1, titles=sorted(shown))
 
 
 def sec_E():
@@ -428,6 +434,49 @@ def sec_X():
          scope_row_names_new=REN_B in lib.text_of(r.text), scope_row_names_old=lib.text_of(r.text).count(REN_A))
 
 
+# ---------------------------------------------------------------- H: plain HTTP, not a secure context
+INSECURE_JS = """() => { const th = [...document.querySelectorAll('#main-panel table tr > th')].find(t => t.textContent.trim() === 'ID');
+  const td = th ? th.parentElement.querySelector('td') : null; const b = td ? td.querySelector('button.jenkins-copy-button') : null;
+  return {secure: window.isSecureContext, title: document.title, row: !!th, code: td && td.querySelector('code') ? td.querySelector('code').textContent.trim() : null,
+    button: !!b, disabled: b ? b.disabled : null, button_tooltip: b ? b.getAttribute('tooltip') : null,
+    why: b ? b.parentElement.getAttribute('tooltip') : null}; }"""
+INSECURE_WHY = "Copy is only supported with a secure (HTTPS) connection."
+
+
+def sec_H():
+    host, alias = urlsplit(lib.BASE).hostname, "r27-plain-http.test"
+    if host not in ("localhost", "127.0.0.1"):
+        note("H", "skipped: BC_BASE is not on this machine, so the alias host cannot be mapped to it", base=lib.BASE)
+        return
+    base = lib.BASE.replace(f"//{host}", f"//{alias}", 1)
+    rid = S["run"][1]
+    lib._r6.browser()  # starts Playwright; the second browser resolves the alias to this machine
+    channel = os.environ.get("BC_BROWSER_CHANNEL", "chrome")
+    b = lib._r6._pw.chromium.launch(channel=None if channel in ("", "chromium") else channel,
+                                    headless=os.environ.get("BC_HEADED") != "1",
+                                    args=[f"--host-resolver-rules=MAP {alias} 127.0.0.1"])
+    try:
+        ctx = b.new_context(viewport={"width": 1280, "height": 900}, locale="en-US")
+        p = ctx.new_page()
+        p.set_default_timeout(20000)
+        p.goto(base + "/login")
+        p.fill("#j_username", "approver-1")
+        p.fill('input[name="j_password"]', lib.pw("approver-1"))
+        p.click('button[name="Submit"], button[type="submit"]')
+        p.wait_for_load_state("load")
+        r = p.goto(base + f"/batch-control/requests/{rid}/")
+        p.wait_for_load_state("load")
+        st = p.evaluate(INSECURE_JS)
+        p.screenshot(path=str(lib.SHOTS / "R27-D1-H-01-run-request-plain-http.png"))
+        status = r.status if r else None
+    finally:
+        b.close()
+    check("H", "D1 #18.4 ID row over plain HTTP on another host name (not a secure context): approver-1's run request page "
+          "still shows the full id as text in the ID row; core disables the copy button and its tooltip says why",
+          status == 200 and st["secure"] is False and st["title"] == f"Run request: {BATCH} - Jenkins" and st["code"] == rid
+          and st["button"] and st["disabled"] is True and st["why"] == INSECURE_WHY, status=status, page=st, base=base)
+
+
 # ---------------------------------------------------------------- R, P: the revert entry
 STATE_JS = """(sel) => { const fieldSel = 'input[name^="_."], select[name^="_."], textarea[name^="_."]';
   const sec = document.querySelector('[name="_.runControlEnabled"]')?.closest('section') || null;
@@ -514,8 +563,8 @@ def revert_place(sec, path, tag, n, strategy_name):
               and len(again["controls"]) == 1 and again["controls"][0]["visible"],
               folded=[x["visible"] for x in folded["controls"]], again=[x["visible"] for x in again["controls"]])
     ctl = shown[0] if shown else (after["controls"][0] if after["controls"] else {})
-    check(sec, f"D1 #18.7 {path}: the revert entry is the last entry of the Batch Control section (none of its "
-          f"{after['fields']} fields follows it)", ctl.get("fieldsAfter") == [] and after["fields"] >= 10,
+    check(sec, f"guard (#18.7 keeps it last): {path}: the revert entry is the last entry of the Batch Control section "
+          f"(none of its {after['fields']} fields follows it)", ctl.get("fieldsAfter") == [] and after["fields"] >= 10,
           fields_after=ctl.get("fieldsAfter"), chain=ctl.get("chain"))
     check(sec, f"guard: {path}: the revert entry keeps the destructive colour", bool(ctl.get("destructive")),
           text=ctl.get("text"))
@@ -707,4 +756,4 @@ def cleanup():
 
 
 lib.run(sys.argv, {"A": sec_A, "T": sec_T, "G": sec_G, "V": sec_V, "E": sec_E, "L": sec_L, "N": sec_N, "C": sec_C,
-                   "D": sec_D, "X": sec_X, "R": sec_R, "P": sec_P}, cleanup)
+                   "D": sec_D, "X": sec_X, "H": sec_H, "R": sec_R, "P": sec_P}, cleanup)
