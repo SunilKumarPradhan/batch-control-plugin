@@ -39,11 +39,12 @@ F  #18.4 a refusal re-rendered at the POST URL (approver-1 presses Reject withou
 K  #18.4 other kinds of subject (approver-1): a Pipeline job as the subject of a run request and of an ACTIVATE
    request; a CONFIGURE window on the multibranch project team-mb ("Grant request: team-mb", cancelled afterwards).
 B  #18.4 a branch job of a multibranch project as the subject (r27-d1/mb, this unit's own multibranch project over a
-   copy of the seed's repository with the branches main, feature-1 and feature/r27-odd; approver-1 reads): a CONFIGURE
-   window request and a run request on r27-d1/mb/feature-1 and on the branch whose item name is URL-encoded,
-   r27-d1/mb/feature%2Fr27-odd, are accepted and their pages are titled with the job's full name, as the Scope and Job
-   rows name it. An ACTIVATE request on a branch job is refused at submission (HTTP 400, nothing stored): SPEC 6a,
-   "Computed folders ... carry the activation for their children: ... the ACTIVATE/HOLD request is made on it".
+   copy of the seed's repository with the branches main, feature-1 and feature/r27-odd): a CONFIGURE window request and
+   a run request on r27-d1/mb/feature-1 and on the branch whose item name is URL-encoded, r27-d1/mb/feature%2Fr27-odd,
+   are accepted; requester, approver-1, manager and admin read pages titled with the job's full name, as the Scope and
+   Job rows name it; nobc gets none of the four pages. An ACTIVATE and a HOLD request on a branch job are refused at
+   submission (HTTP 400, nothing stored): SPEC 6a, "Computed folders ... carry the activation for their children: ...
+   the ACTIVATE/HOLD request is made on it".
 L  #18.4 top-level job (approver-1): "Run request: r27-d1-top", "Grant request: r27-d1-top" (DELETE),
    "Activation request: r27-d1-top".
 N  guards, who may not see a request: nobc (no Batch Control permission) and an anonymous visitor get an error page
@@ -68,13 +69,16 @@ X  a subject renamed or moved afterwards (T-UI-236..238, SPEC 8 D-74/D-75 (1)): 
    request that was never approved keeps the name it was made for when its item is renamed (T-UI-238); a window on a
    job below a renamed folder follows; the run and activation requests, INVALIDATED by the rename, keep their name.
    (The same title after a restart: r27/title_restart.py, run inside the unit r16-durable.)
-W  a window that has ended after its item was renamed (SPEC 8 D-74, D-75 (1); the windows are opened and their items
-   renamed in A): end-rev (revoked by the administrator), end-exp (a one-minute window that expired) and end-del (its
-   renamed item deleted, which ends the window). The title names the item the Scope row names for the same viewer, as
-   while the window was open: the requester, who may read the renamed item, reads the current name for end-rev and
-   end-exp; approver-disc, who may not, reads the approved name with the "moved" note and the new name is nowhere in
-   the page's HTML; for end-del nobody can read the item any more, so the requester and approver-disc read the approved
-   name and the administrator the name the item had last.
+W  a window that has ended (SPEC 8 D-74, D-75 (1); the windows are opened in A). Renamed while open, then ended:
+   end-rev (revoked by the administrator), end-exp (a one-minute window that expired) and end-del (its renamed item
+   deleted, which ends the window). The title names the item the Scope row names for the same viewer, as while the
+   window was open: requester, approver-1, manager and admin, who may read the renamed item, read the current name for
+   end-rev and end-exp; approver-disc, who may not, reads the approved name with the "moved" note and the new name is
+   nowhere in the page's HTML; for end-del nobody can read the item any more, so everyone but the administrator reads
+   the approved name and the administrator the name the item had last. Ended first, renamed afterwards: late-rr
+   (revoked) and late-er (expired) are renamed only after their windows ended; a window follows its item only while it
+   applies, so the stored window, the Scope row and the title all keep the name the window ended with for the
+   requester, approver-disc and admin, and the later name is in none of them (nor in approver-disc's HTML).
 S  #18.4 requests that ran or expired: the run request approved in A on the activated job is EXECUTED; the run, window
    and ACTIVATE requests on r27-d1/exp, made an hour older than pendingTimeoutHours in the store in A (the setting's
    minimum is 1 hour and CI sets 24, so waiting cannot do it), were expired by the plugin's periodic work. Titles and
@@ -136,6 +140,7 @@ PEND = (f"{FOLDER}/pend-a{TAIL}", f"{FOLDER}/pend-b{TAIL}")
 FOLD, FOLD_JOB = (f"{FOLDER}/fold-a", f"{FOLDER}/fold-b"), "job" + TAIL
 MOVED = " (moved; its new location is not visible to you)"
 ENDED = {k: (f"{FOLDER}/end-{k}-a{TAIL}", f"{FOLDER}/end-{k}-b{TAIL}") for k in ("rev", "exp", "del")}
+LATE = {k: (f"{FOLDER}/late-{k}-a{TAIL}", f"{FOLDER}/late-{k}-b{TAIL}") for k in ("rr", "er")}
 MB_OWN = f"{FOLDER}/mb"
 BRANCHES = (f"{MB_OWN}/feature-1", f"{MB_OWN}/feature%2Fr27-odd")  # item names; the second branch is feature/r27-odd
 REN_A, REN_B = f"{FOLDER}/ren-a{TAIL}", f"{FOLDER}/ren-b{TAIL}"
@@ -385,6 +390,16 @@ def sec_A():
         rid = S["grant_end_" + k][1]
         S["ended_" + k] = (lib.decide("approver-1", "grants", rid, "approve", "e2e-27 D1") if rid else None,
                            rename(old, new.rsplit("/", 1)[1]), window_of(rid) if rid else None)
+    # Also for section W: two windows whose items are renamed only after the windows ended (late-er lasts one minute).
+    S["late_removed"] = remove(*[n for pair in LATE.values() for n in pair])
+    for k, (old, new) in LATE.items():
+        lib.ensure_item(old, xml)
+        S["grant_late_" + k] = lib.submit_grant("requester", old, ["CONFIGURE"], minutes=1 if k == "er" else 15,
+                                                reason=f"e2e-27 D1 window that ends before the rename ({k})",
+                                                approvers=("approver-1", "approver-disc"))
+        rid = S["grant_late_" + k][1]
+        S["late_" + k] = (lib.decide("approver-1", "grants", rid, "approve", "e2e-27 D1") if rid else None,
+                          window_of(rid) if rid else None)
     S["timeout_hours"] = settings()["pending"]
     S["backdated"] = backdate((("run", S["run_exp"][1]), ("grant", S["grant_exp"][1]), ("activation", S["act_exp"][1])),
                               S["timeout_hours"] + 1) if all(S[k][1] for k in ("run_exp", "grant_exp", "act_exp")) else None
@@ -626,27 +641,36 @@ def sec_B():
           codes={k: S[k][0] for k in S if k.startswith(("grant_br", "run_br"))}, stored=filed)
     for i, job in enumerate(BRANCHES):
         tag = "plain" if i == 0 else "encoded-name"
-        if S[f"grant_br{i}"][1]:
-            titled("B", "approver-1", "grant", f"grant_br{i}", f"Grant request: {job}", f"grant request (branch job, {tag})",
-                   f"R27-D1-B-{i}1-grant-request-branch-job-{tag}", scope="Pipeline " + job, kind_label="Pipeline",
-                   name=(MB_OWN + "/feature", job) if i else None)
-        if S[f"run_br{i}"][1]:
-            titled("B", "approver-1", "run", f"run_br{i}", f"Run request: {job}", f"run request (branch job, {tag})",
-                   f"R27-D1-B-{i}2-run-request-branch-job-{tag}", name=(MB_OWN + "/feature", job) if i else None)
+        odd = (MB_OWN + "/feature", job) if i else None
+        for who in ("approver-1", "requester", "manager", "admin"):
+            if S[f"grant_br{i}"][1]:
+                titled("B", who, "grant", f"grant_br{i}", f"Grant request: {job}", f"grant request (branch job, {tag})",
+                       f"R27-D1-B-{i}1-grant-request-branch-job-{tag}-{who}", scope="Pipeline " + job, kind_label="Pipeline",
+                       name=odd)
+            if S[f"run_br{i}"][1]:
+                titled("B", who, "run", f"run_br{i}", f"Run request: {job}", f"run request (branch job, {tag})",
+                       f"R27-D1-B-{i}2-run-request-branch-job-{tag}-{who}", name=odd)
+        for kind, key in (("grant", f"grant_br{i}"), ("run", f"run_br{i}")):
+            r = api("nobc", f"/batch-control/{lib.KIND_URL[kind]}/{S[key][1]}/")
+            check("B", f"guard: nobc (no Batch Control permission) gets no {kind} request page of the branch job ({tag}): an "
+                  "error status and a body that names neither the subject nor the job", r.status_code >= 400
+                  and "request: " + job not in r.text and job not in r.text and MB_OWN not in r.text,
+                  status=r.status_code, text=lib.text_of(r.text)[:160])
     # SPEC 6a: "Computed folders (multibranch projects, organization folders) carry the activation for their children:
-    # ... the ACTIVATE/HOLD request is made on it", so a branch job takes no activation request of its own.
-    for i, job in enumerate(BRANCHES):
-        before = stored_for("activation", job)
-        r = api("requester", lib.jpath(job) + "/batch-control-activation/submit", "POST",
-                data=[("action", "ACTIVATE"), ("reason", "e2e-27 D1 activation on a branch job"), ("approvers", "approver-1")])
-        text = norm(lib.text_of(r.text))
-        said = [x for x in ("which carries its activation", "Make activation or hold requests on the folder that carries it")
-                if x in text]
-        check("B", f"guard (SPEC 6a): an ACTIVATE request on the branch job {job} is refused at submission: HTTP 400, no "
-              "redirect to a request page, no activation request stored for it, and the answer says that the multibranch "
-              "project carries the activation and takes the request", r.status_code == 400 and lib.loc_id(r) is None
-              and stored_for("activation", job) == before == 0 and len(said) == 2,
-              status=r.status_code, stored=stored_for("activation", job), said=said)
+    # ... the ACTIVATE/HOLD request is made on it", so a branch job takes no activation or hold request of its own.
+    for job in BRANCHES:
+        for action in ("ACTIVATE", "HOLD"):
+            before = stored_for("activation", job)
+            r = api("requester", lib.jpath(job) + "/batch-control-activation/submit", "POST",
+                    data=[("action", action), ("reason", "e2e-27 D1 on a branch job"), ("approvers", "approver-1")])
+            text = norm(lib.text_of(r.text))
+            said = [x for x in ("which carries its activation", "Make activation or hold requests on the folder that carries it")
+                    if x in text]
+            check("B", f"guard (SPEC 6a): {'an ACTIVATE' if action == 'ACTIVATE' else 'a HOLD'} request on the branch job "
+                  f"{job} is refused at submission: HTTP 400, no redirect to a request page, no activation request stored "
+                  "for it, and the answer says that the multibranch project carries the activation and takes the request",
+                  r.status_code == 400 and lib.loc_id(r) is None and stored_for("activation", job) == before == 0
+                  and len(said) == 2, status=r.status_code, stored=stored_for("activation", job), said=said)
 
 
 def sec_L():
@@ -817,45 +841,71 @@ def sec_X():
 # ---------------------------------------------------------------- W: a window that ended after its item was renamed
 def sec_W():
     ids = {k: S["grant_end_" + k][1] for k in ENDED}
+    late = {k: S["grant_late_" + k][1] for k in LATE}
     done = {"revoke": api("admin", f"/batch-control/grants/{ids['rev']}/revoke", "POST").status_code,
-            "delete": api("admin", lib.jpath(ENDED["del"][1]) + "/doDelete", "POST").status_code}
-    lib.wait_until(lambda: not window_of(ids["exp"]).get("open"), timeout=150, step=5)
+            "delete": api("admin", lib.jpath(ENDED["del"][1]) + "/doDelete", "POST").status_code,
+            "revoke_late": api("admin", f"/batch-control/grants/{late['rr']}/revoke", "POST").status_code}
+    lib.wait_until(lambda: not window_of(ids["exp"]).get("open") and not window_of(late["er"]).get("open"), timeout=150, step=5)
     windows = {k: window_of(v) for k, v in ids.items()}
-    read = {k: may_read(ENDED[k][1], ("requester", "approver-disc", "admin")) for k in ENDED}
+    people = ("requester", "approver-1", "manager", "admin", "approver-disc")
+    read = {k: may_read(ENDED[k][1], people) for k in ENDED}
+    readers = {"requester": True, "approver-1": True, "manager": True, "admin": True, "approver-disc": False}
     check("W", "arrangement: three CONFIGURE windows were approved and their items renamed while they were open (section "
           "A); then the administrator revoked end-rev, the one-minute window on end-exp expired and the administrator "
-          "deleted end-del's item: each window has ended and names the renamed item; the requester and admin may read "
-          "end-rev-b and end-exp-b, approver-disc may not, and nobody can read the deleted end-del-b",
+          "deleted end-del's item: each window has ended and names the renamed item; requester, approver-1, manager and "
+          "admin may read end-rev-b and end-exp-b, approver-disc may not, and nobody can read the deleted end-del-b",
           all(x[0] in (200, 302) and x[1] in (200, 302) and x[2] == {"scope": ENDED[k][1], "open": True}
               for k in ENDED for x in [S["ended_" + k]])
           and windows == {k: {"scope": ENDED[k][1], "open": False} for k in ENDED}
-          and read["rev"] == read["exp"] == {"requester": True, "approver-disc": False, "admin": True}
-          and read["del"] == {"requester": False, "approver-disc": False, "admin": False} and not exists(ENDED["del"][1]),
+          and read["rev"] == read["exp"] == readers and not any(read["del"].values()) and not exists(ENDED["del"][1]),
           opened={k: S["ended_" + k] for k in ENDED}, codes=done, windows=windows, read=read,
           removed_first=S.get("ended_removed"))
     reader = lambda name: "Freestyle project " + name  # noqa: E731
-    leaf = lambda k: ENDED[k][1].rsplit("/", 1)[1][:len("end-xxx-b")]  # noqa: E731
+    leaf = lambda full: full.rsplit("/", 1)[1][:-len(TAIL)]  # noqa: E731
     n = 0
     for k, how in (("rev", "revoked"), ("exp", "expired")):
         old, new = ENDED[k]
-        n += 1
-        titled("W", "requester", "grant", "grant_end_" + k, f"Grant request: {new}",
-               f"{how} window whose item was renamed (a reader)", f"R27-D1-W-0{n}-window-{how}-requester",
-               absent=(old,), scope=reader(new))
+        for who in ("requester", "approver-1", "manager", "admin"):
+            n += 1
+            titled("W", who, "grant", "grant_end_" + k, f"Grant request: {new}",
+                   f"{how} window whose item was renamed (a reader)", f"R27-D1-W-{n:02d}-window-{how}-{who}",
+                   absent=(old,), scope=reader(new))
         n += 1
         titled("W", "approver-disc", "grant", "grant_end_" + k, f"Grant request: {old}",
                f"{how} window whose item was renamed (a viewer who may not read the item)",
-               f"R27-D1-W-0{n}-window-{how}-approver-disc", absent=(new,), scope=reader(old) + MOVED, raw_absent=(leaf(k),))
+               f"R27-D1-W-{n:02d}-window-{how}-approver-disc", absent=(new,), scope=reader(old) + MOVED,
+               raw_absent=(leaf(new),))
     old, new = ENDED["del"]
-    for who in ("requester", "approver-disc"):
+    for who in ("requester", "approver-1", "manager", "approver-disc"):
         n += 1
         titled("W", who, "grant", "grant_end_del", f"Grant request: {old}",
                "window ended by the deletion of its renamed item (nobody can read it any more)",
-               f"R27-D1-W-0{n}-window-item-deleted-{who}", absent=(new,), scope=reader(old) + MOVED,
-               raw_absent=(leaf("del"),))
+               f"R27-D1-W-{n:02d}-window-item-deleted-{who}", absent=(new,), scope=reader(old) + MOVED,
+               raw_absent=(leaf(new),))
+    n += 1
     titled("W", "admin", "grant", "grant_end_del", f"Grant request: {new}",
-           "window ended by the deletion of its renamed item (administrator)", "R27-D1-W-07-window-item-deleted-admin",
+           "window ended by the deletion of its renamed item (administrator)", f"R27-D1-W-{n:02d}-window-item-deleted-admin",
            absent=(old,), scope=reader(new))
+
+    # ---- ended first, renamed afterwards: an ended window no longer follows its item (D-74: "while it applies")
+    renamed = {k: rename(old, new.rsplit("/", 1)[1]) for k, (old, new) in LATE.items()}
+    state = {k: {"window": window_of(late[k]), "old_exists": exists(LATE[k][0]), "new_exists": exists(LATE[k][1]),
+                 "read_new": may_read(LATE[k][1], ("requester", "approver-disc", "admin"))} for k in LATE}
+    check("W", "arrangement: the windows on late-rr (revoked by the administrator) and late-er (one minute, expired) had "
+          "ended, named their items as approved and had never followed anything; only then the administrator renamed both "
+          "items to late-*-b. The stored windows still name late-*-a; requester and admin may read the renamed items, "
+          "approver-disc may not", all(x[0] in (200, 302) and x[1] == {"scope": LATE[k][0], "open": True}
+                                       for k in LATE for x in [S["late_" + k]])
+          and all(v == {"window": {"scope": LATE[k][0], "open": False}, "old_exists": False, "new_exists": True,
+                        "read_new": {"requester": True, "approver-disc": False, "admin": True}} for k, v in state.items()),
+          opened={k: S["late_" + k] for k in LATE}, renamed=renamed, state=state, removed_first=S.get("late_removed"))
+    for k, how in (("rr", "revoked"), ("er", "expired")):
+        old, new = LATE[k]
+        for who in ("requester", "approver-disc", "admin"):
+            n += 1
+            titled("W", who, "grant", "grant_late_" + k, f"Grant request: {old}",
+                   f"window that was {how} before its item was renamed", f"R27-D1-W-{n:02d}-window-{how}-then-renamed-{who}",
+                   absent=(new,), scope=reader(old), raw_absent=(leaf(new),) if who == "approver-disc" else ())
 
 
 # ---------------------------------------------------------------- S: requests that ran or expired
