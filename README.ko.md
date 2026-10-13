@@ -1,4 +1,4 @@
-이 문서는 정본인 영문 [README.md](README.md)의 한국어 번역이며 2026-10-09 기준입니다. 두 문서가 어긋나면 영문판이 맞습니다.
+이 문서는 정본인 영문 [README.md](README.md)의 한국어 번역이며 2026-10-13 기준입니다. 두 문서가 어긋나면 영문판이 맞습니다.
 
 # Batch Control
 
@@ -29,25 +29,40 @@ CI 서버가 아니라 **배치 실행 관리 도구**로 운영되는 Jenkins �
 
 ## 스크린샷
 
-보호된 잡의 **Request Run**(실행 요청) 화면.
+각 스크린샷에 그려 넣은 테두리는 봐야 할 곳을 표시합니다.
 
-![빌드 파라미터, 사유 입력란, 결재자 체크박스가 있는 보호된 잡의 Request Run 양식](docs/images/request-run.png)
+### 1. 설정(관리자)
 
-결재자가 보는 대기 중인 실행 요청.
+**관리자:** 실행 통제와 변경 통제 중 하나 또는 둘 다를 켜고 결재자 목록을 적습니다.
 
-![파라미터, 사유, 요청자가 표시되고 Approve와 Reject 버튼이 있는, 결재자가 보는 대기 중인 실행 요청](docs/images/approval.png)
+![Manage Jenkins → System의 Batch Control 섹션. 테두리 하나는 둘 다 체크된 Enable run control과 Enable change control 체크박스를, 다른 하나는 approver-1, approver-2, admin이 적힌 Approvers 목록을 둘러싸고 있습니다. 그 아래로 Send e-mail notifications까지 나머지 설정이 이어집니다.](docs/images/global-config.png)
 
-권한 창 요청.
+### 2. 보호된 잡 실행(실행 통제)
 
-![잡 또는 폴더 이름, CREATE·CONFIGURE·DELETE 동작, 기간, 사유를 입력하는 권한 창 요청 양식](docs/images/permission-window.png)
+**요청자:** 승인이 필요한 잡에서 **Request Run**(실행 요청)을 골라 사유를 적고 결재자를
+지정합니다.
 
-History(이력) 화면의 Requests 보기.
+![잡 batch » daily-settlement의 Request Run 양식으로, 잡의 사이드바에서 Request Run이 선택되어 있습니다. 테두리는 내용이 입력된 Reason 입력란과 Approvers 체크박스를 둘러싸고 있고, approver-1은 체크되어 있으며 approver-2와 admin은 체크되어 있지 않습니다. 그 아래로 잡의 빌드 파라미터 세 개와 Submit Request 버튼이 이어집니다.](docs/images/request-run.png)
 
-![실행 요청 8건을 잡, 요청자, 결재자, 결정한 사람, 상태(PENDING, EXECUTED, REJECTED, CANCELLED), 생성 시각, 결정 시각과 함께 나열하는 Batch Control History 화면의 Requests 보기](docs/images/dashboard.png)
+**결재자:** 사유와 파라미터를 읽고 **Approve**(승인) 또는 **Reject**(반려)를 고릅니다.
 
-전역 설정.
+![결재자가 보는 batch/daily-settlement의 대기 중인 실행 요청. 상태 PENDING, 요청자, 결재자, 사유, 파라미터 값 세 개, 잡의 최근 실행 두 건이 표시됩니다. Decision 아래에서 테두리 하나는 Approve 버튼을, 다른 하나는 Reject 버튼을 둘러싸고 있습니다.](docs/images/approval.png)
 
-![실행 통제와 변경 통제 스위치, 결재자 목록이 있는 Jenkins 전역 설정의 Batch Control 섹션](docs/images/global-config.png)
+**`BatchControl/ViewHistory` 권한이 있는 사람:** **History**(이력)에서 그 요청을 찾아 누가
+요청하고 누가 결정했는지, 그리고 실행되었다는 것을 확인합니다.
+
+![실행 요청 8건을 잡, 요청자, 결재자, 결정한 사람, 상태, 생성 시각, 결정 시각과 함께 나열하는 Batch Control History 화면의 Requests 보기. 테두리는 첫 번째 행(batch/daily-settlement, 요청자 requester, 결정한 사람 approver-1, EXECUTED)을 둘러싸고 있습니다. 나머지 7건 중 4건은 EXECUTED, 1건은 PENDING, 1건은 CANCELLED, 1건은 REJECTED입니다.](docs/images/history.png)
+
+### 3. 안전한 잡 변경(변경 통제)
+
+**요청자:** 권한 창(여기서는 잡 하나에 대한 60분간의 `CONFIGURE`)을 요청하고 사유를 적습니다.
+
+![잡 batch/nightly-load가 미리 채워진 Request Change Permission 양식. 테두리 하나는 Configure가 체크되고 Create와 Delete는 체크되지 않은 Actions와 60 minutes로 설정된 Duration을, 다른 하나는 내용이 입력된 Reason 입력란을 둘러싸고 있습니다. 그 아래에 결재자 두 명이 체크되어 있고, 맨 아래에 Request Grant 버튼이 있습니다.](docs/images/permission-window.png)
+
+**결재자:** 요청 내용을 읽고 **Approve** 또는 **Reject**를 고릅니다. 승인된 창은 시간이 다 되면
+스스로 닫힙니다.
+
+![결재자가 보는 대기 중인 권한 창 요청(화면 제목은 Grant Request). Freestyle project batch/nightly-load, 동작 CONFIGURE, 60 minutes, 상태 PENDING, 요청자, 결재자, 사유가 표시되고, 이 창으로는 이름을 바꿀 수 없다는 안내와 빌드가 실행되는 계정에 대한 경고가 있습니다. Decision 아래에서 테두리 하나는 Approve 버튼을, 다른 하나는 Reject 버튼을 둘러싸고 있습니다.](docs/images/permission-window-approval.png)
 
 ## 요구 사항
 
