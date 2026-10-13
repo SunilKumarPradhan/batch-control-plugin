@@ -83,13 +83,23 @@ public class GrantRequestItem implements ModelObject {
     }
 
     /**
-     * #18.4: titled with the item the request names, as approved (never the followed name of
-     * D-75 (1), which only some viewers may see); the id is in the summary table's ID row.
+     * #18.4: titled with the item the request concerns, the one its Scope row names for the same
+     * viewer ({@link #getShownScope()}); the id is in the summary table's ID row.
+     *
+     * <p>D-74, D-75 (1) (SPEC item 8): once approved, the window follows its item, so the title
+     * names the item's current full name for a viewer who may read it now (Item/Read) and for an
+     * administrator, and the approved name for anyone else. The fixed "moved" note stays in the
+     * Scope row; the title never carries a location the viewer may not read. A request that was
+     * never approved has no window and keeps the name it was made for.
+     *
+     * <p>Decided on every call for the user the calling thread runs as, and never cached: this is
+     * the page's {@code <title>}, app bar heading and breadcrumb, all rendered in the viewer's
+     * request. Do not call it under {@code ACL.SYSTEM2}, which would answer as an administrator.
      */
     @Override
     public String getDisplayName() {
-        GrantScope scope = request.getScope();
-        return "Grant request: " + (scope == null ? request.getId() : scope.getFullName());
+        String fullName = getShownScope().getFullName();
+        return "Grant request: " + (fullName == null ? request.getId() : fullName);
     }
 
     /** Jelly helper: human-readable timestamp. */
