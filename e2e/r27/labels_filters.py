@@ -5,7 +5,7 @@ badges (class batch-control-status, data-batch-control-tone), run causes are pla
 the Incidents Result filter offers only Any, Failed, Unstable, Aborted; build results read as plain-text labels
 (Success, Unstable, Failed, Not built, Aborted; "In progress" for a running build) on six screens.
 
-usage: python labels_filters.py [ABRDFGKIL]   rows: out/labels_filters.jsonl, shots: screenshots/run-27/R27-D2-*.png
+usage: python labels_filters.py [ABRDFGKINL]   rows: out/labels_filters.jsonl, shots: screenshots/run-27/R27-D2-*.png
 The records come from r27/d2_fixture.py (every RequestStatus for run requests, the reachable ones for window and
 activation requests, the three IncidentStatus values, every CauseType, five results). What only a browser's rendering
 shows (colours in both themes, geometry, Content-Security-Policy, forced colours) is r27/status_badges.py.
@@ -48,6 +48,13 @@ I  decision 3 (T-UI-269b..269d), as admin, manager, approver-1 and auditor: Hist
    lists the aborted run's incident while incidentResults lacks ABORTED (T-UI-269c); the Incidents list has no Result filter
    or the same one (guard). As admin: the options stay the same with incidentResults [FAILURE, UNSTABLE, ABORTED] and
    [FAILURE] (the setting is put back).
+N  the Incidents list's introduction names the configured incidentResults (T-UI-269j, owner decision 2026-10-14): admin
+   saves the setting on the Batch Control configuration page (the real form) as [FAILURE, UNSTABLE, ABORTED], [FAILURE],
+   [ABORTED, FAILURE], [UNSTABLE, ABORTED] and [ABORTED] in turn; after each save the store holds it, and the paragraph
+   reads exactly "<opening> are registered automatically as incidents. Open an incident ..." for admin and for auditor
+   (ViewHistory only), the opening being the labels in the order FAILURE, UNSTABLE, ABORTED, lower case after the first,
+   joined with ", " and " and ", then "builds". The default ("Failed and unstable builds") is a guard, read first and
+   again after the form has put the setting back (asserted).
 L  decision 4 (T-UI-269e..269i): the result cells of the Incidents list, the three incident pages (Result row), History >
    Incidents, History > Runs and the Run Dashboard (admin, manager, approver-1, auditor) and the Build table of the five
    run request pages (admin, manager, approver-1, requester) read the label as their whole text, plain text and not a
@@ -722,6 +729,69 @@ def sec_I():
     check("I", "arrangement: incidentResults is back to what it was", back == setting, before=setting, after=back)
 
 
+# ---------------------------------------------------------------- N: the Incidents introduction (T-UI-269j)
+INTRO_REST = ("are registered automatically as incidents. Open an incident to acknowledge, comment or resolve it; a user who "
+              "may submit run requests for its job can also request a rerun there.")
+INTRO_CASES = (("FAILURE, UNSTABLE, ABORTED", "Failed, unstable and aborted builds"), ("FAILURE", "Failed builds"),
+               ("ABORTED, FAILURE", "Failed and aborted builds"), ("UNSTABLE, ABORTED", "Unstable and aborted builds"),
+               ("ABORTED", "Aborted builds"))
+INTRO_JS = """() => [...document.querySelectorAll('#main-panel p')].map(p => p.textContent.replace(/\s+/g, ' ').trim())
+  .filter(t => /registered automatically|Open an incident to acknowledge/.test(t))"""
+CONFIG = "/manage/batch-control-configuration/"
+
+
+def save_incident_results(s, text):
+    """admin types `text` into "Results that open an incident" on the configuration page and saves (the real form).
+    Returns (HTTP status of the save, the field's value read back from a fresh load of the page)."""
+    s.go(CONFIG)
+    s.page.locator('input[name="_.incidentResults"]').fill(text)
+    with s.page.expect_response(lambda r: "configSubmit" in r.url and r.request.method == "POST") as ri:
+        s.page.locator('button[name="Submit"]').click()
+    s.page.wait_for_load_state("load")
+    s.go(CONFIG)
+    return ri.value.status, s.page.locator('input[name="_.incidentResults"]').input_value()
+
+
+def intro(s):
+    s.go("/batch-control/incidents/")
+    return s.page.evaluate(INTRO_JS)
+
+
+def sec_N():
+    before = F.incident_results()
+    admin, viewer = Session("admin"), Session("auditor")
+    seen = {"default": (intro(admin), intro(viewer))}
+    want = f"Failed and unstable builds {INTRO_REST}"
+    check("N", "guard (T-UI-269j, the default unchanged): with incidentResults [FAILURE, UNSTABLE] the Incidents list's "
+          f"introduction reads exactly '{want}' (admin, auditor)", before == ["FAILURE", "UNSTABLE"]
+          and seen["default"] == ([want], [want]), setting=before, admin=seen["default"][0], auditor=seen["default"][1])
+    lib.page_shot(viewer, "R27-D2-N-incidents-intro-default")
+    try:
+        for text, opening in INTRO_CASES:
+            status, field = save_incident_results(admin, text)
+            stored = F.incident_results()
+            got = (intro(admin), intro(viewer))
+            if text == "FAILURE, UNSTABLE, ABORTED":
+                lib.page_shot(viewer, "R27-D2-N-incidents-intro-three")
+            want = f"{opening} {INTRO_REST}"
+            check("N", f"D2 #18.2 (T-UI-269j) with incidentResults [{text}] saved on the configuration page the Incidents "
+                  f"list's introduction reads exactly '{opening} {INTRO_REST[:39]}...' (the rest unchanged) (admin, auditor)",
+                  status < 400 and sorted(stored) == sorted(x.strip() for x in text.split(",")) and got == ([want], [want]),
+                  save=status, field=field, stored=stored, admin=got[0], auditor=got[1])
+    finally:
+        status, field = save_incident_results(admin, ", ".join(before))
+        after = F.incident_results()
+        if after != before:  # the form did not put it back: the script console does, and the check below says so
+            F.incident_results(before)
+        back = (intro(admin), intro(viewer))
+        admin.done()
+        viewer.done()
+    want = f"Failed and unstable builds {INTRO_REST}"
+    check("N", "arrangement: the configuration page put incidentResults back to what it was, and the introduction reads "
+          "the default opening again (admin, auditor)", status < 400 and after == before and back == ([want], [want]),
+          save=status, field=field, before=before, after=after, admin=back[0], auditor=back[1])
+
+
 # ---------------------------------------------------------------- L: build results read as labels (decision 4)
 RESULT_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim(); const out = [];
   const flag = c => !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'));
@@ -882,4 +952,4 @@ def cleanup():
 
 if __name__ == "__main__":
     lib.run(sys.argv, {"A": sec_A, "B": sec_B, "R": sec_R, "D": sec_D, "F": sec_F, "G": sec_G, "K": sec_K, "I": sec_I,
-                       "L": sec_L}, cleanup)
+                       "N": sec_N, "L": sec_L}, cleanup)
