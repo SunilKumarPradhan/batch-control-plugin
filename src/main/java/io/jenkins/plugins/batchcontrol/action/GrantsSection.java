@@ -788,10 +788,17 @@ public class GrantsSection implements ModelObject, StaplerProxy {
             return user;
         }
 
-        /** The request status name, or {@code null} for a window without a stored request. */
+        /**
+         * #18.2 (colour badges): the request status the How cell of an ended row words ("Rejected
+         * by a1", "Expired without a decision"), which the cell shows as a badge
+         * ({@code tags/status.jelly}). {@code null} for a row with a window: its How cell says how
+         * the window ended ("Expired", "Revoked by admin"), which is a window state, not the
+         * request's status (APPROVED), so it is plain text and carries no status.
+         */
         @CheckForNull
-        public String getStatus() {
-            return request == null ? null : String.valueOf(request.getStatus());
+        public RequestStatus getEndedStatus() {
+            GrantRequest r = request;
+            return r == null || grant != null ? null : r.getStatus();
         }
 
         /** When the row was created: the request's creation, else the window's start. */

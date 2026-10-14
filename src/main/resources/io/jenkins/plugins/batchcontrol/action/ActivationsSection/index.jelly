@@ -124,7 +124,8 @@
                       </td>
                       <td>${r.requester}</td>
                       <td>${it.join(r.approvers)}</td>
-                      <td data-batch-control-status="${r.status}">${it.endedLabel(r)}</td>
+                      <!-- #18.2: the status badge, in this list's wording (endedLabel). -->
+                      <td><bc:status value="${r.status}" label="${it.endedLabel(r)}"/></td>
                       <td>${it.format(r.createdAt)}</td>
                     </tr>
                   </j:forEach>

@@ -3,16 +3,28 @@
      through the root action: j:invokeStatic cannot see plugin classes in a real Jenkins). The
      element keeps the enum name in data-batch-control-status, the stable hook for tests and
      scripts; CSV exports, filters and the JSON summary keep the enum names. Nothing is rendered
-     for a null value. Escaped by default. -->
+     for a null value. Escaped by default.
+
+     Colour badges: a request, grant or activation status and an incident status are a badge, the
+     class batch-control-status with the tone of the constant (StatusLabels#tone) in
+     data-batch-control-tone. The tone follows the constant, not the label a page passes. The
+     badge holds its label and nothing else, and it is styled by the plugin stylesheet alone (no
+     style attribute: the pages work under a Content-Security-Policy without inline styles), which
+     this tag links, so every screen that shows a badge has it. A run cause has no tone: plain
+     text, without the class and without the tone attribute (a null attribute is not rendered). -->
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler">
   <st:documentation>
-    A readable status or cause label carrying the enum name.
+    A readable status or cause label carrying the enum name; a colour badge for a request or incident status.
     <st:attribute name="value" use="required">The enum constant (RequestStatus, IncidentStatus or CauseType).</st:attribute>
     <st:attribute name="label">The text to show instead of the default label (a page's own wording for this status).</st:attribute>
     <st:attribute name="runRequest">"true" for a run request's status: APPROVED reads "Approved, waiting to run".</st:attribute>
   </st:documentation>
   <j:if test="${attrs.value != null}">
     <j:set var="bcStatusRoot" value="${app.getExtensionList('io.jenkins.plugins.batchcontrol.action.BatchControlRootAction').get(0)}"/>
-    <span data-batch-control-status="${attrs.value}">${attrs.label != null ? attrs.label : bcStatusRoot.statusLabel(attrs.value, attrs.runRequest == 'true')}</span>
+    <j:set var="bcStatusBadge" value="${bcStatusRoot.statusTone(attrs.value) != null}"/>
+    <j:if test="${bcStatusBadge}">
+      <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
+    </j:if>
+    <span class="${bcStatusBadge ? 'batch-control-status' : null}" data-batch-control-status="${attrs.value}" data-batch-control-tone="${bcStatusRoot.statusTone(attrs.value)}">${attrs.label != null ? attrs.label : bcStatusRoot.statusLabel(attrs.value, attrs.runRequest == 'true')}</span>
   </j:if>
 </j:jelly>

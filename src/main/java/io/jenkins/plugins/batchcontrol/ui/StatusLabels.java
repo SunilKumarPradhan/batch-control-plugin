@@ -16,13 +16,34 @@ import org.kohsuke.accmod.restrictions.NoExternalUse;
  * the element showing a label carries it in {@code data-batch-control-status}
  * ({@code tags/status.jelly}), and CSV exports, filter tokens and the JSON summary keep it.
  *
+ * <p>A request, grant or activation status and an incident status are shown as a colour badge:
+ * {@link #tone} names the badge's tone, which the element carries in
+ * {@code data-batch-control-tone} and the plugin stylesheet colours from the theme. The tone
+ * follows the constant, never a page's own wording of the label. A run cause has no tone and
+ * stays plain text.
+ *
  * <p>Each enum is mapped by a switch expression without a default branch, so a new constant
- * without a label does not compile. Views reach this class through
- * {@code BatchControlRootAction#statusLabel} (never {@code j:invokeStatic}, which cannot see
- * plugin classes in a real Jenkins).
+ * without a label or a tone does not compile. Views reach this class through
+ * {@code BatchControlRootAction#statusLabel} and {@code #statusTone} (never
+ * {@code j:invokeStatic}, which cannot see plugin classes in a real Jenkins).
  */
 @Restricted(NoExternalUse.class)
 public final class StatusLabels {
+
+    /** Tone of a status that waits for someone: a pending request, an acknowledged incident. */
+    private static final String TONE_WARNING = "warning";
+
+    /** Tone of a status that is decided and under way: an approved request. */
+    private static final String TONE_INFO = "info";
+
+    /** Tone of a status that ended well: an executed request, a resolved incident. */
+    private static final String TONE_SUCCESS = "success";
+
+    /** Tone of a status that needs attention or was refused: a rejected request, an open incident. */
+    private static final String TONE_DANGER = "danger";
+
+    /** Tone of a status that ended without a decision or a run: cancelled, expired, invalidated. */
+    private static final String TONE_NEUTRAL = "neutral";
 
     /** The run request page's wording for an approved request whose run has not started yet. */
     public static final String APPROVED_WAITING_TO_RUN = "Approved, waiting to run";
@@ -59,6 +80,23 @@ public final class StatusLabels {
     }
 
     /**
+     * The tone of the badge showing {@code value}, in lower case ({@code warning}, {@code info},
+     * {@code success}, {@code danger} or {@code neutral}), for a {@link RequestStatus} or an
+     * {@link IncidentStatus}; {@code null} for anything else (a run cause, {@code null}), which is
+     * not a badge.
+     */
+    @CheckForNull
+    public static String tone(@CheckForNull Enum<?> value) {
+        if (value instanceof RequestStatus s) {
+            return requestTone(s);
+        }
+        if (value instanceof IncidentStatus s) {
+            return incidentTone(s);
+        }
+        return null;
+    }
+
+    /**
      * The label of a run request's status: an approved run request is one whose run has not
      * started yet (it becomes {@link RequestStatus#EXECUTED} when it does).
      */
@@ -82,7 +120,6 @@ public final class StatusLabels {
         return result;
     }
 
-
     private static String request(RequestStatus status) {
         return switch (status) {
             case PENDING -> "Pending";
@@ -100,6 +137,24 @@ public final class StatusLabels {
             case OPEN -> "Open";
             case ACKNOWLEDGED -> "Acknowledged";
             case RESOLVED -> "Resolved";
+        };
+    }
+
+    private static String requestTone(RequestStatus status) {
+        return switch (status) {
+            case PENDING -> TONE_WARNING;
+            case APPROVED -> TONE_INFO;
+            case EXECUTED -> TONE_SUCCESS;
+            case REJECTED -> TONE_DANGER;
+            case CANCELLED, EXPIRED, INVALIDATED -> TONE_NEUTRAL;
+        };
+    }
+
+    private static String incidentTone(IncidentStatus status) {
+        return switch (status) {
+            case OPEN -> TONE_DANGER;
+            case ACKNOWLEDGED -> TONE_WARNING;
+            case RESOLVED -> TONE_SUCCESS;
         };
     }
 

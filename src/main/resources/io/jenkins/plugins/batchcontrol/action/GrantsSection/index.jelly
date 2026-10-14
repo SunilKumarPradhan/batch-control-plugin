@@ -174,7 +174,14 @@
                   <td>${it.join(r.actions)}</td>
                   <td class="batch-control-nowrap"><code>${it.createNameLabel(r)}</code></td>
                   <td><j:forEach var="part" items="${it.formatParts(it.endedAt(r))}"><span class="batch-control-date-part">${part}</span><wbr/></j:forEach></td>
-                  <td data-batch-control-status="${r.status}">${it.howEnded(r)}</td>
+                  <!-- #18.2: a request's outcome is a status badge in the page's own wording; how
+                       a window ended is a window state and stays plain text (Row#getEndedStatus). -->
+                  <td>
+                    <j:choose>
+                      <j:when test="${r.endedStatus != null}"><bc:status value="${r.endedStatus}" label="${it.howEnded(r)}"/></j:when>
+                      <j:otherwise>${it.howEnded(r)}</j:otherwise>
+                    </j:choose>
+                  </td>
                   <td class="batch-control-nowrap">
                     <j:if test="${it.isCanRenew(r)}">
                       <button type="button" class="jenkins-button jenkins-button--tertiary" data-type="dialog-opener"

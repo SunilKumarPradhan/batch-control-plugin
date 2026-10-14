@@ -142,6 +142,16 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
         return runRequest && value instanceof RequestStatus status ? StatusLabels.ofRunRequest(status) : StatusLabels.of(value);
     }
 
+    /**
+     * #18.2 (colour badges): the tone of the badge {@code bc:status} renders for a request or
+     * incident status ({@link StatusLabels#tone}); {@code null} for anything else (a run cause,
+     * a value that is not an enum constant), which the tag then shows as plain text.
+     */
+    @CheckForNull
+    public String statusTone(@CheckForNull Object value) {
+        return value instanceof Enum<?> constant ? StatusLabels.tone(constant) : null;
+    }
+
     /** The tabs the viewer may open, with their open-item badges (overview page). */
     public List<SectionTabs.Tab> getTabs() {
         return SectionTabs.current();
