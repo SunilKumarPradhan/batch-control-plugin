@@ -304,11 +304,18 @@ UNITS = [
     # e2e-22 R2-04 (bug-hunt batch B). r22/rename_queue.py saves the authorization strategy, applies a Batch Control
     # role-based profile through JCasC for its own items (r22-team-a-*), and restores the strategy, the change-control
     # switch and the built-in node's labels exactly at its end (so it needs no `last`).
-    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))],
+    # Since e2e-27 (2026-10-13) in the group "runs and switches" (it was in "admin and role strategy", which r27-titles-revert
+    # would have taken to 20.1 min, above the heaviest group's 19.5); it restores what it changes, so its place is free.
+    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
-    Unit("r16-durable", 2.2, [("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
-                              ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py"))],
+    # e2e-27 D1 (T-UI-236 across a restart): r27/title_restart.py does not restart Jenkins itself; its `before` step
+    # opens a window and renames its item, its `after` step reads the window's page after this unit's two restarts.
+    # They took 4.3 s and 3.1 s (2026-10-13, local): the unit's weight went from 2.2 to 2.3.
+    Unit("r16-durable", 2.3, [("r27-title-restart-before", py("r27/title_restart.py", "before")),
+                              ("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
+                              ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py")),
+                              ("r27-title-restart-after", py("r27/title_restart.py", "after"))],
          last=True, doc="e2e-16: a window's end survives a failed grant write and a restart (6325e85); e2e-19: pending and "
                         "queued approved requests with typed values survive a restart and run once with the exact values; "
                         "restarts Jenkins, after which JCasC has reset the arrangement's permissions (last)"),
@@ -344,6 +351,32 @@ UNITS = [
     Unit("r21-reject-color", 0.3, [("r21-arrange", py("r21/arrange.py")), ("r21-reject-color", py("r21/reject_color.py", "RGA"))],
          doc="e2e-21: approver-1's Reject button on the run, permission window and activation request pages renders in "
              "var(--destructive-color) (computed colour vs a probe), the Approve button does not"),
+    # e2e-27 D1 (Wave D, #18.4 and #18.7). r27/titles_revert.py arranges its own items (folder r27-d1, r27-d1-top-*, the
+    # vault folder r27-d1-vault only administrators read, the multibranch project r27-d1/mb over repos/r27-d1.git, a
+    # copy of the seed's repository with one more branch), files one window request on the seed's team-mb and cancels it,
+    # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
+    # entry on both configuration pages and over REST and restores it through the monitor's migrate endpoint each time;
+    # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
+    # (as r22/rename_queue.py, so it needs no `last`). Weight: 190 to 199 s in four
+    # runs on a fresh stack through ci/run.sh, four stacks at a time (2026-10-14, local, 827 checks).
+    Unit("r27-titles-revert", 3.3, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+         doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
+             "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
+             "names, branch jobs, classic flag, decided, executed and expired requests, refusals at the POST URL) with an "
+             "ID row and core's copy button; a window's title follows its renamed or moved item for a reader and keeps the "
+             "approved name for anyone else, also after the window ended; the revert entry inside the Batch Control section's Advanced control and last, on "
+             "both configuration pages, under the matrix and the role strategy; guards: revert still works and keeps "
+             "every entry, Administer-only (403/405), a Manage holder is told so without Advanced"),
+    # e2e-27 D1 (#18.7 for Overall/Manage and Overall/SystemRead). r27/revert_permissions.py saves the strategy, adds four
+    # accounts (r27-ovm*, r27-sysread*), switches Overall/SystemRead on for its pass when the stack was not started with
+    # compose.permissions.yml, and puts everything back (no `last`). Weight: 12.2 to 14.2 s on a fresh stack
+    # (2026-10-13, local, 34 checks).
+    Unit("r27-revert-permissions", 0.2, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
+         group="job ui other roles",  # other accounts' view of the configuration pages; keeps group 3 under 19.5
+         doc="e2e-27 D1: holders of Overall/Manage and Overall/SystemRead (with and without BatchControl/Manage) get "
+             "nothing of the revert on Manage Jenkins > System and the Batch Control page, no Advanced control, the "
+             "administrator-only sentence where the section is shown, 403 on the endpoint; a save of System by an "
+             "Overall/Manage holder changes neither the strategy nor the Batch Control settings"),
     # e2e-25 #41 (Wave C-UI). r25/breadcrumb_menu.py arranges its own folder, job and accounts (r25-team, r25-folder-*)
     # and cancels the folder requester's pending request at its end.
     Unit("r25-breadcrumb-menu", 0.6, [("r25-breadcrumb-menu", py("r25/breadcrumb_menu.py"))],
@@ -380,7 +413,7 @@ GROUPS = [
     ("crawls and multibranch", [  # the crawls of admin, reqonly, approver-1 and nobc, the multibranch job pages
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
-        "jobui-new-admin", "jobui-classic-admin", "r22-rename-queue", "role"]),
+        "jobui-new-admin", "jobui-classic-admin", "role"]),
     ("job ui params and restart", [  # requester's job UI, typed parameters, requests with typed values across a
         "jobui-new-requester", "jobui-classic-requester", "r16-params", "r16-durable"]),  # restart (last)
     ("job ui windows and disk", [  # reqonly's job UI, permission windows on items and renames, item kinds, items

@@ -19,8 +19,8 @@ M  Notices of windows near their end (D-75 (1) b459904, expiry notice isolation 
 D  A refused approval while change control is off (3a934c8, LIMITATIONS 29): w18 files a request for r18/blk;
    approver-1 opens its page (Approve form shown); the administrator turns change control off (run control stays on,
    so records are written); approver-1 presses Approve on the page opened before. The answer is HTTP 400, the request's
-   own page "Grant Request <id>" with the explanation "Change control is off, so permission windows cannot be
-   approved. ..." and no form, no stack trace. The request is still PENDING, no window exists, and a
+   own page "Grant request: r18/blk" (Wave D D1, #18.4: titled by its subject, the id in the ID row) with the
+   explanation "Change control is off, so permission windows cannot be approved. ..." and no form, no stack trace. The request is still PENDING, no window exists, and a
    GRANT_REQUEST_BLOCKED record by approver-1 is listed on approver-1's History page. Control: a GET of the page while
    off is the closed screen. Then change control is turned on again.
 E  The APPROVED notice of a normal approval is unchanged (bf3e473 adds a line only when the window ended at
@@ -266,6 +266,7 @@ def sec_D():
     body = s.page.locator("body").inner_text()
     text = flat(s.text())
     title = s.page.title()
+    heading = flat(s.page.locator("#main-panel h1").first.inner_text()) if s.page.locator("#main-panel h1").count() else None
     forms = {n: s.page.locator(f"form[name={n}]").count() for n in ("approve", "reject", "changeApprover", "cancel")}
     s.shot("#main-panel", "R18-D-3-refused")
     console_ok("D", s, "approver-1's refused approval", expected=("400 POST",))
@@ -273,10 +274,11 @@ def sec_D():
     check("D", "precondition: approver-1 had the request page with the Approve form open, then the administrator turned change "
           "control off on the configuration page (run control stays on)", shown == 1 and off == 200 and switches() ==
           {"run": True, "change": False, "notifyBeforeExpiryMinutes": sw["notifyBeforeExpiryMinutes"]}, form=shown, save=off)
-    check("D", "pressing Approve answers HTTP 400 on the request's own page 'Grant Request <id>' with the explanation \"Change "
-          "control is off, so permission windows cannot be approved.\", no form and no stack trace",
-          status == 400 and f"Grant Request {rid}" in title + text and "Change control is off, so permission windows cannot be approved."
-          in text and not any(forms.values()) and not stack_free(body), status=status, title=title, forms=forms,
+    check("D", "pressing Approve answers HTTP 400 on the request's own page 'Grant request: r18/blk' (its id in the ID row) with "
+          "the explanation \"Change control is off, so permission windows cannot be approved.\", no form and no stack trace",
+          status == 400 and title.startswith("Grant request: r18/blk") and heading == "Grant request: r18/blk" and rid in text
+          and "Change control is off, so permission windows cannot be approved."
+          in text and not any(forms.values()) and not stack_free(body), status=status, title=title, heading=heading, forms=forms,
           stack=stack_free(body), text=text[:600])
     recs = [x for x in records_for("r18/blk", t0) if x.get("type") == "GRANT_REQUEST_BLOCKED"]
     stored = store_status("grant", rid)
@@ -448,6 +450,16 @@ def confirm_ok(s):
     s.page.wait_for_load_state("load")
 
 
+def reveal_revert(page):
+    """Wave D D1 (#18.7): the revert entry sits inside the Advanced control at the end of the Batch Control section, so
+    a person presses Advanced first. Returns the entry's locator."""
+    rv = page.locator("a[data-url*='/revert']")
+    if rv.count() and not rv.first.is_visible():
+        page.locator("section:has([name='_.runControlEnabled']) button.advanced-button").last.click()
+        rv.first.wait_for(state="visible", timeout=5000)
+    return rv
+
+
 def sec_S():
     original = strategy()
     stash = gv("""System.getProperties().put('e2e18.strategy', jenkins.model.Jenkins.get().authorizationStrategy); return 'ok'""")
@@ -455,14 +467,14 @@ def sec_S():
         a = Session("admin")
         a_posts = posts(a)
         a.go(CONFIG)
-        rv = a.page.locator("a[data-url*='/revert']")
+        rv = reveal_revert(a.page)
         shown = rv.count()
         a.shot(rv.first if shown else "#main-panel", "R18-S-1-config-revert")
         # another administrator (own browser context) reverts on the same page
         b = Session("admin")
         b_posts = posts(b)
         b.go(CONFIG)
-        b.page.locator("a[data-url*='/revert']").first.click()
+        reveal_revert(b.page).first.click()
         confirm_ok(b)
         b_status = status_of(b_posts, "/revert")
         b.done()

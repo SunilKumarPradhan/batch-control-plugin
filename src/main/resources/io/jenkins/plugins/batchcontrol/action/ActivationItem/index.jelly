@@ -62,6 +62,7 @@
           <j:if test="${it.request.selfApproved}">
             <tr><th style="text-align: left;">Self-approved</th><td>Yes</td></tr>
           </j:if>
+          <bc:idRow value="${it.id}"/>
         </tbody>
       </table>
 

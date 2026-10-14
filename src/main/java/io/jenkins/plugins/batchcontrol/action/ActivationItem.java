@@ -61,9 +61,13 @@ public class ActivationItem implements ModelObject {
         return request.getId();
     }
 
+    /**
+     * #18.4: titled with the job, not the id (which is in the summary table's ID row); a HOLD
+     * request keeps its own word so the two cannot be mistaken for each other (S-13-08).
+     */
     @Override
     public String getDisplayName() {
-        return (isHold() ? "Hold Request " : "Activation Request ") + request.getId();
+        return (isHold() ? "Hold request: " : "Activation request: ") + request.getJobFullName();
     }
 
     /** S-13-08: ACTIVATE and HOLD worded so they cannot be mistaken for each other. */
