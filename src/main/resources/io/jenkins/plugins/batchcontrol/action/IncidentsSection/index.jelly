@@ -4,8 +4,12 @@
     <l:main-panel>
       <l:app-bar title="Incidents"/>
       <bc:tabs active="incidents"/>
+      <!-- #18.2 (owner decision 2026-10-14): the opening names the configured incidentResults
+           as result labels, in the order FAILURE, UNSTABLE, ABORTED ("Failed and unstable builds"
+           under the default). Escaped by default. -->
+      <j:set var="incidentResultsOpening" value="${it.incidentResultsOpening}"/>
       <p class="jenkins-description">
-        Failed and unstable builds are registered automatically as incidents.
+        <j:if test="${!empty(incidentResultsOpening)}">${incidentResultsOpening} are registered automatically as incidents.</j:if>
         Open an incident to acknowledge, comment or resolve it; a user who may submit run requests for its job can also request a rerun there.
       </p>
 

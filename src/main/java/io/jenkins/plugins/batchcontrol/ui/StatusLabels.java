@@ -5,6 +5,8 @@ import hudson.model.Result;
 import io.jenkins.plugins.batchcontrol.model.CauseType;
 import io.jenkins.plugins.batchcontrol.model.IncidentStatus;
 import io.jenkins.plugins.batchcontrol.model.RequestStatus;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import org.kohsuke.accmod.Restricted;
@@ -152,6 +154,34 @@ public final class StatusLabels {
             case "ABORTED" -> "Aborted";
             default -> result;
         };
+    }
+
+    /**
+     * The opening of the incidents list's introduction: the configured {@code incidentResults}
+     * that can open an incident, as their labels ({@link #ofResult}) in lower case after the first
+     * word, in the order of {@link #incidentResultNames} whatever order the setting holds, joined
+     * with commas and a final "and", then "builds" ({@code Failed and unstable builds} under the
+     * default setting). An empty string when the setting names none of them (the configuration
+     * never stores an empty list); the view then leaves the sentence out.
+     */
+    public static String incidentResultsOpening(@CheckForNull Collection<String> configured) {
+        List<String> words = new ArrayList<>();
+        if (configured != null) {
+            for (String name : incidentResultNames()) {
+                if (configured.stream().anyMatch(name::equalsIgnoreCase)) {
+                    String label = ofResult(name);
+                    words.add(words.isEmpty() ? label : label.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        if (words.isEmpty()) {
+            return "";
+        }
+        int last = words.size() - 1;
+        String joined = last == 0
+                ? words.get(0)
+                : String.join(", ", words.subList(0, last)) + " and " + words.get(last);
+        return joined + " builds";
     }
 
     private static String request(RequestStatus status) {
