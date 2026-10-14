@@ -53,7 +53,10 @@ L  decision 4 (T-UI-269e..269i): the result cells of the Incidents list, the thr
    run request pages (admin, manager, approver-1, requester) read the label as their whole text, plain text and not a
    badge, and no result cell shows a raw result word. A build held running (r27-d2-long, a sleep) reads "In progress"
    on its request page for the four accounts, with an empty Duration, and is not listed on the dashboard or History >
-   Runs while it runs (guards); stopped, it reads "Aborted". Guard: incidents.csv and runs.csv keep the result names.
+   Runs while it runs (guards); stopped, it reads "Aborted". The labels are fixed English: in a de-DE, fr-FR and ja-JP
+   browser (approver-1's login in a context of that locale) the Result options and the result cells read as in English,
+   while core's own page of the failed build shows the result in that language (premise). Guard: incidents.csv and
+   runs.csv keep the result names.
 cleanup: the requester's pending r27-d2 requests cancelled, windows revoked, queue items cancelled, r27-d2-long stopped."""
 import os
 import re
@@ -732,6 +735,8 @@ RESULT_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim(); co
         out.push({how: 'row', heads: '', job: null, first: '', text: n(c[1].textContent), badge: flag(c[1])}); }); });
   return out; }"""
 EXPECT_BY_JOB = {J[k]: v for k, v in F.RESULT_OF.items()}
+TIPS_JS = """() => [...document.querySelectorAll('[tooltip], [title], img[alt]')]
+  .map(e => e.getAttribute('tooltip') || e.getAttribute('title') || e.getAttribute('alt')).filter(x => x && x.length < 30)"""
 
 
 def judge_results(who, what, s, want, expect=None, status=200):
@@ -820,6 +825,45 @@ def sec_L():
     check("L", "D2 #18.2 (decision 4) the same build, stopped by admin, reads 'Aborted' on its request page (requester)",
           result == "ABORTED" and [c["text"] for c in build] == ["Aborted"] and not any(c["badge"] for c in build),
           result=result, stopped=stopped, cells=[(c["text"], c["badge"]) for c in build])
+
+    # ---- fixed English labels whatever the browser's language (decision 4: no longer core's localized text)
+    s = Session("approver-1")
+    s.go("/batch-control/")
+    state = s.context.storage_state()
+    s.done()
+    build_page = f"{lib.jpath(J['fail'])}/{S['build']['fail']['number']}/"
+    english = set(RL.values())
+    for lang in ("en-US", "de-DE", "fr-FR", "ja-JP"):
+        ctx = lib._r6.browser().new_context(storage_state=state, locale=lang, viewport={"width": 1280, "height": 900})
+        pg = ctx.new_page()
+        got = {}
+        try:
+            pg.goto(lib.BASE + build_page)
+            core = pg.evaluate(TIPS_JS)
+            for key, path in (("runs", f"/batch-control/history/?kind=runs&job={P}"),
+                              ("incidents", f"/batch-control/history/?kind=incidents&job={P}"),
+                              ("list", "/batch-control/incidents/"),
+                              ("request", f"/batch-control/requests/{S['result_request']['FAILURE']}/")):
+                pg.goto(lib.BASE + path)
+                cells = pg.evaluate(RESULT_JS)
+                got[key] = {"options": options_of(pg.evaluate(FORM_JS))[0] if key in ("runs", "incidents") else None,
+                            "cells": sorted({c["text"] for c in cells if (c["heads"].startswith("Build/Result") if key == "request"
+                                                                          else c["job"] in EXPECT_BY_JOB)})}
+                if lang == "de-DE" and key == "runs":
+                    pg.screenshot(path=str(lib.SHOTS / "R27-D2-L-history-runs-de-DE.png"), full_page=True)
+        finally:
+            ctx.close()
+        if lang == "en-US":
+            baseline = core
+            continue
+        check("L", f"D2 #18.2 (decision 4) fixed English labels in a {lang} browser: History > Runs and > Incidents offer the "
+              "same option texts as in English and the result cells of History > Runs, the Incidents list and a run request "
+              f"page's Build table read the English labels (premise: core's page of the failed build reads its result in "
+              f"{lang}, not 'Failed' as in en-US) (approver-1)",
+              "Failed" in baseline and bool(core) and "Failed" not in core and got["runs"]["options"] == RUN_OPTIONS
+              and got["incidents"]["options"] == INC_OPTIONS and set(got["runs"]["cells"]) == english
+              and set(got["list"]["cells"]) == set(RL[x] for x in INCIDENT_RESULTS) and got["request"]["cells"] == ["Failed"],
+              core=core, core_en=baseline, got=got)
 
     # ---- the exports keep the names (T-UI-269i)
     ir = [r.get("result") for r in F.csv_rows(f"/batch-control/history/incidents.csv?job={P}")]
