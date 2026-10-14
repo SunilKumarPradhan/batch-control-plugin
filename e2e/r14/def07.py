@@ -33,6 +33,24 @@ def check(role, step, ok, **kw):
     print(("PASS " if ok else "FAIL ") + json.dumps(row)[:600])
 
 
+def choose(s, selector, value):
+    """Sets a filter field as a person does: picks the option of a dropdown (Wave D D2: Result and Status are
+    jenkins-select dropdowns) or types into a text field (before D2)."""
+    loc = s.page.locator(selector)
+    if loc.evaluate("e => e.tagName") == "SELECT":
+        loc.select_option(value)
+    else:
+        loc.fill(value)
+
+
+def cell_statuses(s, col):
+    """The statuses of a column: the enum each cell carries in data-batch-control-status (D2: the cell shows a readable
+    label), else the cell's text (before D2)."""
+    cells = s.page.locator("#main-panel table").first.locator(f"tbody tr td:nth-child({col})")
+    return sorted(set((c.locator("[data-batch-control-status]").first.get_attribute("data-batch-control-status")
+                       if c.locator("[data-batch-control-status]").count() else c.inner_text().strip()) for c in cells.all()))
+
+
 def rows(s):
     return s.page.locator("#main-panel table").first.locator("tbody tr")
 
@@ -119,24 +137,25 @@ def history(role):
 
     # H2: Enter in a text field, user + result
     s.go("/batch-control/history/?kind=runs")
-    s.page.fill("#filter-result", "FAILURE")
+    choose(s, "#filter-result", "FAILURE")
     s.page.fill("#filter-user", "admin")
     hidden = submit(s, "Filter", how="enter", field="#filter-user")
     ok, keys = clean_url(s.page.url, HKEYS)
     res = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator("tbody tr td:nth-child(6)").all_inner_texts()))
     s.shot(["#main-panel form[data-batch-control-get-form]", "#main-panel table"], f"{tag}-H2-enter-result")
-    check(role, "H2 Enter submits; clean URL; result=FAILURE rows only", ok and res in (["FAILURE"], []) and dict(q(s.page.url)).get("result") == "FAILURE",
+    # the Result cell reads the label "Failed" since #18.2 (2026-10-14) and the raw "FAILURE" before it
+    check(role, "H2 Enter submits; clean URL; result=FAILURE rows only", ok and res in (["FAILURE"], ["Failed"], []) and dict(q(s.page.url)).get("result") == "FAILURE",
           url=s.page.url.replace(BASE, ""), keys=keys, results=res, rows=rows(s).count(), hidden_before_submit=hidden)
 
     # H3: Requests kind with a status filter
     s.go("/batch-control/history/?kind=requests")
-    s.page.fill("#filter-status", "PENDING")
+    choose(s, "#filter-status", "PENDING")
     submit(s, "Filter")
     ok, keys = clean_url(s.page.url, HKEYS)
     txt = s.page.locator("#main-panel table").first.inner_text() if s.page.locator("#main-panel table").count() else ""
     hdr = [t.strip() for t in s.page.locator("#main-panel table thead th").all_inner_texts()]
     si = next((i for i, h in enumerate(hdr) if h.lower() in ("status", "state")), None)
-    sts = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator(f"tbody tr td:nth-child({(si or 0) + 1})").all_inner_texts())) if si is not None else []
+    sts = cell_statuses(s, (si or 0) + 1) if si is not None else []
     csvl = [a.get_attribute("href") for a in s.page.locator("#main-panel a[href*='requests.csv']").all()]
     pager = [a.get_attribute("href") for a in s.page.locator("#main-panel a[href*='page=']").all()]
     s.shot(["#main-panel form[data-batch-control-get-form]", "#main-panel table"], f"{tag}-H3-requests-status")
@@ -146,7 +165,7 @@ def history(role):
     if pager:
         with s.page.expect_navigation():
             s.page.locator("#main-panel a[href*='page=2']").first.click()
-        sts2 = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator(f"tbody tr td:nth-child({(si or 0) + 1})").all_inner_texts()))
+        sts2 = cell_statuses(s, (si or 0) + 1)
         check(role, "H3 requests page 2 keeps status=PENDING", dict(q(s.page.url)).get("status") == "PENDING" and sts2 == ["PENDING"],
               url=s.page.url.replace(BASE, ""), statuses=sts2)
 

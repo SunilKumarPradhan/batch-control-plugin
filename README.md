@@ -26,8 +26,9 @@ administrator turns them on.
 - **Audit history independent of builds.** Runs, requests, decisions,
   configuration changes with diffs, and failures are kept append-only under
   `$JENKINS_HOME/batch-control/`, with history screens and CSV export.
-- **Incidents.** Failed and unstable runs open an incident with the last 100
-  console lines, to acknowledge, resolve and rerun through a request.
+- **Incidents.** Failed and unstable runs open an incident (the default;
+  aborted runs can be added in the settings) with the last 100 console lines,
+  to acknowledge, resolve and rerun through a request.
 - **Fits your security setup.** Works through Batch Control variants of Matrix
   Authorization Strategy and Role-based Authorization Strategy; e-mail
   notifications (off by default); configurable with Configuration as Code.

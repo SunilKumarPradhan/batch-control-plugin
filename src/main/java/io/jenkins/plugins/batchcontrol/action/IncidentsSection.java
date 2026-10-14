@@ -3,6 +3,7 @@ package io.jenkins.plugins.batchcontrol.action;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import hudson.model.ModelObject;
 import hudson.security.Permission;
+import io.jenkins.plugins.batchcontrol.config.BatchControlGlobalConfiguration;
 import io.jenkins.plugins.batchcontrol.model.Incident;
 import io.jenkins.plugins.batchcontrol.model.IncidentTransition;
 import io.jenkins.plugins.batchcontrol.ops.IncidentService;
@@ -15,6 +16,7 @@ import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.RecordLookup;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -164,6 +166,15 @@ public class IncidentsSection implements ModelObject, StaplerProxy {
     }
 
     // ---------------------------------------------------------------- Jelly helpers
+
+    /**
+     * #18.2 (owner decision 2026-10-14): the opening of the introduction, naming the configured
+     * {@code incidentResults} ({@link StatusLabels#incidentResultsOpening}); empty when the
+     * setting names no result that can open an incident.
+     */
+    public String getIncidentResultsOpening() {
+        return StatusLabels.incidentResultsOpening(BatchControlGlobalConfiguration.get().getIncidentResults());
+    }
 
     /** Human-readable timestamp. */
     public String format(Instant instant) {

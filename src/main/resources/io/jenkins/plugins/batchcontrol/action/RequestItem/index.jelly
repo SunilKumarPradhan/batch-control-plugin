@@ -38,9 +38,10 @@
           </tr>
           <tr>
             <th style="text-align: left;">Status</th>
+            <!-- #18.2: a readable label carrying the enum (tags/status.jelly). -->
             <td>
-              ${it.request.status}
-              <j:if test="${it.awaitingExecution and it.jobDisabled}"> (waiting: the job is disabled)</j:if>
+              <bc:status value="${it.request.status}" label="${it.statusLabel}"/>
+              <j:if test="${it.awaitingExecution and it.jobDisabled}"> (the job is disabled)</j:if>
               <j:if test="${it.queueCancelled}"> (queued run cancelled: it will not start)</j:if>
             </td>
           </tr>

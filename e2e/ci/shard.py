@@ -225,6 +225,28 @@ UNITS = [
     Unit("r24-json-params", 0.4, [("r24-json-params", py("r24/json_params.py"))], group="crawl and ui checks",
          doc="e2e-24 #40: a json submission with all, some or no parameters (url-encoded and multipart) stores every "
              "parameter, the approver's page lists them, and the build runs with them after the defaults changed"),
+    # e2e-27 D2 (Wave D, #18.3 and #18.2, with the colour badges of 2026-10-14). r27/d2_fixture.py arranges the records
+    # of every status on its own items (r27-d2-*): it activates r27-d2-timer once through the request flow, deletes and
+    # re-creates r27-d2-gone and r27-d2-w-del, ages three requests in the store so the periodic work expires them, and for
+    # one deletion adds an administrator with a long user id to the matrix and removes it again. The first step leaves
+    # the records for the second (BC_D2_KEEP_FIXTURE=1), which sweeps the requester's pending r27-d2 requests at its end;
+    # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
+    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). The owner decisions of
+    # 2026-10-14 added sections I and L (incident results, result labels, a build held running for about half a minute,
+    # incidentResults changed and put back, the result labels read in three browser languages); T-UI-269j added section N
+    # (the Incidents introduction under five settings saved on the configuration page). Weight: 164 to 170 s in four runs
+    # on a fresh stack through ci/run.sh, both steps, with section N (2026-10-15, local, five stacks at once); r16-params
+    # moved to "job ui other roles" so that this group stays under the heaviest group's 19.5.
+    Unit("r27-labels-filters", 2.8, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+                                     ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
+         doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
+             "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
+             "data-batch-control-status on every screen and for five accounts; request and incident statuses colour "
+             "badges with the contract's tones (approvals neutral in the Ended tables), causes plain; the Incidents "
+             "Result filter offers Any, Failed, Unstable, Aborted; build results plain-text labels on six screens "
+             "(In progress while running); contrast in the light and dark theme, geometry at 1280/1024/768 (inside "
+             "the cell, no new sideways scroll), no CSP violation under enforcement, forced colours; guards: CSV, "
+             "filters, JSON keep enums"),
     # e2e-19 (gap audit, docs/reports/e2e-19.md): SPEC acceptance lines no CI step checked before. r19/arrange.py is
     # idempotent and self-contained (items r19-*, accounts from JCasC). Each driver exits non-zero and prints FAIL lines,
     # and restores what it changes globally (executors, authorize-project's authenticator). Weights: minutes measured on
@@ -414,13 +436,14 @@ GROUPS = [
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
         "jobui-new-admin", "jobui-classic-admin", "role"]),
-    ("job ui params and restart", [  # requester's job UI, typed parameters, requests with typed values across a
-        "jobui-new-requester", "jobui-classic-requester", "r16-params", "r16-durable"]),  # restart (last)
+    ("job ui params and restart", [  # requester's job UI, requests with typed values across a restart (last)
+        "jobui-new-requester", "jobui-classic-requester", "r16-durable"]),
     ("job ui windows and disk", [  # reqonly's job UI, permission windows on items and renames, item kinds, items
         "jobui-new-reqonly", "jobui-classic-reqonly", "r22-nonascii-reason",  # removed on disk with reload and restart (last)
         "r16-items", "r16-rename", "r16-follow", "r16-names", "r17-s39", "r19-kinds", "r17-disk"]),
-    ("job ui other roles", [  # the job UI of approver-1, manager and nobc
-        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor"]),
+    ("job ui other roles", [  # the job UI of approver-1, manager and nobc; typed parameters (r16-params arranges its
+        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor",  # own items; moved here on 2026-10-14 when the
+        "r16-params"]),  # D2 unit's 2.8 min would have taken "job ui params and restart" to 19.6, above the heaviest 19.5
     ("runs and switches", [  # the run gate, reruns and the prefilled form, triggers, other plugins, the request
         "r16-rerun", "r16-d60",  # lifecycle, then the global switches and the strategy (last)
         "r19-gate", "r22-scripted-build", "r19-plugins", "r19-triggers", "r19-lifecycle", "r18-final"]),
@@ -679,6 +702,10 @@ def observations():
                 # e2e-16: raw enum values shown as text (INFO, the deferred UX-4/UX-5 items), per value with its URL patterns
                 "raw_enum_values": {k: sorted({x.get("pattern") for x in r if x.get("check") == "raw-enum" and x.get("key") == k})[:12]
                                     for k in sorted({x.get("key") for x in r if x.get("check") == "raw-enum"})},
+                # #18.2: result cells read (once per URL pattern and text) and the raw result words found in them
+                "result_cells": {"read": sum(1 for x in r if x.get("check") == "result-cell"),
+                                 "texts": sorted({x.get("key") for x in r if x.get("check") == "result-cell"})[:20],
+                                 "raw": sum(1 for x in r if x.get("check") == "raw-result")},
             }
     a = rows("actions.jsonl")
     if a:

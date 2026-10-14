@@ -23,6 +23,7 @@ import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import io.jenkins.plugins.batchcontrol.ui.RequestScope;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Instant;
@@ -281,6 +282,15 @@ public class RequestItem implements ModelObject {
     }
 
     /**
+     * #18.2: the Status row's label ({@link StatusLabels#ofRunRequest}): an approved request reads
+     * "Approved, waiting to run", except once its queued run was cancelled, when it will not run
+     * and reads "Approved" (the row then says why).
+     */
+    public String getStatusLabel() {
+        return isQueueCancelled() ? StatusLabels.of(request.getStatus()) : StatusLabels.ofRunRequest(request.getStatus());
+    }
+
+    /**
      * D-55 (SPEC item 3): whether the request's job is disabled, so the decision form says to
      * enable it first and offers no Approve button, and an approved request says that it waits.
      * Resolved through the permission-aware {@link #findJob()} (P-09): for a viewer who may not
@@ -504,9 +514,10 @@ public class RequestItem implements ModelObject {
             this.url = run.getUrl();
             // One read: getResult() is @CheckForNull and is null while the build is running.
             Result runResult = run.getResult();
+            // The readable label (StatusLabels#ofResult), plain text; "In progress" while running.
             this.result = run.isBuilding()
-                    ? "IN PROGRESS"
-                    : runResult == null ? "UNKNOWN" : runResult.toString();
+                    ? StatusLabels.IN_PROGRESS
+                    : runResult == null ? "Unknown" : StatusLabels.ofResult(runResult.toString());
             this.started = Dates.format(Instant.ofEpochMilli(run.getStartTimeInMillis()));
             this.duration = run.isBuilding() ? "" : RunLinks.formatDuration(run.getDuration());
         }
@@ -520,6 +531,7 @@ public class RequestItem implements ModelObject {
             return url;
         }
 
+        /** The result's readable label ({@code Failed}), or {@code In progress} while the build runs. */
         public String getResult() {
             return result;
         }

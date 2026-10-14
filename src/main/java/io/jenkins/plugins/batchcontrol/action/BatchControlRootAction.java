@@ -6,12 +6,14 @@ import hudson.ExtensionList;
 import hudson.model.RootAction;
 import hudson.security.Permission;
 import io.jenkins.plugins.batchcontrol.config.BatchControlConfigurationLink;
+import io.jenkins.plugins.batchcontrol.model.RequestStatus;
 import io.jenkins.plugins.batchcontrol.ui.GrantRequestLinks;
 import io.jenkins.plugins.batchcontrol.ui.GuardInfo;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.ReplayedRuns;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
 import io.jenkins.plugins.batchcontrol.ui.SectionTabs;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import java.util.List;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithContextMenu;
@@ -129,6 +131,39 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
      */
     public String pagerQuery(String parameter, long page) {
         return Paging.query(parameter, page);
+    }
+
+    /**
+     * #18.2: the readable label of a status or cause for {@code bc:status} ({@link StatusLabels}),
+     * reached through this action for the same reason as {@link #pagerQuery}. With
+     * {@code runRequest}, a run request's APPROVED reads "Approved, waiting to run".
+     */
+    public String statusLabel(@CheckForNull Enum<?> value, boolean runRequest) {
+        return runRequest && value instanceof RequestStatus status ? StatusLabels.ofRunRequest(status) : StatusLabels.of(value);
+    }
+
+    /**
+     * #18.2 (owner decision 2026-10-14): the readable label of a build result for {@code bc:result}
+     * ({@link StatusLabels#ofResult}), reached through this action for the same reason as
+     * {@link #pagerQuery}. A result is plain text, never a badge.
+     */
+    public String resultLabel(@CheckForNull String result) {
+        return StatusLabels.ofResult(result);
+    }
+
+    /**
+     * #18.2 (colour badges): the tone of the badge {@code bc:status} renders for a request or
+     * incident status ({@link StatusLabels#tone}); {@code null} for anything else (a run cause,
+     * a value that is not an enum constant), which the tag then shows as plain text. With
+     * {@code ended}, the badge is in an Ended table, where an approved request is no longer in
+     * effect and is neutral ({@link StatusLabels#endedTone}).
+     */
+    @CheckForNull
+    public String statusTone(@CheckForNull Object value, boolean ended) {
+        if (!(value instanceof Enum<?> constant)) {
+            return null;
+        }
+        return ended ? StatusLabels.endedTone(constant) : StatusLabels.tone(constant);
     }
 
     /** The tabs the viewer may open, with their open-item badges (overview page). */

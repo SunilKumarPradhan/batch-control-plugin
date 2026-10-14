@@ -139,7 +139,7 @@ def sec_D():
           status is not None and status < 400 and not lib.exists(DIRECT), http=status)
     if aid:
         a = api("admin", f"/batch-control/activations/{aid}/")
-        m = re.search(r"Status (\w+)", lib.text_of(a.text))
+        m = re.search(r"(\w+)", lib.L19._l.status_cell(a.text)[1] or "")  # D2: the Status row's enum
         check("D", "[#38 E1] guard: the ACTIVATE request on the deleted job is INVALIDATED (existing behaviour, SPEC 6a)",
               m is not None and m.group(1) == "INVALIDATED", id=aid, http=a.status_code, status=m.group(1) if m else None)
     if not rid:

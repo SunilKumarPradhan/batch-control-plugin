@@ -176,7 +176,8 @@ def approved_section(job, ids, action, want_state, record, shot):
     err = lib.ERROR_PAGE.search(text)
     check("G", f"contract #36 (later approval works): approver-1's approval of the same {action} with a writable store "
           "answers below 400, no error page, and the page says APPROVED",
-          status is not None and status < 400 and not err and "APPROVED" in text,
+          status is not None and status < 400 and not err
+          and re.search(r"Status (APPROVED|Approved)(?![,\w])", text),  # Wave D D2: the label "Approved"
           http=status, error_page=err.group(0) if err else None,
           approve_form=status is not None, text=text[:300])
     stored = [lib.act_status(i) for i in ids]
