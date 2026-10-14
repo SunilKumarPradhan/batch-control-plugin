@@ -59,9 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * text, white space collapsed, is the label, so the raw enum word is not the cell text; neither the
  * cell nor anything inside it has the class {@code batch-control-status} or a
  * {@code data-batch-control-tone} attribute (a result is not a badge, point 7 of note 361). Guards:
- * {@code incidents.csv} and {@code runs.csv} keep the raw names; a build that is still running
- * keeps today's rendering (the request page reads {@code IN PROGRESS} with an empty duration; the
- * dashboard and History &gt; Runs do not list it until it completes).
+ * {@code incidents.csv} and {@code runs.csv} keep the raw names. A build that is still running
+ * reads {@code In progress} in the request page's Build table (owner decision of 2026-10-14; it read
+ * {@code IN PROGRESS} before), with an empty duration, and the dashboard and History &gt; Runs do not
+ * list it until it completes (today's behaviour, kept as guards).
  *
  * <p>Written from that decision and from pages rendered on this branch (f2e150bc); no src/main
  * knowledge.
@@ -157,13 +158,14 @@ public class ResultLabelPageTest {
     }
 
     /**
-     * T-UI-269h (guard, owner decision 2 of 2026-10-14: a build with no result yet keeps today's
-     * rendering): while the approved run of a request is still running, the request page's Build
-     * table lists it with the Result cell reading {@code IN PROGRESS} (not a badge) and an empty
-     * Duration; the dashboard and History &gt; Runs do not list it.
+     * T-UI-269h (owner decisions of 2026-10-14): while the approved run of a request is still
+     * running, the request page's Build table lists it with the Result cell reading exactly
+     * {@code In progress} (not {@code IN PROGRESS}; plain text, not a badge, as T-UI-269e..269g).
+     * Guards (today's behaviour, accepted by the owner): the Duration cell is empty, and the dashboard
+     * and History &gt; Runs do not list the run until it completes.
      */
     @Test
-    public void t_ui_269h_runningBuildKeepsTodaysRendering() throws Exception {
+    public void t_ui_269h_runningBuildReadsInProgress() throws Exception {
         cfg.setRunControlEnabled(true);
         cfg.save();
         FreeStyleProject job = j.createFreeStyleProject("hold-x");
@@ -179,15 +181,17 @@ public class ResultLabelPageTest {
             String path = "batch-control/requests/" + request.getId() + "/";
             DomElement row = buildTableRow(page(path), path);
             DomElement result = cellUnder(row, "Result", path);
-            assertNotBadge(result, path + ", the running build");
-            assertEquals("IN PROGRESS", text(result), path + ": a build with no result yet keeps today's text");
-            assertEquals("", text(cellUnder(row, "Duration", path)), path + ": a running build has no duration yet");
-
+            // guards first (today's behaviour, kept)
+            assertEquals("", text(cellUnder(row, "Duration", path)), path + ": guard: a running build has no duration yet");
             for (String listing : List.of("batch-control/dashboard/", "batch-control/history/?kind=runs")) {
                 String tables = tables(page(listing));
                 assertFalse(Pattern.compile("(?<![\\w-])hold-x(?![\\w-])").matcher(tables).find(), listing
-                        + ": a run that has not completed is not listed yet: " + excerpt(tables));
+                        + ": guard: a run that has not completed is not listed yet: " + excerpt(tables));
             }
+
+            assertNotBadge(result, path + ", the running build");
+            assertEquals("In progress", text(result), path + ": a build with no result yet reads 'In progress' (owner"
+                    + " decision 2026-10-14), not 'IN PROGRESS'");
         } finally {
             ResultFixtures.Hold.release();
             j.waitUntilNoActivity();
