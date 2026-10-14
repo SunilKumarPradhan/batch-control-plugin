@@ -290,8 +290,8 @@ def sec_T():
               core=core, wrong=[{k: m[k] for k in ("screen", "tone", "tone_color")} for m in mismatch][:4])
         html_theme = sorted({v[1] or "none" for (t, _), v in S["pages"].items() if t == theme})
         check("T", f"arrangement: approver-1 chose the {theme} theme on the Appearance page and every screen is rendered "
-              "with it and shows badges", chosen == radio and html_theme == [radio]
-              and all(v[0] == 200 and v[2] >= 1 for (t, _), v in S["pages"].items() if t == theme), chosen=chosen,
+              "with it", chosen == radio and html_theme == [radio]
+              and all(v[0] == 200 for (t, _), v in S["pages"].items() if t == theme), chosen=chosen,
               html_data_theme=html_theme, pages={k[1]: v for k, v in S["pages"].items() if k[0] == theme})
         low = [m for m in rows if m["text_on_badge"] < 4.5]
         check("T", f"D2 #18.2 contrast ({theme} theme): on every badge the text has a contrast of at least 4.5:1 against the "
@@ -344,7 +344,9 @@ PLAIN_JS = """(on) => { document.querySelectorAll('[data-r27-badge]').forEach(e 
   const t = [...document.querySelectorAll('#main-panel table')];
   return {doc: document.documentElement.scrollWidth, client: document.documentElement.clientWidth,
     tables: t.map(x => Math.round(x.getBoundingClientRect().width)), main: Math.round(document.querySelector('#main-panel').getBoundingClientRect().right),
-    rows: [...document.querySelectorAll('[data-r27-badge]')].map(e => { const tr = e.closest('tr'); return tr ? Math.round(tr.getBoundingClientRect().height * 10) / 10 : null; })}; }"""
+    rows: [...document.querySelectorAll('[data-r27-badge]')].map(e => { const tr = e.closest('tr'); return tr ? Math.round(tr.getBoundingClientRect().height * 10) / 10 : null; }),
+    cells: [...document.querySelectorAll('[data-r27-badge]')].map(e => { const tr = e.closest('tr'); return tr ? [...tr.children].map(c => {
+      const r = c.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), c.contains(e) ? 'badge' : (c.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 30)]; }) : null; })}; }"""
 
 
 def sec_G():
@@ -360,7 +362,7 @@ def sec_G():
             with_ = s.page.evaluate(PLAIN_JS, True)
             without = s.page.evaluate(PLAIN_JS, False)
             s.page.evaluate(PLAIN_JS, True)
-            for b, h1, h0 in zip(p["badges"], with_["rows"], without["rows"]):
+            for b, h1, h0, c1, c0 in zip(p["badges"], with_["rows"], without["rows"], with_["cells"], without["cells"]):
                 count += 1
                 bx, c = b["box"], b["cell"]
                 room = [round(bx["x"] - c["x"], 1), round(bx["y"] - c["y"], 1), round(c["right"] - bx["right"], 1), round(c["bottom"] - bx["bottom"], 1)]
@@ -371,7 +373,8 @@ def sec_G():
                         and b["borderStyle"] == "solid" and b["borderWidth"] >= 1):
                     bad_pill.append({"screen": key, "text": b["text"][:40], "room": room, "display": b["display"], "radius": b["radius"]})
                 if h1 is not None and h0 is not None and abs(h1 - h0) > 1 and lines == 1:
-                    bad_rows.append({"screen": key, "text": b["text"][:40], "row": h1, "row_plain": h0})
+                    bad_rows.append({"screen": key, "text": b["text"][:40], "row": h1, "row_plain": h0,
+                                     "cells_with_badge": c1, "cells_plain": c0, "badge": [round(b["box"]["w"]), round(b["box"]["h"])]})
                 if b["text"].startswith("Revoked (its item was deleted) by " + F.LONG_ADMIN):
                     long_seen[width] = {"lines": lines, "badge": [round(bx["w"]), round(bx["h"])], "cell": [round(c["w"]), round(c["h"])],
                                         "room": room, "row": h1, "row_plain": h0}
@@ -425,7 +428,7 @@ def sec_C():
     try:
         s = Session(WHO)
         s.context.add_init_script(CSP_INIT)
-        found, headers, styled = [], {}, []
+        found, headers, styled, badges = [], {}, [], {}
         for key, path in screens() + (("requests-list", "/batch-control/requests/"), ("history-incidents", f"/batch-control/history/?kind=incidents&job={P}"),
                                       ("dashboard", "/batch-control/dashboard/"), ("history-runs", f"/batch-control/history/?kind=runs&job={P}")):
             before = len(s.console)
@@ -438,6 +441,7 @@ def sec_C():
             cons = [c for c in s.console[before:] if "Content Security Policy" in c or "Content-Security-Policy" in c]
             found += [dict(x, screen=key) for x in v] + [{"screen": key, "console": c[:200]} for c in cons]
             styled += s.page.evaluate("""() => [...document.querySelectorAll('.batch-control-status')].filter(e => e.hasAttribute('style') || e.querySelector('[style]')).map(e => e.outerHTML.slice(0, 120))""")
+            badges[key] = s.page.locator(".batch-control-status").count()
         s.done()
     finally:
         S["csp_after"] = gv(ENFORCE % "false")
@@ -448,12 +452,16 @@ def sec_C():
           S["csp_before"].endswith("-> true") and S["csp_after"].endswith("-> false")
           and all(v == ["content-security-policy"] for v in headers.values()), before=S["csp_before"], after=S["csp_after"],
           headers=headers, policy=S.get("csp_policy", "")[:300])
-    check("C", "D2 #18.2 under the enforced policy no screen with badges raises a Content-Security-Policy violation that "
-          "concerns a style or a resource of the plugin (securitypolicyviolation events and console messages of eleven "
-          "screens), and no badge has a style attribute on or in it", len(headers) == 11 and not ours and not styled,
-          violations_of_ours=ours[:4], all_violations=len(found), styled=styled[:3])
-    note("C", "every Content-Security-Policy violation the browser reported during the pass (none means none at all)",
-         violations=found[:10], count=len(found))
+    causes_only = ("dashboard", "history-runs")
+    check("C", "D2 #18.2 under the enforced policy the nine screens with badges and the two with run causes raise no "
+          "Content-Security-Policy violation at all (securitypolicyviolation events and console messages), each badge "
+          "screen shows badges, and no badge has a style attribute on or in it",
+          len(headers) == 11 and not found and not styled and all(n >= 1 for k, n in badges.items() if k not in causes_only),
+          violations_of_ours=ours[:4], all_violations=len(found), styled=styled[:3], badges=badges)
+    note("C", "every Content-Security-Policy violation the browser reported during the pass (none means none at all); core's "
+         "enforced policy allows inline styles (style-src 'unsafe-inline'), so the pass cannot catch a style attribute: "
+         "the DOM check above (no style attribute on or in a badge) is what guards it", violations=found[:10], count=len(found),
+         style_src=re.search(r"style-src[^;]*", S.get("csp_policy", "")).group(0) if "style-src" in S.get("csp_policy", "") else None)
 
 
 # ---------------------------------------------------------------- H: forced colours

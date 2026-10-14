@@ -117,7 +117,10 @@ def judge(sec, who, path, what, s, want, status=200):
     for e in hooked:  # an observation, not a verdict: a label that holds its constant's name as a word ("SCM change")
         if re.search(r"(?<![A-Za-z_])" + re.escape(e["enum"]) + r"(?![A-Za-z_])", e["text"]):
             S.setdefault("label_holds_name", set()).add(f"{e['enum']}={e['text']}")
-    check(sec, f"D2 #18.2 labels: {what} shows every status and cause as its readable label, the whole text of an element "
+    # The Grants list's Ended table showed its own wording ("Rejected by ...", "Expired without a decision") in a hooked cell
+    # before D2 as well, so on that screen the label check is a guard; the badge checks below are D2's.
+    name = "guard (the Grants list's wording predates D2)" if path == "/batch-control/grants/" else "D2 #18.2"
+    check(sec, f"{name} labels: {what} shows every status and cause as its readable label, the whole text of an element "
           f"carrying data-batch-control-status, and no table shows a raw enum name outside such an element ({who})",
           status == 200 and bool(hooked) and not bad_label and not raw, status=status, hooked=len(hooked),
           labels=sorted({f"{e['enum']}={e['text']}" for e in hooked})[:12], wrong=bad_label[:3], raw_in_tables=raw)
@@ -362,7 +365,8 @@ def sec_F():
                          "free_text": (st or {}).get("free_text")} for k, (c, st) in forms.items()})
         if who != "approver-1":
             continue
-        opts = {(k, c): forms[k][1][c]["options"] for k in KINDS for c in KINDS[k] if forms[k][1] and forms[k][1][c]}
+        opts = {(k, c): forms[k][1][c]["options"] for k in KINDS for c in KINDS[k]
+                if forms[k][1] and forms[k][1][c] and forms[k][1][c]["options"]}
         for (kind, c), o in opts.items():
             values = [x["value"] for x in o[1:]]
             want = want_values[(kind, c)]
@@ -384,6 +388,10 @@ def sec_F():
               and all(st_inc.get(k) == LABEL[k] for k in F.INCIDENT_STATUSES), requests=st_req, incidents=st_inc)
         note("F", "the Result dropdown's wording", runs=[(x["value"], x["text"]) for x in opts.get(("runs", "result"), [])],
              labels=[forms[k][1][c]["label"] for k in KINDS for c in KINDS[k] if forms[k][1] and forms[k][1][c]])
+        for kind, c in (("runs", "result"), ("incidents", "result"), ("incidents", "status"), ("requests", "status")):
+            if (kind, c) not in opts:
+                check("F", f"D2 #18.3 History > {kind.capitalize()}: the {c.capitalize()} dropdown's values are the enum names "
+                      "(no dropdown on this page)", False, control=forms[kind][1] and forms[kind][1][c])
     for who in ("requester", "nobc"):
         r = api(who, "/batch-control/history/?kind=runs")
         check("F", f"guard: {who} (no ViewHistory) gets no History page and no filter form", r.status_code >= 400
@@ -393,6 +401,8 @@ def sec_F():
 def submit(s, control, value, how="button"):
     """Chooses `value` in the dropdown `control` and submits the filter form; returns what the navigation did."""
     seen = []
+    if s.page.locator(f"{FORM} select[name={control}]").count() == 0:  # no dropdown (a build before D2)
+        return None
     listener = lambda r: seen.append((r.method, r.url)) if r.is_navigation_request() or r.method != "GET" else None  # noqa: E731
     s.page.on("request", listener)
     s.page.locator(f"{FORM} select[name={control}]").select_option(value)
@@ -507,7 +517,7 @@ def sec_G():
         s.page.wait_for_load_state("load")
         v2 = view(s)
         newer = [h for t, h in v2["pager"] if "Newer" in t]
-        sel = s.page.locator(f"{FORM} select[name=status]").input_value()
+        sel = s.page.locator(f"{FORM} select[name=status]").input_value() if s.page.locator(f"{FORM} select[name=status]").count() else None
     s.shot("#main-panel", "R27-D2-G-requests-pending-page-2")
     check("G", "D2 #18.3 paging under a filter: with more PENDING requests than a page holds, page 1 holds only PENDING "
           "rows, its 'Older' link keeps status=PENDING, page 2 holds only PENDING rows with PENDING still selected, and "
@@ -527,7 +537,7 @@ def sec_G():
     s.page.keyboard.press("Tab")
     focused = s.page.evaluate("document.activeElement.tagName + ':' + document.activeElement.name")
     s.page.keyboard.type("Exec")
-    typed = s.page.locator(f"{FORM} select[name=status]").input_value()
+    typed = s.page.locator(f"{FORM} select[name=status]").input_value() if s.page.locator(f"{FORM} select[name=status]").count() else None
     before = s.page.url
     s.page.keyboard.press("Enter")
     how = lib.react(s.page, before, timeout=8000)
@@ -606,7 +616,7 @@ def sec_K():
           selected=[x["value"] for x in o if x["selected"]], options=len(o), rows=len(v["rows"]))
     s.go(f"/batch-control/history/?kind=changes&status=OPEN&result=FAILURE")
     st = s.page.evaluate(FORM_JS)
-    check("K", "guard: History > Changes offers no dropdown; a result and a status from the URL are kept as hidden fields, "
+    check("K", "D2 #18.3 History > Changes offers no dropdown; a result and a status from the URL are kept as hidden fields, "
           "as the tab links keep them", st is not None and st["result"] is None and st["status"] is None
           and st["hidden"] == {"result": ["FAILURE"], "status": ["OPEN"]}, hidden=(st or {}).get("hidden"))
     s.done()
