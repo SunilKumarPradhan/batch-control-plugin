@@ -13,17 +13,19 @@ T  colours, in the light and in the dark theme (approver-1 chooses the theme on 
    color-mix over the cell agrees with the pixel), the border (computed, over the cell). Checks: contrast of the text
    on the badge at least 4.5:1 (WCAG 1.4.3) for every badge; every tone seen in both themes; each badge differs from
    the cell around it (CIEDE2000 of background or border at least 2.3, one just-noticeable difference; the numbers are
-   in the row); the colours come from the stylesheet (no style attribute). NOTE rows carry the measured colours and,
-   for the owner's judgement and without a verdict, the difference between the neutral and the info badge.
+   in the row); the colours come from the stylesheet (no style attribute). NOTE rows carry the measured colours,
+   among them the neutral and the info badge side by side (the pair was accepted by the owner on 2026-10-14).
    Screenshots per theme: the History table with the five tones, the Ended tables, an approved request's page.
 G  geometry in the light theme at 1280, 1024 and 768 px: every badge is a span laid out as an inline block with
    rounded corners and a solid border, inside its cell and smaller than it, with room on the left, above and below (a
    pill, not the painted cell; Jenkins' table cells have no padding on the right, so a badge that fills its line ends
-   at the cell's edge, which a NOTE counts); the row is as high as it is with the badge's styling taken away; the
-   badges add no width to the page or a table (compared with the same page without the badge styling), and at 1280 px
-   no screen scrolls sideways. The long wording "Revoked (its item was deleted) by <a 55-character user id>" is
-   measured apart: it stays inside its cell at every width and its table grows by no more than the pill's own padding
-   and border; a NOTE says how it wraps.
+   at the cell's edge, accepted by the owner on 2026-10-14); the badges add no sideways page scroll that the same page
+   without the badge styling does not already have (owner decision of 2026-10-14: a badge may redistribute the column
+   widths and make a row taller, at 768 px for example; the row heights are logged, not judged); the badges add no
+   width to the page or a table (compared with the same page without the badge styling), and at 1280 px no screen
+   scrolls sideways. The long wording "Revoked (its item was deleted) by <a 55-character user id>" is measured apart:
+   it stays inside its cell at every width and its table grows by no more than the pill's own padding and border; a
+   NOTE says how it wraps.
 C  Content-Security-Policy: core 2.568.3 sends a report-only policy and can enforce it (Manage Jenkins > Security).
    Enforcement is switched on for this section (script console, the setting the page saves; switched off again), the
    screens are read again and the browser's securitypolicyviolation events and console messages are collected: none
@@ -320,7 +322,8 @@ def sec_T():
         neutral = next((m for m in hist if m["tone"] == "neutral"), None)
         info = next((m for m in hist if m["tone"] == "info"), None)
         if neutral and info:
-            note("T", f"for the owner's judgement, no verdict: neutral against info on History > Requests, {theme} theme",
+            note("T", f"measured for the record (the pair was accepted by the owner on 2026-10-14): neutral against info on "
+                 f"History > Requests, {theme} theme",
                  neutral={k: neutral[k] for k in ("badge", "border", "cell")}, info={k: info[k] for k in ("badge", "border", "cell")},
                  badge_dE2000=delta_e(tuple(int(neutral["badge"][i:i + 2], 16) for i in (1, 3, 5)),
                                       tuple(int(info["badge"][i:i + 2], 16) for i in (1, 3, 5))),
@@ -355,7 +358,7 @@ def sec_G():
     long_seen = {}
     for width in (1280, 1024, 768):
         s.page.set_viewport_size({"width": width, "height": 900})
-        bad_pill, bad_rows, wider, sideways, count, at_edge, long_wider = [], [], [], [], 0, 0, None
+        bad_pill, outside, taller, wider, sideways, new_scroll, count, long_wider = [], [], [], [], [], [], 0, None
         for key, path in screens():
             s.go(path)
             p = s.page.evaluate(BADGES_JS)
@@ -367,14 +370,15 @@ def sec_G():
                 bx, c = b["box"], b["cell"]
                 room = [round(bx["x"] - c["x"], 1), round(bx["y"] - c["y"], 1), round(c["right"] - bx["right"], 1), round(c["bottom"] - bx["bottom"], 1)]
                 lines = round(bx["h"] / b["lineHeight"]) if b["lineHeight"] else None
-                at_edge += room[2] < 1
+                if min(room) < -0.5:
+                    outside.append({"screen": key, "text": b["text"][:40], "room": room})
                 if not (b["tag"] == "span" and b["display"] == "inline-block" and b["radius"] >= 4 and min(room) >= -0.5
                         and room[0] >= 1 and room[1] >= 1 and room[3] >= 1 and bx["w"] < c["w"] and bx["h"] < c["h"]
                         and b["borderStyle"] == "solid" and b["borderWidth"] >= 1):
                     bad_pill.append({"screen": key, "text": b["text"][:40], "room": room, "display": b["display"], "radius": b["radius"]})
-                if h1 is not None and h0 is not None and abs(h1 - h0) > 1 and lines == 1:
-                    bad_rows.append({"screen": key, "text": b["text"][:40], "row": h1, "row_plain": h0,
-                                     "cells_with_badge": c1, "cells_plain": c0, "badge": [round(b["box"]["w"]), round(b["box"]["h"])]})
+                if h1 is not None and h0 is not None and abs(h1 - h0) > 1 and lines == 1:  # logged: accepted 2026-10-14
+                    taller.append({"screen": key, "text": b["text"][:40], "row": h1, "row_plain": h0,
+                                   "cells_with_badge": c1, "cells_plain": c0})
                 if b["text"].startswith("Revoked (its item was deleted) by " + F.LONG_ADMIN):
                     long_seen[width] = {"lines": lines, "badge": [round(bx["w"]), round(bx["h"])], "cell": [round(c["w"]), round(c["h"])],
                                         "room": room, "row": h1, "row_plain": h0}
@@ -388,12 +392,18 @@ def sec_G():
                 wider.append({"screen": key, "with": [with_["doc"], with_["tables"]], "without": [without["doc"], without["tables"]]})
             if with_["doc"] > with_["client"] + 2:
                 sideways.append({"screen": key, "scroll_width": with_["doc"], "client_width": with_["client"], "plain": without["doc"]})
+                if without["doc"] <= without["client"] + 2:
+                    new_scroll.append(sideways[-1])
         check("G", f"D2 #18.2 geometry at {width} px: every badge is a span laid out as an inline block with rounded corners "
               "and a solid border, inside its cell and smaller than it, with room on the left, above and below (a pill, not "
-              f"the painted cell) ({count} badges on seven screens)", count >= 20 and not bad_pill, wrong=bad_pill[:4],
-              badges_ending_at_the_cells_right_edge=at_edge)
-        check("G", f"D2 #18.2 geometry at {width} px: a row is as high with its one-line badge as with the badge's styling "
-              "taken away", count >= 20 and not bad_rows, wrong=bad_rows[:4])
+              f"the painted cell) ({count} badges on seven screens)", count >= 20 and not bad_pill, wrong=bad_pill[:4])
+        check("G", f"D2 #18.2 geometry at {width} px (owner decision 2026-10-14): every badge stays inside its cell, and the "
+              "badges add no sideways page scroll that the same page without the badge styling does not already have",
+              count >= 20 and not outside and not new_scroll, outside=outside[:4], new_sideways_scroll=new_scroll[:3],
+              rows_taller_with_a_one_line_badge=len(taller))
+        if taller:
+            note("G", f"rows a one-line badge makes taller at {width} px (accepted by the owner on 2026-10-14; logged, not "
+                 "judged)", rows=taller[:4])
         check("G", f"D2 #18.2 geometry at {width} px: the badges add no width: the page and each table are no wider than "
               "with the badge styling taken away (the table with the long wording is judged apart)", count >= 20 and not wider,
               wider=wider[:3])
@@ -406,10 +416,9 @@ def sec_G():
     s.done()
     grown = S.get("long_wider", {})
     check("G", "D2 #18.2 geometry: the long wording 'Revoked (its item was deleted) by <a 55-character user id>' stays inside "
-          "its cell at 1280, 1024 and 768 px, wrapped or not, makes its row no higher than the plain text would, and its "
-          "table grows by no more than the pill's own padding and border (18 px) and the page not at all",
-          set(long_seen) == {1280, 1024, 768} and all(min(v["room"]) >= -0.5 and v["row"] <= v["row_plain"] + 1
-                                                       for v in long_seen.values())
+          "its cell at 1280, 1024 and 768 px, wrapped or not, and its table grows by no more than the pill's own padding "
+          "and border (18 px) and the page not at all",
+          set(long_seen) == {1280, 1024, 768} and all(min(v["room"]) >= -0.5 for v in long_seen.values())
           and all(g and g["page"] <= 1 and max(g["tables"]) <= 18 for g in grown.values()), measured=long_seen, grown=grown)
     note("G", "the long wording per width: lines of the badge, its size, its cell, the row with and without the styling, "
          "and how much wider its table and the page are with the badge than without", measured=long_seen, grown=grown)

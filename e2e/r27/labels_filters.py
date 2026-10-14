@@ -1,9 +1,11 @@
-"""e2e-27 D2 (Wave D, issue #18 items 3 and 2; TEST-MATRIX T-UI-250..269a, note 361): the History filter's Result and
+"""e2e-27 D2 (Wave D, issue #18 items 3 and 2; TEST-MATRIX T-UI-250..269i, note 361): the History filter's Result and
 Status are jenkins-select dropdowns; every request, grant, activation and incident status and every run cause is shown
 as a readable label in an element carrying data-batch-control-status=<ENUM>; request and incident statuses are colour
-badges (class batch-control-status, data-batch-control-tone), run causes are plain text.
+badges (class batch-control-status, data-batch-control-tone), run causes are plain text. Owner decisions of 2026-10-14:
+the Incidents Result filter offers only Any, Failed, Unstable, Aborted; build results read as plain-text labels
+(Success, Unstable, Failed, Not built, Aborted; "In progress" for a running build) on six screens.
 
-usage: python labels_filters.py [ABRDFGK]   rows: out/labels_filters.jsonl, shots: screenshots/run-27/R27-D2-*.png
+usage: python labels_filters.py [ABRDFGKIL]   rows: out/labels_filters.jsonl, shots: screenshots/run-27/R27-D2-*.png
 The records come from r27/d2_fixture.py (every RequestStatus for run requests, the reachable ones for window and
 activation requests, the three IncidentStatus values, every CauseType, five results). What only a browser's rendering
 shows (colours in both themes, geometry, Content-Security-Policy, forced colours) is r27/status_badges.py.
@@ -29,7 +31,8 @@ D  guards, data stays data: requests.csv, incidents.csv and runs.csv hold enum n
    and no tone word; the monthly JSON summary answers 200 without a label or a tone; status=warning lists nothing.
 F  #18.3 the filter form per kind and per account that may open History: no free-text result or status field; Result
    (runs, incidents) and Status (incidents, requests) are jenkins-select dropdowns starting with "Any"; the option
-   values are the enum names and the texts readable labels (a status option reads what the table shows for it).
+   values are the enum names and the texts readable labels (a status option reads what the table shows for it); the
+   runs offer the five results in core's order, the incidents exactly FAILURE, UNSTABLE, ABORTED (decision 3).
 G  #18.3 the dropdowns in use (approver-1): every option of every dropdown, chosen and submitted with the Filter button,
    leads to a URL carrying the token and a table whose rows all carry it (premise: without the filter there are rows
    that do not), the same rows as the CSV export link of that view; "Any" lists everything again; a filter combined
@@ -39,7 +42,19 @@ G  #18.3 the dropdowns in use (approver-1): every option of every dropdown, chos
 K  #18.3 kept input: a hand-edited value with markup stays one extra selected option, escaped, is not applied (the
    page says so) and filters nothing; a token-shaped unknown value is kept and lists nothing; a known value in lower
    case selects its option. Guard: the URL tokens of before still filter.
-cleanup: the requester's pending r27-d2 requests cancelled, windows revoked, queue items cancelled."""
+I  decision 3 (T-UI-269b..269d), as admin, manager, approver-1 and auditor: History > Incidents' Result dropdown offers
+   exactly Any, Failed, Unstable, Aborted; History > Runs still all five (T-UI-250); a typed result=SUCCESS or NOT_BUILT on
+   incidents is one extra selected option, applied (lists nothing) and without a "not applied" note; choosing Aborted
+   lists the aborted run's incident while incidentResults lacks ABORTED (T-UI-269c); the Incidents list has no Result filter
+   or the same one (guard). As admin: the options stay the same with incidentResults [FAILURE, UNSTABLE, ABORTED] and
+   [FAILURE] (the setting is put back).
+L  decision 4 (T-UI-269e..269i): the result cells of the Incidents list, the three incident pages (Result row), History >
+   Incidents, History > Runs and the Run Dashboard (admin, manager, approver-1, auditor) and the Build table of the five
+   run request pages (admin, manager, approver-1, requester) read the label as their whole text, plain text and not a
+   badge, and no result cell shows a raw result word. A build held running (r27-d2-long, a sleep) reads "In progress"
+   on its request page for the four accounts, with an empty Duration, and is not listed on the dashboard or History >
+   Runs while it runs (guards); stopped, it reads "Aborted". Guard: incidents.csv and runs.csv keep the result names.
+cleanup: the requester's pending r27-d2 requests cancelled, windows revoked, queue items cancelled, r27-d2-long stopped."""
 import os
 import re
 import sys
@@ -62,7 +77,14 @@ TONE = {"PENDING": "warning", "APPROVED": "info", "EXECUTED": "success", "REJECT
         "EXPIRED": "neutral", "INVALIDATED": "neutral", "OPEN": "danger", "ACKNOWLEDGED": "warning", "RESOLVED": "success"}
 CAUSES = ("USER", "TIMER", "UPSTREAM", "APPROVED_REQUEST", "SCM", "OTHER")
 TONES = ("warning", "info", "success", "danger", "neutral")
-RESULTS = ["SUCCESS", "UNSTABLE", "FAILURE", "NOT_BUILT", "ABORTED"]
+RESULTS = F.RESULTS
+# decision 4 of 2026-10-14: a build result reads as its label; the former raw words are listed for the scan
+RL = {"SUCCESS": "Success", "UNSTABLE": "Unstable", "FAILURE": "Failed", "NOT_BUILT": "Not built", "ABORTED": "Aborted"}
+TO_ENUM = {**{v: k for k, v in RL.items()}, **{k: k for k in RL}}
+RAW_RESULT = re.compile(r"(?<![A-Za-z_])(SUCCESS|FAILURE|UNSTABLE|NOT_BUILT|ABORTED|IN PROGRESS|UNKNOWN)(?![A-Za-z_])")
+INCIDENT_RESULTS = ["FAILURE", "UNSTABLE", "ABORTED"]
+INC_OPTIONS = [("", "Any")] + [(k, RL[k]) for k in INCIDENT_RESULTS]
+RUN_OPTIONS = [("", "Any")] + [(k, RL[k]) for k in RESULTS]
 # The wording of the Ended tables (note 361 points 7 and 8): the grants list says how a request or its window ended.
 GRANTS_ENDED = {"REJECTED": r"Rejected by \S+", "CANCELLED": r"Cancelled by \S+", "EXPIRED": r"Expired without a decision",
                 "APPROVED": r"Expired|Revoked by \S+|Revoked \(its item was deleted\) by \S+"}
@@ -114,9 +136,6 @@ def judge(sec, who, path, what, s, want, status=200):
     bad_label = [e for e in hooked if not re.fullmatch(wording(e, path), e["text"]) or e["elements"]]
     raw = sorted({x for x in re.findall(r"(?<![A-Za-z_])(" + "|".join(sorted(LABEL, key=len, reverse=True)) + r")(?![A-Za-z_])",
                                         p["tables"])})
-    for e in hooked:  # an observation, not a verdict: a label that holds its constant's name as a word ("SCM change")
-        if re.search(r"(?<![A-Za-z_])" + re.escape(e["enum"]) + r"(?![A-Za-z_])", e["text"]):
-            S.setdefault("label_holds_name", set()).add(f"{e['enum']}={e['text']}")
     # The Grants list's Ended table showed its own wording ("Rejected by ...", "Expired without a decision") in a hooked cell
     # before D2 as well, so on that screen the label check is a guard; the badge checks below are D2's.
     name = "guard (the Grants list's wording predates D2)" if path == "/batch-control/grants/" else "D2 #18.2"
@@ -221,8 +240,7 @@ def sec_B():
                   len(sup) >= len(S["superseded"]) and all(e["text"] == "Approved (superseded)" and e["tone"] == "neutral"
                                                            and e["badge"] for e in sup), found=sup[:3])
     s.done()
-    note("B", "the labels as shown (admin)", labels=LABEL, run_request_approved=WAITING,
-         labels_holding_their_constant_as_a_word=sorted(S.get("label_holds_name", ())))
+    note("B", "the labels as shown (admin)", labels=LABEL, run_request_approved=WAITING)
 
 
 # ---------------------------------------------------------------- R: the other accounts
@@ -343,7 +361,7 @@ def readable(text, value):
 
 def sec_F():
     statuses = lib.facts(f"return groovy.json.JsonOutput.toJson({lib.BC}.model.RequestStatus.values()*.name())")
-    want_values = {("runs", "result"): None, ("incidents", "result"): None,
+    want_values = {("runs", "result"): RESULTS, ("incidents", "result"): INCIDENT_RESULTS,
                    ("incidents", "status"): F.INCIDENT_STATUSES, ("requests", "status"): statuses}
     for who in ("approver-1", "admin", "manager", "auditor"):
         s = Session(who)
@@ -370,14 +388,12 @@ def sec_F():
         for (kind, c), o in opts.items():
             values = [x["value"] for x in o[1:]]
             want = want_values[(kind, c)]
-            if want is None:
-                good = {"SUCCESS", "UNSTABLE", "FAILURE", "ABORTED"} <= set(values) and set(values) <= set(RESULTS)
-            else:
-                good = values == want if kind == "incidents" else sorted(values) == sorted(want)
+            good = values == want if c == "result" or kind == "incidents" else sorted(values) == sorted(want)
             check("F", f"D2 #18.3 History > {kind.capitalize()}: the {c.capitalize()} dropdown's values are the enum names, each "
-                  "once (result names with SUCCESS, UNSTABLE, FAILURE and ABORTED among them; exactly OPEN, ACKNOWLEDGED, "
-                  "RESOLVED in this order for incidents; every RequestStatus for requests) and its texts are readable "
-                  "labels, each once", good and len(values) == len(set(values))
+                  "once (runs: SUCCESS, UNSTABLE, FAILURE, NOT_BUILT, ABORTED in this order; incidents: FAILURE, UNSTABLE, "
+                  "ABORTED for the result (decision 3) and OPEN, ACKNOWLEDGED, RESOLVED for the status, in this order; "
+                  "every RequestStatus for requests) and its texts are readable labels, each once",
+                  good and len(values) == len(set(values))
                   and all(readable(x["text"], x["value"]) for x in o[1:]) and len({x["text"] for x in o}) == len(o),
                   options=[(x["value"], x["text"]) for x in o])
         st_req = {x["value"]: x["text"] for x in opts.get(("requests", "status"), [])}
@@ -422,6 +438,8 @@ def query(url):
 
 def view(s):
     v = s.page.evaluate(ROWS_JS)
+    for r in v["rows"]:  # the Result cell reads the label since decision 4 (2026-10-14), the raw name before it
+        r["result_text"], r["result"] = r["result"], TO_ENUM.get(r["result"], r["result"])
     m = re.search(r"\((\d+) matching", v.get("summary") or "")
     v["matching"] = int(m.group(1)) if m else None
     return v
@@ -441,7 +459,8 @@ def sec_G():
     who = "approver-1"
     s = Session(who)
     # ---- every option of every dropdown
-    for kind, control, column, options in (("runs", "result", "result", RESULTS), ("incidents", "result", "result", RESULTS),
+    for kind, control, column, options in (("runs", "result", "result", RESULTS),
+                                           ("incidents", "result", "result", INCIDENT_RESULTS),
                                            ("incidents", "status", "status", F.INCIDENT_STATUSES),
                                            ("requests", "status", "status", F.REQUEST_STATUSES)):
         s.go(f"/batch-control/history/?kind={kind}&job={P}")
@@ -454,6 +473,7 @@ def sec_G():
                 break
             if value not in [o.get_attribute("value") for o in s.page.locator(f"{FORM} select[name={control}] option").all()]:
                 detail[value] = "not offered"
+                bad.append((value, "not offered"))
                 continue
             seen = submit(s, control, value)
             v, q = view(s), query(s.page.url)
@@ -480,8 +500,6 @@ def sec_G():
               "the token leaves the filter", seen is not None and q.get(control, "") == "" and len(v["rows"]) == len(base["rows"]) > 0
               and s.page.locator(f"{FORM} select[name={control}]").input_value() == "",
               url=s.page.url.replace(lib.BASE, ""), rows=len(v["rows"]), before=len(base["rows"]))
-        if kind == "incidents" and control == "result":
-            note("G", "a Result option that matches no record of the view", per_option=detail, empty_text=v.get("empty"))
 
     # ---- combined with from/to dates
     today = lib.gv("return java.time.LocalDate.now().toString()")
@@ -630,11 +648,194 @@ def sec_K():
           unfiltered_rows=len(base["rows"]))
 
 
+# ---------------------------------------------------------------- I: the Incidents Result filter (decision 3)
+def options_of(st, control="result"):
+    c = (st or {}).get(control) or {}
+    o = c.get("options") or []
+    return [(x["value"], x["text"]) for x in o], [x["value"] for x in o if x["selected"]]
+
+
+LIST_RESULT_JS = """() => { const e = document.querySelector('#main-panel select[name=result], #main-panel input[name=result]:not([type=hidden])');
+  return e ? {tag: e.tagName.toLowerCase(), options: e.tagName === 'SELECT' ? [...e.options].map(o => [o.value, o.textContent.trim()]) : null} : null; }"""
+
+
+def sec_I():
+    setting = F.incident_results()
+    for who in ("admin", "manager", "approver-1", "auditor"):
+        s = Session(who)
+        s.go("/batch-control/history/?kind=incidents")
+        inc, sel = options_of(s.page.evaluate(FORM_JS))
+        if who == "approver-1":
+            s.shot(FORM, "R27-D2-I-incidents-result-options")
+        s.go("/batch-control/history/?kind=runs")
+        runs, rsel = options_of(s.page.evaluate(FORM_JS))
+        check("I", "D2 #18.3 (decision 3) History > Incidents: the Result dropdown offers exactly Any, Failed, Unstable, "
+              f"Aborted (values '', FAILURE, UNSTABLE, ABORTED in this order; no Success, no Not built), Any selected ({who})",
+              inc == INC_OPTIONS and sel == [""], options=inc, selected=sel, incidentResults=setting)
+        check("I", "D2 #18.3 History > Runs (T-UI-250, which decision 3 leaves unchanged): the Result dropdown still offers "
+              f"Any and the five results Success, Unstable, Failed, Not built, Aborted (core's order), Any selected ({who})",
+              runs == RUN_OPTIONS and rsel == [""], options=runs, selected=rsel)
+        for typed in ("SUCCESS", "NOT_BUILT"):
+            s.go(f"/batch-control/history/?kind=incidents&job={P}&result={typed}")
+            st, v = s.page.evaluate(FORM_JS), view(s)
+            opts, chosen = options_of(st)
+            notes = [x for x in (st or {}).get("notes", []) if x[0] == "result"]
+            if who == "approver-1" and typed == "SUCCESS":
+                s.shot(FORM, "R27-D2-I-incidents-typed-success")
+            check("I", f"D2 #18.3 (decision 3) History > Incidents with a typed result={typed}: kept as one extra selected "
+                  "option beside exactly Any, Failed, Unstable, Aborted, applied (the CSV link carries it and no incident is "
+                  f"listed) and no 'not applied' note ({who})",
+                  [o for o in opts if o[0] != typed] == INC_OPTIONS and sum(o[0] == typed for o in opts) == 1
+                  and chosen == [typed] and len(v["rows"]) == 0 and not notes
+                  and any(f"result={typed}" in h for h in v["csv"]), options=opts, selected=chosen, rows=len(v["rows"]),
+                  notes=notes, csv=v["csv"][:1])
+        s.go(f"/batch-control/history/?kind=incidents&job={P}")
+        seen = submit(s, "result", "ABORTED")
+        v = view(s)
+        check("I", "D2 #18.3 (T-UI-269c) History > Incidents: choosing Aborted and Filter lists only incidents of aborted runs, "
+              f"the fixture's {J['aborted']} among them, while incidentResults lacks ABORTED ({who})",
+              seen is not None and "ABORTED" not in setting and query(s.page.url).get("result") == "ABORTED"
+              and len(v["rows"]) >= 1 and all(r["result"] == "ABORTED" for r in v["rows"])
+              and any(J["aborted"] in r["text"] for r in v["rows"]), incidentResults=setting, rows=[r["text"][:60] for r in v["rows"]][:4])
+        s.go("/batch-control/incidents/")
+        lst = s.page.evaluate(LIST_RESULT_JS)
+        check("I", f"guard: the Incidents list has no Result filter, or one offering exactly the same options ({who})",
+              lst is None or (lst["options"] is not None and [tuple(x) for x in lst["options"]] == INC_OPTIONS), control=lst)
+        s.done()
+    s = Session("admin")
+    seen = {}
+    try:
+        for values in (["FAILURE", "UNSTABLE", "ABORTED"], ["FAILURE"]):
+            after = F.incident_results(values)
+            s.go("/batch-control/history/?kind=incidents")
+            seen[",".join(after)] = options_of(s.page.evaluate(FORM_JS))[0]
+    finally:
+        back = F.incident_results(setting)
+    s.done()
+    check("I", "D2 #18.3 (decision 3, T-UI-269b) the Incidents Result dropdown does not follow incidentResults: with "
+          "[FAILURE, UNSTABLE, ABORTED] and with [FAILURE] it offers the same Any, Failed, Unstable, Aborted (admin)",
+          set(seen) == {"FAILURE,UNSTABLE,ABORTED", "FAILURE"} and all(o == INC_OPTIONS for o in seen.values()),
+          per_setting=seen)
+    check("I", "arrangement: incidentResults is back to what it was", back == setting, before=setting, after=back)
+
+
+# ---------------------------------------------------------------- L: build results read as labels (decision 4)
+RESULT_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim(); const out = [];
+  const flag = c => !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'));
+  document.querySelectorAll('#main-panel table').forEach((t, ti) => {
+    const heads = [...t.querySelectorAll('thead th')].map(h => n(h.textContent));
+    const ri = heads.indexOf('Result'), ji = heads.indexOf('Job'), di = heads.indexOf('Duration');
+    [...t.querySelectorAll('tbody tr')].forEach(tr => { const c = [...tr.children];
+      if (ri >= 0 && c.length === heads.length) out.push({how: 'column', heads: heads.join('/'), job: ji >= 0 ? n(c[ji].textContent) : null,
+        first: n(c[0].textContent), text: n(c[ri].textContent), badge: flag(c[ri]), duration: di >= 0 ? n(c[di].textContent) : null});
+      else if (c.length === 2 && c[0].tagName === 'TH' && n(c[0].textContent) === 'Result')
+        out.push({how: 'row', heads: '', job: null, first: '', text: n(c[1].textContent), badge: flag(c[1])}); }); });
+  return out; }"""
+EXPECT_BY_JOB = {J[k]: v for k, v in F.RESULT_OF.items()}
+
+
+def judge_results(who, what, s, want, expect=None, status=200):
+    """The decision-4 check of one screen: `expect` is the result of the page's one run (a request or incident page),
+    otherwise each row's result follows its job (F.RESULT_OF); `want`: the results the screen must show."""
+    cells = s.page.evaluate(RESULT_JS)
+    if expect:
+        cells = [c for c in cells if c["how"] == "row" or c["heads"].startswith("Build/Result")]
+    ours = [c for c in cells if expect or c["job"] in EXPECT_BY_JOB]
+    wrong = [c for c in ours if c["text"] != RL[expect or EXPECT_BY_JOB[c["job"]]]]
+    badges = [c for c in cells if c["badge"]]
+    raw = [c for c in cells if RAW_RESULT.search(c["text"])]
+    shown = {TO_ENUM.get(c["text"]) for c in ours} - {None}
+    check("L", f"D2 #18.2 (decision 4) result labels: on {what} every build result reads as its label (Success, Unstable, "
+          "Failed, Not built, Aborted) as the whole text of its cell, plain text and not a badge, no result cell shows a raw "
+          f"result word, and the screen shows {', '.join(RL[x] for x in want)} ({who})",
+          status == 200 and bool(ours) and not wrong and not badges and not raw and set(want) <= shown, status=status,
+          cells=len(cells), texts=sorted({c["text"] for c in cells})[:8], wrong=wrong[:3], badges=badges[:2], raw=raw[:3],
+          missing=sorted(set(want) - shown))
+    return cells
+
+
+def sec_L():
+    S.update(F.arrange(reuse=True))
+    inc = {"FAILURE": S["incident"]["OPEN"], "UNSTABLE": S["incident"]["UNSTABLE"], "ABORTED": S["incident"]["ABORTED"]}
+    history = (("/batch-control/incidents/", "the Incidents list", INCIDENT_RESULTS, None),
+               *((f"/batch-control/incidents/{iid}/", f"the incident page of the {r} run (its Result row)", [r], r)
+                 for r, iid in inc.items()),
+               (f"/batch-control/history/?kind=incidents&job={P}", "History > Incidents", INCIDENT_RESULTS, None),
+               (f"/batch-control/history/?kind=runs&job={P}", "History > Runs", RESULTS, None),
+               ("/batch-control/dashboard/", "the Run Dashboard", RESULTS, None))
+    requests = tuple((f"/batch-control/requests/{rid}/", f"the run request page of the {r} build (its Build table)",
+                      [r], r) for r, rid in sorted(S["result_request"].items()))
+    check("L", "arrangement: approved run requests whose builds ended SUCCESS, FAILURE, UNSTABLE, ABORTED and NOT_BUILT, "
+          "and incidents of a failed, an unstable and an aborted run", set(S["result_request"]) == set(RESULTS)
+          and all(inc.values()), requests=S["result_request"], incidents=inc)
+    for who, screens_ in (("admin", history + requests), ("manager", history + requests), ("approver-1", history + requests),
+                          ("auditor", history), ("requester", requests)):
+        s = Session(who)
+        for path, what, want, expect in screens_:
+            r = s.go(path)
+            judge_results(who, what, s, want, expect, r.status if r else None)
+            if who == "approver-1" and path in ("/batch-control/incidents/", "/batch-control/dashboard/", history[5][0],
+                                                requests[0][0], history[1][0]):
+                lib.page_shot(s, "R27-D2-L-" + re.sub(r"[^a-z]+", "-", what.lower()).strip("-")[:48])
+        s.done()
+
+    # ---- a build with no result yet (T-UI-269h)
+    n = lib.next_build(J["long"])
+    st, rid = lib.submit_run("requester", J["long"], "e2e-27 D2 a build held running")
+    dec = F.decide("requests", rid, "approve")
+    running = lib.wait_until(lambda: F.building(J["long"], n), timeout=120, step=1)
+    seen = {}
+    try:
+        for who in ("admin", "requester", "approver-1", "manager"):
+            s = Session(who)
+            s.go(f"/batch-control/requests/{rid}/")
+            build = [c for c in s.page.evaluate(RESULT_JS) if c["heads"].startswith("Build/Result")]
+            seen[who] = [(c["text"], c["badge"], c["duration"]) for c in build]
+            if who == "requester":
+                lib.page_shot(s, "R27-D2-L-run-request-in-progress")
+            s.done()
+        s = Session("admin")
+        listed = {}
+        for key, path in (("dashboard", "/batch-control/dashboard/"), ("history-runs", f"/batch-control/history/?kind=runs&job={J['long']}")):
+            s.go(path)
+            listed[key] = [c["first"] for c in s.page.evaluate(RESULT_JS) if c["job"] == J["long"] and c["first"] == f"#{n}"]
+        s.done()
+        still = F.building(J["long"], n)
+    finally:
+        stopped = F.stop_running(J["long"])
+    check("L", "arrangement: the approved run of r27-d2-long was running while the four accounts read its request page",
+          st in (200, 302) and running and still, submit=st, decide=dec, running=running, still_running=still)
+    check("L", "guard (T-UI-269h, accepted 2026-10-14): while the build runs its Duration cell is empty and neither the "
+          f"Run Dashboard nor History > Runs lists it", all(len(v) == 1 and v[0][2] == "" for v in seen.values())
+          and not any(listed.values()), durations={k: [x[2] for x in v] for k, v in seen.items()}, listed=listed)
+    check("L", "D2 #18.2 (decision 4, T-UI-269h) a running build's Result cell on its request page reads exactly 'In "
+          "progress', plain text and not a badge (admin, requester, approver-1, manager)",
+          set(seen) == {"admin", "requester", "approver-1", "manager"}
+          and all(len(v) == 1 and v[0][0] == "In progress" and not v[0][1] for v in seen.values()), seen=seen)
+    result = lib.wait_build(J["long"], n, timeout=120)[0]
+    s = Session("requester")
+    s.go(f"/batch-control/requests/{rid}/")
+    build = [c for c in s.page.evaluate(RESULT_JS) if c["heads"].startswith("Build/Result")]
+    s.done()
+    check("L", "D2 #18.2 (decision 4) the same build, stopped by admin, reads 'Aborted' on its request page (requester)",
+          result == "ABORTED" and [c["text"] for c in build] == ["Aborted"] and not any(c["badge"] for c in build),
+          result=result, stopped=stopped, cells=[(c["text"], c["badge"]) for c in build])
+
+    # ---- the exports keep the names (T-UI-269i)
+    ir = [r.get("result") for r in F.csv_rows(f"/batch-control/history/incidents.csv?job={P}")]
+    rr = [r.get("result") for r in F.csv_rows(f"/batch-control/history/runs.csv?job={P}")]
+    check("L", "guard (T-UI-269i): the result column of incidents.csv holds exactly FAILURE, UNSTABLE, ABORTED and that of "
+          "runs.csv exactly the five result names, no label", set(ir) == set(INCIDENT_RESULTS) and set(rr) == set(RESULTS),
+          incidents=sorted(set(ir)), runs=sorted(set(rr)))
+
+
 def cleanup():
     # ci/shard.py runs r27/status_badges.py next on the same records (BC_D2_KEEP_FIXTURE=1); that driver sweeps.
     keep = os.environ.get("BC_D2_KEEP_FIXTURE") == "1"
-    note("cleanup", "restore", kept_for_the_next_driver=keep, swept=None if keep else lib.sweep("requester", P))
+    note("cleanup", "restore", kept_for_the_next_driver=keep, stopped=F.stop_running(J["long"]),
+         swept=None if keep else lib.sweep("requester", P))
 
 
 if __name__ == "__main__":
-    lib.run(sys.argv, {"A": sec_A, "B": sec_B, "R": sec_R, "D": sec_D, "F": sec_F, "G": sec_G, "K": sec_K}, cleanup)
+    lib.run(sys.argv, {"A": sec_A, "B": sec_B, "R": sec_R, "D": sec_D, "F": sec_F, "G": sec_G, "K": sec_K, "I": sec_I,
+                       "L": sec_L}, cleanup)

@@ -12,10 +12,15 @@ person could not do it in a test's time), one record in every state the D2 contr
   activation requests PENDING (r27-d2-act), REJECTED (act2), CANCELLED (act3), EXPIRED (act4), INVALIDATED
                      (r27-d2-gone, deleted); on r27-d2-sup ACTIVATE, HOLD, ACTIVATE each approved, so the last is in
                      effect and the ones before it are "Approved (superseded)"
-  incidents          OPEN (r27-d2-fail), ACKNOWLEDGED (fail2), RESOLVED (fail3), and an OPEN one with the result
-                     UNSTABLE (r27-d2-unst)
-  runs               SUCCESS, FAILURE and UNSTABLE through approved requests (cause APPROVED_REQUEST); ABORTED and
-                     NOT_BUILT (two Pipeline jobs that set their result, built by admin: cause USER); on r27-d2-timer
+  incidents          OPEN (r27-d2-fail), ACKNOWLEDGED (fail2), RESOLVED (fail3), an OPEN one with the result UNSTABLE
+                     (r27-d2-unst) and an OPEN one with the result ABORTED (r27-d2-aborted, built while incidentResults
+                     held ABORTED; the setting is put back at once, so the incident outlives the setting, as the owner's
+                     decision of 2026-10-14 on the Incidents Result filter describes)
+  runs               SUCCESS, FAILURE and UNSTABLE through approved requests (cause APPROVED_REQUEST), ABORTED and
+                     NOT_BUILT through approved requests too (r27-d2-abreq, r27-d2-nbreq: Pipeline jobs that set their
+                     result), so the run request page's Build table shows all five results; ABORTED and NOT_BUILT also
+                     on two Pipeline jobs built by admin (cause USER); r27-d2-long (a build that sleeps) is made here and
+                     run by labels_filters.py section L, which reads it while it runs and stops it; on r27-d2-timer
                      (no approval, activated, triggers unblocked) one run each with a timer, an upstream, an SCM and a
                      remote cause, scheduled from the script console (TIMER, UPSTREAM, SCM, OTHER)
 
@@ -38,12 +43,16 @@ from lib import api, gv  # noqa: E402
 
 P = "r27-d2-"
 NAMES = ("ok", "fail", "fail2", "fail3", "unst", "wait", "gone", "act", "act2", "act3", "act4", "sup", "w-live", "w-exp",
-         "w-rev", "w-del", "timer", "aborted", "notbuilt")
+         "w-rev", "w-del", "timer", "aborted", "notbuilt", "abreq", "nbreq", "long")
 J = {n: P + n for n in NAMES}
 LONG_ADMIN = "r27-d2-administrator-with-a-rather-long-user-identifier"
 STATE = lib.OUT / "d2_fixture.json"
 REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED", "EXECUTED", "INVALIDATED"]
 INCIDENT_STATUSES = ["OPEN", "ACKNOWLEDGED", "RESOLVED"]
+RESULTS = ["SUCCESS", "UNSTABLE", "FAILURE", "NOT_BUILT", "ABORTED"]
+# the result every build of these jobs ends with (r27-d2-long: stopped by labels_filters.py section L)
+RESULT_OF = {"ok": "SUCCESS", "timer": "SUCCESS", "fail": "FAILURE", "fail2": "FAILURE", "fail3": "FAILURE", "unst": "UNSTABLE",
+             "aborted": "ABORTED", "abreq": "ABORTED", "notbuilt": "NOT_BUILT", "nbreq": "NOT_BUILT", "long": "ABORTED"}
 
 
 def csv_text(path, who="admin"):
@@ -53,6 +62,12 @@ def csv_text(path, who="admin"):
 
 def csv_rows(path, who="admin"):
     return list(csv.DictReader(io.StringIO(csv_text(path, who))))
+
+
+def incident_results(values=None):
+    """Server state: the incidentResults setting; with `values`, set (and saved) first. Returns the list after."""
+    change = "" if values is None else f"cfg.setIncidentResults({json.dumps(list(values))}); cfg.save()\n"
+    return lib.facts(lib.L25.CFG + change + "return groovy.json.JsonOutput.toJson(cfg.incidentResults)")
 
 
 def decide(kind, rid, verb, comment="e2e-27 D2"):
@@ -89,8 +104,23 @@ def expected(S):
     out.update({f"activation {k}": k for k in S["activation"]})
     out.update({f"superseded {i}": "APPROVED" for i in range(len(S["superseded"]))})
     out.update({"incident OPEN": "OPEN", "incident ACKNOWLEDGED": "ACKNOWLEDGED", "incident RESOLVED": "RESOLVED",
-                "incident UNSTABLE": "OPEN"})
+                "incident UNSTABLE": "OPEN", "incident ABORTED": "OPEN"})
     return out
+
+
+def building(job, number):
+    """Server state: whether build `number` of `job` is running."""
+    r = api("admin", lib.jpath(job) + f"/{number}/api/json?tree=building,result")
+    return r.status_code == 200 and bool(r.json().get("building"))
+
+
+def stop_running(job):
+    """Restores: stops every running build of `job` (admin, crumbed POST). Returns the numbers stopped."""
+    r = api("admin", lib.jpath(job) + "/api/json?tree=builds[number,building]")
+    nums = [b["number"] for b in (r.json().get("builds", []) if r.status_code == 200 else []) if b.get("building")]
+    for n in nums:
+        api("admin", lib.jpath(job) + f"/{n}/stop", "POST")
+    return nums
 
 
 def build_and_wait(job, cause=None, who="admin"):
@@ -129,7 +159,8 @@ def arrange(reuse=False):
     wf = lambda result: lib.job_xml("wf", script=f"currentBuild.result = '{result}'")  # noqa: E731
     S["removed"] = D.remove(J["gone"], J["w-del"])
     xmls = {"fail": xml_fail, "fail2": xml_fail, "fail3": xml_fail, "unst": xml_unst, "wait": xml_wait,
-            "aborted": wf("ABORTED"), "notbuilt": wf("NOT_BUILT")}
+            "aborted": wf("ABORTED"), "notbuilt": wf("NOT_BUILT"), "abreq": wf("ABORTED"), "nbreq": wf("NOT_BUILT"),
+            "long": lib.job_xml("fs", shell="echo e2e-27 D2 held running; sleep 300")}
     for n in NAMES:
         lib.ensure_item(J[n], xmls.get(n, xml_ok))
     free = ("timer", "aborted", "notbuilt")
@@ -153,12 +184,20 @@ def arrange(reuse=False):
     # ---- runs: results and causes
     S["build"]["ok"] = run_request(J["ok"], "approve")
     S["run"]["EXECUTED"] = S["build"]["ok"]["id"]
-    for n in ("fail", "fail2", "fail3", "unst"):
+    for n in ("fail", "fail2", "fail3", "unst", "abreq", "nbreq"):
         S["build"][n] = run_request(J[n], "approve")
-    for n in ("ok", "fail", "fail2", "fail3", "unst"):
+    for n in ("ok", "fail", "fail2", "fail3", "unst", "abreq", "nbreq"):
         S["build"][n]["result"] = lib.wait_build(J[n], S["build"][n]["number"], timeout=240)[0]
-    for n in ("aborted", "notbuilt"):
-        S["build"][n] = build_and_wait(J[n])
+    S["build"]["notbuilt"] = build_and_wait(J["notbuilt"])
+    # an incident of an aborted run: ABORTED is added to incidentResults for this one build and taken out again
+    before = incident_results()
+    try:
+        S["codes"]["incidentResults"] = [before, incident_results(list(dict.fromkeys(before + ["ABORTED"])))]
+        S["build"]["aborted"] = build_and_wait(J["aborted"])
+        lib.wait_until(lambda: incident_of(J["aborted"], S["build"]["aborted"]["number"]), timeout=30, step=1)
+    finally:
+        S["codes"]["incidentResults"] = S["codes"].get("incidentResults", [before]) + [incident_results(before)]
+    S["result_request"] = {S["build"][n]["result"]: S["build"][n]["id"] for n in ("ok", "fail", "unst", "abreq", "nbreq")}
     if lib.activation(J["timer"]) != "activated":  # a job created under run control runs unattended only once activated
         st, tid = lib.submit_activation("requester", J["timer"], "ACTIVATE", "e2e-27 D2 timer job into service")
         S["codes"]["timer"] = (st, decide("activations", tid, "approve"),
@@ -174,7 +213,8 @@ def arrange(reuse=False):
     S["incident"] = {"OPEN": incident_of(J["fail"], S["build"]["fail"]["number"]),
                      "ACKNOWLEDGED": incident_of(J["fail2"], S["build"]["fail2"]["number"]),
                      "RESOLVED": incident_of(J["fail3"], S["build"]["fail3"]["number"]),
-                     "UNSTABLE": incident_of(J["unst"], S["build"]["unst"]["number"])}
+                     "UNSTABLE": incident_of(J["unst"], S["build"]["unst"]["number"]),
+                     "ABORTED": incident_of(J["aborted"], S["build"]["aborted"]["number"])}
     post = lambda iid, verb: api("approver-1", f"/batch-control/incidents/{iid}/{verb}", "POST",  # noqa: E731
                                  data={"comment": f"e2e-27 D2 {verb}"}).status_code if iid else None
     S["codes"]["incidents"] = (post(S["incident"]["ACKNOWLEDGED"], "acknowledge"), post(S["incident"]["RESOLVED"], "acknowledge"),

@@ -143,7 +143,8 @@ def history(role):
     ok, keys = clean_url(s.page.url, HKEYS)
     res = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator("tbody tr td:nth-child(6)").all_inner_texts()))
     s.shot(["#main-panel form[data-batch-control-get-form]", "#main-panel table"], f"{tag}-H2-enter-result")
-    check(role, "H2 Enter submits; clean URL; result=FAILURE rows only", ok and res in (["FAILURE"], []) and dict(q(s.page.url)).get("result") == "FAILURE",
+    # the Result cell reads the label "Failed" since #18.2 (2026-10-14) and the raw "FAILURE" before it
+    check(role, "H2 Enter submits; clean URL; result=FAILURE rows only", ok and res in (["FAILURE"], ["Failed"], []) and dict(q(s.page.url)).get("result") == "FAILURE",
           url=s.page.url.replace(BASE, ""), keys=keys, results=res, rows=rows(s).count(), hidden_before_submit=hidden)
 
     # H3: Requests kind with a status filter

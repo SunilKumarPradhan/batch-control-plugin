@@ -695,6 +695,10 @@ def observations():
                 # e2e-16: raw enum values shown as text (INFO, the deferred UX-4/UX-5 items), per value with its URL patterns
                 "raw_enum_values": {k: sorted({x.get("pattern") for x in r if x.get("check") == "raw-enum" and x.get("key") == k})[:12]
                                     for k in sorted({x.get("key") for x in r if x.get("check") == "raw-enum"})},
+                # #18.2: result cells read (once per URL pattern and text) and the raw result words found in them
+                "result_cells": {"read": sum(1 for x in r if x.get("check") == "result-cell"),
+                                 "texts": sorted({x.get("key") for x in r if x.get("check") == "result-cell"})[:20],
+                                 "raw": sum(1 for x in r if x.get("check") == "raw-result")},
             }
     a = rows("actions.jsonl")
     if a:

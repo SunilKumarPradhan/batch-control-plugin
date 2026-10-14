@@ -20,7 +20,13 @@ Content checks (CI, 2026-10-05), on every page reached with status < 400, all ro
   * double-escaped: an HTML entity shown as text (&lt; &gt; &amp; &quot; &apos; &#..;);
   * markup-text: "<script" shown as text;
   * markup-live: the seeded probe's <img onerror> canary ran, or the probe (ci/seed_markup.py) does not read as typed;
-  * legacy-scope: a scope written with a scope type that D-71 removed ("JOB:", "FOLDER:", "FOLDER_ONLY") (e2e-16).
+  * legacy-scope: a scope written with a scope type that D-71 removed ("JOB:", "FOLDER:", "FOLDER_ONLY") (e2e-16);
+  * raw-result: on a Batch Control page, a result cell (the cell under a table's "Result" heading, or the td of a row
+    headed "Result") that shows a raw build result word (SUCCESS, FAILURE, UNSTABLE, NOT_BUILT, ABORTED) or the former
+    "IN PROGRESS" / "UNKNOWN" instead of its label (#18.2, owner decision 2026-10-14: Success, Unstable, Failed, Not built,
+    Aborted, In progress, Unknown); result-badge: a result cell holding a badge (class batch-control-status or a
+    data-batch-control-tone): a result is plain text. Every result cell read is logged as check "result-cell" with
+    result INFO, once per URL pattern and text, so the summary can say how many were checked.
 Raw enum values (e2e-16): an UPPER_SNAKE_CASE constant (GRANT_REVOKE, APPROVED_REQUEST, ...), the scope prefix "ITEM:",
 or a state/action constant of the plugin's vocabulary (PENDING, APPROVED, ..., CONFIGURE, CREATE, DELETE) shown as
 text is logged as check "raw-enum" with result INFO, once per URL pattern and value, without a FAIL: showing these
@@ -124,7 +130,11 @@ CONTENT_JS = r"""
   const PATH = /(?:^|[\s"'(=,;:])(\/(?:var|tmp|home|opt|usr|etc|root|srv|private|Users)\/[^\s"'<>)]*)|(jenkins_home|JENKINS_HOME|StoreLocation=|WEB-INF\/|\b[A-Za-z]:\\[A-Za-z])/;
   const ENT = /&(?:lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/;
   const desc = el => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
-  const out = {paths: [], entities: [], script_text: [], empty_cells: [], probe: [], enums: []};
+  const out = {paths: [], entities: [], script_text: [], empty_cells: [], probe: [], enums: [], results: []};
+  const RAW_RESULT = /\b(SUCCESS|FAILURE|UNSTABLE|NOT_BUILT|ABORTED|IN PROGRESS|UNKNOWN)\b/;
+  const resultCell = (c, how, caption) => { const t = (c.innerText || '').replace(/\s+/g, ' ').trim(); const m = RAW_RESULT.exec(t);
+    out.results.push({text: t.slice(0, 60), raw: m ? m[1] : null, how, caption: caption.trim().slice(0, 40),
+      badge: !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'))}); };
   const SNAKE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
   const SCOPE = /\b(ITEM|JOB|FOLDER_ONLY|FOLDER): ?(?=\S)/g;
   const WORDS = /\b(PENDING|APPROVED|REJECTED|CANCELLED|EXPIRED|EXECUTED|INVALIDATED|CONSUMED|SUPERSEDED|OPEN|ACKNOWLEDGED|RESOLVED|ACTIVATE|HOLD|CONFIGURE|CREATE|DELETE)\b/g;
@@ -149,11 +159,13 @@ CONTENT_JS = r"""
     [...tb.tBodies].forEach(b => [...b.rows].forEach(r => {
       const cells = [...r.cells];
       if (cells.length === 2 && cells[0].tagName === 'TH' && cells[1].tagName === 'TD') {
+        if (cells[0].innerText.trim() === 'Result') resultCell(cells[1], 'row', caption);
         if (empty(cells[1])) out.empty_cells.push({table: ti, caption: caption.trim().slice(0, 40), column: cells[0].innerText.trim(), row: ''});
         return;
       }
       if (!heads.length || cells.length !== heads.length) return;
       cells.forEach((c, ci) => {
+        if (c.tagName === 'TD' && heads[ci] === 'Result') resultCell(c, 'column', caption);
         if (c.tagName === 'TD' && heads[ci] && empty(c))
           out.empty_cells.push({table: ti, caption: caption.trim().slice(0, 40), column: heads[ci], row: (cells[0].innerText || '').trim().slice(0, 40)});
       });
@@ -188,6 +200,15 @@ def content_checks(s, path, pt):
             elif ("empty-optional", pt, x["column"]) not in _content_seen:  # optional value: once per pattern, UX review only
                 _content_seen.add(("empty-optional", pt, x["column"]))
                 emit({"page": path, "pattern": pt, "kind": "content", "check": "empty-optional", "key": x["column"], "result": "INFO", "detail": x})
+        for x in c.get("results", []):  # #18.2: a build result reads as its label, plain text
+            if x["raw"]:
+                found.append(("raw-result", x["raw"], x))
+            if x["badge"]:
+                found.append(("result-badge", x["text"], x))
+            if ("result-cell", pt, x["text"]) not in _content_seen:
+                _content_seen.add(("result-cell", pt, x["text"]))
+                emit({"page": path, "pattern": pt, "kind": "content", "check": "result-cell", "key": x["text"], "result": "INFO",
+                      "detail": x})
     found += [("server-path", x["match"], x) for x in c["paths"]]
     found += [("double-escaped", x["match"], x) for x in c["entities"]]
     found += [("markup-text", "<script", x) for x in c["script_text"]]
