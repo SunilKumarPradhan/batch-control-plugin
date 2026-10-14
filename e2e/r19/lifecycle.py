@@ -43,7 +43,19 @@ JOB = "r19-life"
 
 def row(t, label):
     m = re.search(rf"^{re.escape(label)}\s+(.*)$", t, re.M)
-    return m.group(1).strip() if m else None
+    value = m.group(1).strip() if m else None
+    if label == "Status" and value:  # Wave D D2: the row shows a readable label; written back as the enum name
+        for text, enum in STATUS_WORDS:
+            if value == text or value.startswith(text + " "):
+                return enum + value[len(text):]
+    return value
+
+
+# The labels of the request statuses (Wave D D2, ui.StatusLabels), longest first: "Approved, waiting to run" before
+# "Approved".
+STATUS_WORDS = [("Approved, waiting to run", "APPROVED"), ("Invalidated", "INVALIDATED"), ("Cancelled", "CANCELLED"),
+                ("Executed", "EXECUTED"), ("Approved", "APPROVED"), ("Rejected", "REJECTED"), ("Pending", "PENDING"),
+                ("Expired", "EXPIRED")]
 
 
 def submit_form(user, job, reason, approvers=("approver-1",), shot=None):

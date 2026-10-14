@@ -114,7 +114,10 @@ def sec_H():
                                   "text": re.sub(r"\s+", " ", s.page.locator("#main-panel table").first.inner_text())[:160] if s.page.locator("#main-panel table").count() else None}
         # filter by user and result
         s.go("/batch-control/history/?kind=runs")
-        s.page.fill("#filter-result", "FAILURE")
+        if s.page.locator("#filter-result").evaluate("e => e.tagName") == "SELECT":  # Wave D D2: a dropdown
+            s.page.locator("#filter-result").select_option("FAILURE")
+        else:
+            s.page.fill("#filter-result", "FAILURE")
         with s.page.expect_navigation():
             s.page.locator("#main-panel form[method=get] button, #main-panel form[method=get] input[type=submit]").first.click()
         row["filter_result_failure"] = {"rows": s.page.locator("#main-panel table tbody tr").count(),

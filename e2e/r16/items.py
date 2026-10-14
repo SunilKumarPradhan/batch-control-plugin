@@ -190,7 +190,7 @@ def sec_L():
 def t = f.text; f.text = t.replace('<type>ITEM</type>', '<type>{legacy}</type>'); return f.text.contains('<type>{legacy}</type>')""")
         appr = api("approver-1", f"/batch-control/grants/{gid}/approve", "POST", data={"comment": "x"})
         detail = api("approver-1", f"/batch-control/grants/{gid}/")
-        status = re.search(r"Status (\w+)", text_of(detail.text))
+        status = re.search(r"(\w+)", lib.status_cell(detail.text)[1] or "")  # D2: the Status row's enum
         check("L", f"a request stored with the legacy scope type {legacy} cannot be approved (D-69/D-71): 4xx, never APPROVED, "
               "detail page below 500",
               rewritten == "true" and 400 <= appr.status_code < 500 and detail.status_code < 500
