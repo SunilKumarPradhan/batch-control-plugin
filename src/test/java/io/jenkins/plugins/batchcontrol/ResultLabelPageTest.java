@@ -66,6 +66,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Written from that decision and from pages rendered on this branch (f2e150bc); no src/main
  * knowledge.
+ *
+ * <p>T-UI-269j (owner decision of 2026-10-14): the introduction of the incidents list names the
+ * results {@code incidentResults} holds, by these labels, in the order FAILURE, UNSTABLE, ABORTED.
+ * Written from that decision and the page rendered at 56698c10.
  */
 @WithJenkins
 public class ResultLabelPageTest {
@@ -210,6 +214,50 @@ public class ResultLabelPageTest {
                 "incidents.csv keeps the raw result names");
         assertEquals(new TreeSet<>(ResultFixtures.ALL_RESULTS), csvColumn("runs.csv", "result"),
                 "runs.csv keeps the raw result names");
+    }
+
+    /**
+     * T-UI-269j (owner decision of 2026-10-14): the introduction of the incidents list
+     * ({@code batch-control/incidents/}) names the results {@code incidentResults} holds: their labels,
+     * lower case after the first word, always in the order FAILURE, UNSTABLE, ABORTED, joined with
+     * commas and a final "and", followed by "builds are registered automatically as incidents." The
+     * rest of the paragraph is unchanged. Settings whose wording the owner gave: the default (the
+     * sentence of today), with ABORTED, [FAILURE] and [ABORTED, FAILURE] stored out of order; the
+     * other two follow the same rule. An empty setting is not judged (SPEC does not define it).
+     */
+    @Test
+    public void t_ui_269j_incidentsIntroductionNamesTheConfiguredResults() throws Exception {
+        String rest = "Open an incident to acknowledge, comment or resolve it; a user who may submit run requests for its job"
+                + " can also request a rerun there.";
+        Map<List<String>, String> opening = new LinkedHashMap<>();
+        opening.put(List.of("FAILURE", "UNSTABLE"), "Failed and unstable builds"); // the default: today's sentence
+        opening.put(List.of("FAILURE", "UNSTABLE", "ABORTED"), "Failed, unstable and aborted builds");
+        opening.put(List.of("FAILURE"), "Failed builds");
+        opening.put(List.of("ABORTED", "FAILURE"), "Failed and aborted builds"); // configured out of order
+        opening.put(List.of("UNSTABLE", "ABORTED"), "Unstable and aborted builds"); // by the rule
+        opening.put(List.of("ABORTED"), "Aborted builds"); // by the rule
+        for (Map.Entry<List<String>, String> e : opening.entrySet()) {
+            cfg.setIncidentResults(new ArrayList<>(e.getKey()));
+            cfg.save();
+            assertEquals(new TreeSet<>(e.getKey()), new TreeSet<>(cfg.getIncidentResults()), "fixture: incidentResults is stored");
+            String where = "the incidents list with incidentResults " + e.getKey();
+            String expected = e.getValue() + " are registered automatically as incidents. " + rest;
+            assertEquals(expected, introduction(page("batch-control/incidents/"), where), where + ": the introduction names"
+                    + " the configured results in the order FAILURE, UNSTABLE, ABORTED");
+        }
+    }
+
+    /** The one paragraph of the main panel that says incidents are registered automatically, its text collapsed. */
+    private static String introduction(HtmlPage page, String where) {
+        List<String> found = new ArrayList<>();
+        for (DomNode n : page.querySelectorAll("#main-panel p")) {
+            String text = collapse(n.getTextContent());
+            if (text.contains("registered automatically as incidents")) {
+                found.add(text);
+            }
+        }
+        assertEquals(1, found.size(), where + ": premise: one paragraph says incidents are registered automatically: " + found);
+        return found.get(0);
     }
 
     // ------------------------------------------------------------------ assertions
