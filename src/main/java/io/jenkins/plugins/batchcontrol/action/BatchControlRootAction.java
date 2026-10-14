@@ -145,11 +145,16 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
     /**
      * #18.2 (colour badges): the tone of the badge {@code bc:status} renders for a request or
      * incident status ({@link StatusLabels#tone}); {@code null} for anything else (a run cause,
-     * a value that is not an enum constant), which the tag then shows as plain text.
+     * a value that is not an enum constant), which the tag then shows as plain text. With
+     * {@code ended}, the badge is in an Ended table, where an approved request is no longer in
+     * effect and is neutral ({@link StatusLabels#endedTone}).
      */
     @CheckForNull
-    public String statusTone(@CheckForNull Object value) {
-        return value instanceof Enum<?> constant ? StatusLabels.tone(constant) : null;
+    public String statusTone(@CheckForNull Object value, boolean ended) {
+        if (!(value instanceof Enum<?> constant)) {
+            return null;
+        }
+        return ended ? StatusLabels.endedTone(constant) : StatusLabels.tone(constant);
     }
 
     /** The tabs the viewer may open, with their open-item badges (overview page). */

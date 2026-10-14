@@ -124,8 +124,9 @@
                       </td>
                       <td>${r.requester}</td>
                       <td>${it.join(r.approvers)}</td>
-                      <!-- #18.2: the status badge, in this list's wording (endedLabel). -->
-                      <td><bc:status value="${r.status}" label="${it.endedLabel(r)}"/></td>
+                      <!-- #18.2: the status badge, in this list's wording (endedLabel). ended: an
+                           approved request here was replaced by a later one, so it is neutral. -->
+                      <td><bc:status value="${r.status}" label="${it.endedLabel(r)}" ended="true"/></td>
                       <td>${it.format(r.createdAt)}</td>
                     </tr>
                   </j:forEach>

@@ -7,7 +7,9 @@
 
      Colour badges: a request, grant or activation status and an incident status are a badge, the
      class batch-control-status with the tone of the constant (StatusLabels#tone) in
-     data-batch-control-tone. The tone follows the constant, not the label a page passes. The
+     data-batch-control-tone. The tone follows the constant, not the label a page passes; the one
+     exception is said by the caller with ended="true" (an Ended table, where an approved request
+     is no longer in effect and is neutral: StatusLabels#endedTone). The
      badge holds its label and nothing else, and it is styled by the plugin stylesheet alone (no
      style attribute: the pages work under a Content-Security-Policy without inline styles), which
      this tag links, so every screen that shows a badge has it. A run cause has no tone: plain
@@ -18,13 +20,14 @@
     <st:attribute name="value" use="required">The enum constant (RequestStatus, IncidentStatus or CauseType).</st:attribute>
     <st:attribute name="label">The text to show instead of the default label (a page's own wording for this status).</st:attribute>
     <st:attribute name="runRequest">"true" for a run request's status: APPROVED reads "Approved, waiting to run".</st:attribute>
+    <st:attribute name="ended">"true" in the Ended table of the grants or activations list: APPROVED is no longer in effect there and is a neutral badge.</st:attribute>
   </st:documentation>
   <j:if test="${attrs.value != null}">
     <j:set var="bcStatusRoot" value="${app.getExtensionList('io.jenkins.plugins.batchcontrol.action.BatchControlRootAction').get(0)}"/>
-    <j:set var="bcStatusBadge" value="${bcStatusRoot.statusTone(attrs.value) != null}"/>
+    <j:set var="bcStatusBadge" value="${bcStatusRoot.statusTone(attrs.value, attrs.ended == 'true') != null}"/>
     <j:if test="${bcStatusBadge}">
       <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
     </j:if>
-    <span class="${bcStatusBadge ? 'batch-control-status' : null}" data-batch-control-status="${attrs.value}" data-batch-control-tone="${bcStatusRoot.statusTone(attrs.value)}">${attrs.label != null ? attrs.label : bcStatusRoot.statusLabel(attrs.value, attrs.runRequest == 'true')}</span>
+    <span class="${bcStatusBadge ? 'batch-control-status' : null}" data-batch-control-status="${attrs.value}" data-batch-control-tone="${bcStatusRoot.statusTone(attrs.value, attrs.ended == 'true')}">${attrs.label != null ? attrs.label : bcStatusRoot.statusLabel(attrs.value, attrs.runRequest == 'true')}</span>
   </j:if>
 </j:jelly>

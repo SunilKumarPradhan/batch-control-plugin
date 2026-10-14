@@ -20,7 +20,9 @@ import org.kohsuke.accmod.restrictions.NoExternalUse;
  * {@link #tone} names the badge's tone, which the element carries in
  * {@code data-batch-control-tone} and the plugin stylesheet colours from the theme. The tone
  * follows the constant, never a page's own wording of the label. A run cause has no tone and
- * stays plain text.
+ * stays plain text. The one exception is {@link #endedTone}: in the Ended table of the grants
+ * list and of the activations list an approved request is no longer in effect, so it is neutral
+ * there, whatever the cell words; the caller says where the badge is, the label is not looked at.
  *
  * <p>Each enum is mapped by a switch expression without a default branch, so a new constant
  * without a label or a tone does not compile. Views reach this class through
@@ -94,6 +96,18 @@ public final class StatusLabels {
             return incidentTone(s);
         }
         return null;
+    }
+
+    /**
+     * The tone of the badge showing {@code value} in an Ended table (the grants list, the
+     * activations list): an {@link RequestStatus#APPROVED} request listed there is no longer in
+     * effect (its window expired or was revoked, or a later approval replaced it), so it is
+     * {@code neutral}; every other value has its {@link #tone}. Everywhere else an approved
+     * request is {@code info}.
+     */
+    @CheckForNull
+    public static String endedTone(@CheckForNull Enum<?> value) {
+        return value == RequestStatus.APPROVED ? TONE_NEUTRAL : tone(value);
     }
 
     /**

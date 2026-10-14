@@ -789,16 +789,16 @@ public class GrantsSection implements ModelObject, StaplerProxy {
         }
 
         /**
-         * #18.2 (colour badges): the request status the How cell of an ended row words ("Rejected
-         * by a1", "Expired without a decision"), which the cell shows as a badge
-         * ({@code tags/status.jelly}). {@code null} for a row with a window: its How cell says how
-         * the window ended ("Expired", "Revoked by admin"), which is a window state, not the
-         * request's status (APPROVED), so it is plain text and carries no status.
+         * #18.2 (colour badges): the status of the row's request, which the How cell of an ended
+         * row carries in its badge ({@code tags/status.jelly}) next to its own wording: "Rejected
+         * by a1" for a rejected request, and for an approved one how its window ended ("Expired",
+         * "Revoked by admin"). {@code null} for a window without a stored request, whose cell is
+         * plain text.
          */
         @CheckForNull
-        public RequestStatus getEndedStatus() {
+        public RequestStatus getRequestStatus() {
             GrantRequest r = request;
-            return r == null || grant != null ? null : r.getStatus();
+            return r == null ? null : r.getStatus();
         }
 
         /** When the row was created: the request's creation, else the window's start. */
