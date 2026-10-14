@@ -225,12 +225,21 @@ UNITS = [
     Unit("r24-json-params", 0.4, [("r24-json-params", py("r24/json_params.py"))], group="crawl and ui checks",
          doc="e2e-24 #40: a json submission with all, some or no parameters (url-encoded and multipart) stores every "
              "parameter, the approver's page lists them, and the build runs with them after the defaults changed"),
-    # e2e-27 D2 (Wave D, #18.3 and #18.2). r27/labels_filters.py arranges its own items (r27-d2-*), activates r27-d2-timer
-    # once through the request flow, runs each job once per pass and cancels what it leaves pending or queued.
-    Unit("r27-labels-filters", 1.2, [("r27-labels-filters", py("r27/labels_filters.py"))], group="crawl and ui checks",
-         doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns starting with 'Any' (enum values, "
-             "submitted from the dropdown, hand-edited values kept); readable labels with data-batch-control-status for "
-             "request, grant, activation and incident statuses and run causes; guards: CSV, filters, JSON keep enums"),
+    # e2e-27 D2 (Wave D, #18.3 and #18.2, with the colour badges of 2026-10-14). r27/d2_fixture.py arranges the records
+    # of every status on its own items (r27-d2-*): it activates r27-d2-timer once through the request flow, deletes and
+    # re-creates r27-d2-gone and r27-d2-w-del, ages three requests in the store so the periodic work expires them, and for
+    # one deletion adds an administrator with a long user id to the matrix and removes it again. The first step leaves
+    # the records for the second (BC_D2_KEEP_FIXTURE=1), which sweeps the requester's pending r27-d2 requests at its end;
+    # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
+    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). Weight: WEIGHT_D2
+    Unit("r27-labels-filters", 2.5, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+                                     ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
+         doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
+             "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
+             "data-batch-control-status on every screen and for five accounts; request and incident statuses colour "
+             "badges with the contract's tones (approvals neutral in the Ended tables), causes plain; contrast in the "
+             "light and dark theme, geometry at 1280/1024/768, no CSP violation under enforcement, forced colours; "
+             "guards: CSV, filters, JSON keep enums"),
     # e2e-19 (gap audit, docs/reports/e2e-19.md): SPEC acceptance lines no CI step checked before. r19/arrange.py is
     # idempotent and self-contained (items r19-*, accounts from JCasC). Each driver exits non-zero and prints FAIL lines,
     # and restores what it changes globally (executors, authorize-project's authenticator). Weights: minutes measured on
