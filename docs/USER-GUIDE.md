@@ -367,7 +367,7 @@ approver, status and decision history, and is where the approver decides.
 |---|---|
 | **Grants** | Pending window requests, the time left on an active window, the history of expired ones and a link to request another. |
 | **Activations** | Activation and hold requests, the ones awaiting your decision first; the approver decides here. A request starts from **Request activation** in the job page's notice. |
-| **Dashboard** (titled *Run Dashboard*) | The 50 most recent builds, with a link to **History** for older ones: cause (`USER`, `TIMER`, `UPSTREAM`, `APPROVED_REQUEST`, `SCM`, `OTHER`), user, parameters, result, duration, and approved runs linked to their request. |
+| **Dashboard** (titled *Run Dashboard*) | The 50 most recent builds, with a link to **History** for older ones: cause (User, Timer, Upstream job, Approved request, SCM change, Other), user, parameters, result, duration, and approved runs linked to their request. |
 | **History** | Runs, incidents, change records and requests filtered by period, job, user, result and status, each exportable as CSV, and a monthly summary. A CSV cell whose first non-whitespace character is `=`, `+`, `-` or `@` is prefixed so a spreadsheet does not evaluate it. |
 | **Change Records** | The create / configure / delete / rename / move trail from every path (UI, REST, CLI, Job DSL), with a unified diff and the window it was made under, or an explicit note where there was none. A change with no usable earlier configuration to compare is recorded without a diff, with a note saying why ([Limitations](LIMITATIONS.md#records-and-screens) item 53). |
 
@@ -375,7 +375,7 @@ approver, status and decision history, and is where the approver decides.
 
 **Incidents** collects the failures that opened automatically, each with the
 last 100 console lines, and offers acknowledge, resolve, comment and a rerun
-request. The lifecycle runs `OPEN` → `ACKNOWLEDGED` → `RESOLVED`, one way only,
+request. The lifecycle runs Open → Acknowledged → Resolved, one way only,
 each transition with a user, a timestamp and a comment.
 
 A rerun carries the failed build's original parameters, password and file values
