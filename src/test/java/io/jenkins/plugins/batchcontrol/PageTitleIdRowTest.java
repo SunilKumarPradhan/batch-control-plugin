@@ -1,6 +1,7 @@
 package io.jenkins.plugins.batchcontrol;
 
 import com.cloudbees.hudson.plugins.folder.Folder;
+import hudson.Util;
 import hudson.model.FreeStyleProject;
 import hudson.model.Item;
 import hudson.model.TopLevelItem;
@@ -95,8 +96,13 @@ public class PageTitleIdRowTest {
     private static final String RUN_JOB = FOLDER + "/batch-x";
     private static final String ACTIVATE_JOB = FOLDER + "/act-x";
     private static final String HOLD_JOB = FOLDER + "/hold-x";
-    /** Allowed by core's name check (which refuses ?*&#47;\%!@#$^&|<>[]:;), so it reaches every attribute. */
-    private static final String ODD_NAME = "q\"x'y{z}";
+    /**
+     * Allowed by core's name check (which refuses ?*&#47;\%!@#$^&|<>[]:;), so it reaches every
+     * attribute: {@code q"x'y{z}} wherever the file system can hold a double quote in the item's
+     * directory name, and {@code q'x'y{z}} where it cannot (NTFS; matrix note 360 (13)). Both are
+     * 8 characters, so the titles of T-UI-233 have the same length on every platform.
+     */
+    private static final String ODD_NAME = oddName();
     /** As in the D-75 rows: a folder that blocks inheritance and gives Item/Read to admin only. */
     private static final String VAULT = "vault-q9";
 
@@ -202,11 +208,25 @@ public class PageTitleIdRowTest {
      * characters) that reads the same text, so the name was escaped in that attribute; no attribute
      * of either page is cut or split by the name's quotes; the ID row still carries the id. The run
      * page's breadcrumb is shorter and has no tooltip to compare (note 360 (10)).
+     *
+     * <p>On NTFS (Windows) the job cannot be named with a double quote, so the row runs every
+     * assertion with {@code ops/q'x'y{z}}: the same title lengths, the same tooltip premise, and
+     * the attribute check with the single quote only. That an unescaped {@code "} does not end a
+     * double-quoted attribute is therefore checked where the name keeps it (Linux, macOS) and in
+     * e2e (unit r27-titles-revert, section E), not on Windows (note 360 (13)).
      */
     @Test
     public void t_ui_233_titlesEscapeTheItemName() throws Exception {
+        System.out.println("T-UI-233 fixture: the item is named " + ODD_NAME + " (double quote "
+                + (ODD_NAME.indexOf('"') >= 0 ? "kept" : "replaced: the file system cannot hold one in a name, or -D"
+                + PlatformFixtures.NTFS_ITEM_NAMES_PROPERTY + "=true") + ")");
+        assertEquals(PlatformFixtures.itemNamesCanHoldADoubleQuote(), ODD_NAME.indexOf('"') >= 0,
+                "fixture: the name keeps the double quote wherever an item can be named with one");
+        assertTrue(ODD_NAME.indexOf('\'') >= 0, "fixture: the name holds a single quote on every platform");
         FreeStyleProject job = folder.createProject(FreeStyleProject.class, ODD_NAME);
         assertEquals(FOLDER + "/" + ODD_NAME, job.getFullName(), "fixture: core accepts the name");
+        assertEquals(27, ("Grant request: " + job.getFullName()).length(), "fixture: the grant page's title has the"
+                + " 27 characters the tooltip premise below rests on, whichever quote the platform allows");
         BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
         RunRequest run = as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(),
                 "odd name", "a1"));
@@ -401,19 +421,42 @@ public class PageTitleIdRowTest {
     }
 
     /**
+     * The odd item name of T-UI-233, chosen in one place: {@code q"x'y{z}}, or {@code q'x'y{z}}
+     * where an item's directory cannot be named with a double quote (NTFS). The choice is
+     * {@link PlatformFixtures#itemName(String)}'s, a probe of the file system; to run the NTFS
+     * variant elsewhere, start the test with {@code -Dbatchcontrol.test.ntfsItemNames=true}.
+     */
+    private static String oddName() {
+        return PlatformFixtures.itemName("q\"x'y{z}");
+    }
+
+    /**
      * No attribute of the page was cut or split by the quotes of {@link #ODD_NAME}: an unescaped
      * {@code "} or {@code '} inside an attribute value ends the value early and turns the rest of
      * the name into attribute names. So no attribute name holds a piece of the name, and an
-     * attribute value that holds its tail holds the whole name.
+     * attribute value that holds its head ({@code q"x}; {@code q'x} on NTFS) or its tail holds the
+     * whole name.
+     *
+     * <p>A link to the item holds the name as core writes it into a URL ({@link Util#rawEncode}:
+     * {@code q%22x'y%7Bz%7D}, on NTFS {@code q'x'y%7Bz%7D}). That is the whole name, not a piece of
+     * it, but core leaves the single quote as it is, so the NTFS form starts with the head
+     * {@code q'x}. The value is therefore searched for pieces after that form is taken out of it;
+     * the form of {@code q"x'y{z}} holds neither its head nor its tail, so for that name the check
+     * finds what it found before.
      */
     private static void assertNoAttributeBrokenByTheOddName(String viewer, String path, HtmlPage page) {
+        String head = ODD_NAME.substring(0, 3);
+        String inUrl = Util.rawEncode(ODD_NAME);
+        assertTrue(inUrl.startsWith("q") && inUrl.endsWith("y%7Bz%7D") && !inUrl.contains("y{z}") && !inUrl.contains("\""),
+                "premise: core writes the item name into a URL percent-encoded, braces and double quote included: " + inUrl);
         for (DomElement e : page.getDomElementDescendants()) {
             for (DomAttr a : e.getAttributesMap().values()) {
                 String where = viewer + " " + path + ": <" + e.getTagName() + " " + a.getName() + "=\"" + a.getValue() + "\">";
                 assertFalse(a.getName().contains("{z}") || a.getName().contains("x'y") || a.getName().contains("y{z"),
                         where + ": the item name's quote ended an attribute value early");
-                if (a.getValue().contains("y{z}") || a.getValue().contains("q\"x")) {
-                    assertTrue(a.getValue().contains(ODD_NAME), where + ": the attribute holds only a piece of the"
+                String value = a.getValue().replace(inUrl, "");
+                if (value.contains("y{z}") || value.contains(head)) {
+                    assertTrue(value.contains(ODD_NAME), where + ": the attribute holds only a piece of the"
                             + " item name " + ODD_NAME);
                 }
             }
