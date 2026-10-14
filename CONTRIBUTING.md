@@ -379,7 +379,7 @@ behind any of them.
   (`.github/workflows/build.yml`, Linux). Each JDK the hosting checker accepts
   has its own checks — `build (jdk 21)`, `build (jdk 25)` and one test job per
   feature group of test classes, such as `test (jdk 21, run approval and mail)`
-  or `test (jdk 25, parameters and ui)` — and the aggregating job `build`
+  or `test (jdk 25, pages forms and config)` — and the aggregating job `build`
   succeeds only when all of them do. The groups are listed, by class-name prefix
   or class name, in `.github/test-shards.txt`, and the `shard safeguard` job
   fails when a test class matches no group or two, or a listed name matches no
