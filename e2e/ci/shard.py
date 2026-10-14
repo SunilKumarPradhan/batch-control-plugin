@@ -233,9 +233,10 @@ UNITS = [
     # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
     # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). The owner decisions of
     # 2026-10-14 added sections I and L (incident results, result labels, a build held running for about half a minute,
-    # incidentResults changed and put back). Weight: 158 to 161 s in four runs on a fresh stack through ci/run.sh, both
-    # steps (2026-10-14, local); the group stays at the heaviest group's 19.5.
-    Unit("r27-labels-filters", 2.7, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+    # incidentResults changed and put back, the result labels read in three browser languages). Weight: 164 to 170 s in
+    # three runs on a fresh stack through ci/run.sh, both steps (2026-10-14, local, five stacks at once); r16-params
+    # moved to "job ui other roles" so that this group stays under the heaviest group's 19.5.
+    Unit("r27-labels-filters", 2.8, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
                                      ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
          doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
              "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
@@ -434,13 +435,14 @@ GROUPS = [
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
         "jobui-new-admin", "jobui-classic-admin", "role"]),
-    ("job ui params and restart", [  # requester's job UI, typed parameters, requests with typed values across a
-        "jobui-new-requester", "jobui-classic-requester", "r16-params", "r16-durable"]),  # restart (last)
+    ("job ui params and restart", [  # requester's job UI, requests with typed values across a restart (last)
+        "jobui-new-requester", "jobui-classic-requester", "r16-durable"]),
     ("job ui windows and disk", [  # reqonly's job UI, permission windows on items and renames, item kinds, items
         "jobui-new-reqonly", "jobui-classic-reqonly", "r22-nonascii-reason",  # removed on disk with reload and restart (last)
         "r16-items", "r16-rename", "r16-follow", "r16-names", "r17-s39", "r19-kinds", "r17-disk"]),
-    ("job ui other roles", [  # the job UI of approver-1, manager and nobc
-        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor"]),
+    ("job ui other roles", [  # the job UI of approver-1, manager and nobc; typed parameters (r16-params arranges its
+        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor",  # own items; moved here on 2026-10-14 when the
+        "r16-params"]),  # D2 unit's 2.8 min would have taken "job ui params and restart" to 19.6, above the heaviest 19.5
     ("runs and switches", [  # the run gate, reruns and the prefilled form, triggers, other plugins, the request
         "r16-rerun", "r16-d60",  # lifecycle, then the global switches and the strategy (last)
         "r19-gate", "r22-scripted-build", "r19-plugins", "r19-triggers", "r19-lifecycle", "r18-final"]),
