@@ -57,6 +57,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The filter form is the form holding the {@code from} date field (as HistoryUsabilityTest).
  * Written from the Wave D contract (D2, frozen 2026-10-10), issue #18 and pages rendered on
  * origin/main (d80e5fe); no src/main knowledge.
+ *
+ * <p><b>Incident results</b> (matrix rows T-UI-269b..269d, note 361 point 9; owner decision 1 of
+ * 2026-10-14). The Result filter of History &gt; Incidents offers only results that can open an
+ * incident: Any, FAILURE, UNSTABLE, ABORTED (ABORTED whatever {@code incidentResults} holds, so past
+ * incidents stay searchable); SUCCESS and NOT_BUILT are absent. History &gt; Runs keeps every result;
+ * a typed value outside the list is kept as T-UI-253 says. Written from that decision and from pages
+ * rendered on this branch (f2e150bc); no src/main knowledge.
  */
 @WithJenkins
 public class FilterDropdownTest {
@@ -112,9 +119,11 @@ public class FilterDropdownTest {
     }
 
     /**
-     * T-UI-251 (#18.3): on History > Incidents both the Result dropdown (as T-UI-250) and the Status
-     * dropdown are offered; Status holds exactly Any (empty), OPEN, ACKNOWLEDGED, RESOLVED, in this
-     * order.
+     * T-UI-251 (#18.3): on History > Incidents both the Result dropdown and the Status dropdown are
+     * offered; Status holds exactly Any (empty), OPEN, ACKNOWLEDGED, RESOLVED, in this order. The
+     * Result dropdown is a {@code jenkins-select} starting with "Any"; which results it offers is
+     * pinned by T-UI-269b (owner decision 2026-10-14: only results that can open an incident), so it
+     * is no longer "as T-UI-250".
      */
     @Test
     public void t_ui_251_incidentsOfferResultAndStatusDropdowns() throws Exception {
@@ -123,7 +132,6 @@ public class FilterDropdownTest {
         assertNoTextField(form, "status");
         HtmlSelect result = select(form, "result");
         assertDropdown(result, "result on incidents");
-        assertResultOptions(result);
         HtmlSelect status = select(form, "status");
         assertDropdown(status, "status on incidents");
         List<String> expected = new ArrayList<>();
@@ -216,7 +224,129 @@ public class FilterDropdownTest {
         assertTrue(table(open).contains("fail-x"), "the open incident must be listed: " + table(open));
     }
 
+    /**
+     * T-UI-269b (#18.3 follow-up, owner decision 1 of 2026-10-14): the Result filter of History &gt;
+     * Incidents offers only the results that can open an incident: its option values are exactly
+     * {@code ""} (reading "Any", selected), FAILURE, UNSTABLE, ABORTED, in this order, reading Any,
+     * Failed, Unstable, Aborted. SUCCESS and NOT_BUILT are absent. ABORTED is offered whatever
+     * {@code incidentResults} holds (default [FAILURE, UNSTABLE], with ABORTED added, and [FAILURE]
+     * alone), so incidents recorded under an earlier setting stay searchable. If the incidents list
+     * ({@code batch-control/incidents/}) has a Result filter, it offers the same. Guard (T-UI-250
+     * unchanged): History &gt; Runs still offers every result, each reading its label.
+     */
+    @Test
+    public void t_ui_269b_incidentResultFilterOffersOnlyResultsThatOpenAnIncident() throws Exception {
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        assertEquals(Arrays.asList("FAILURE", "UNSTABLE"), cfg.getIncidentResults(), "premise: incidentResults is the default");
+
+        // guard: History > Runs still offers every result (T-UI-250), each by its label
+        HtmlSelect runs = select(filterForm(page("batch-control/history/?kind=runs")), "result");
+        assertDropdown(runs, "guard: result on runs");
+        List<String> runValues = values(runs);
+        assertEquals(new TreeSet<>(ResultFixtures.ALL_RESULTS), new TreeSet<>(runValues.subList(1, runValues.size())),
+                "guard: History > Runs keeps offering every result: " + runValues);
+        assertEquals(runValues.size() - 1, ResultFixtures.ALL_RESULTS.size(), "guard: each result once on runs: " + runValues);
+        for (HtmlOption option : runs.getOptions().subList(1, runs.getOptions().size())) {
+            assertEquals(ResultFixtures.RESULT_LABELS.get(option.getValueAttribute()), option.asNormalizedText().trim(),
+                    "guard: the runs Result option " + option.getValueAttribute() + " reads its label");
+        }
+
+        assertIncidentResultOptions("History > Incidents, incidentResults default",
+                select(filterForm(page("batch-control/history/?kind=incidents")), "result"));
+        cfg.setIncidentResults(Arrays.asList("FAILURE", "UNSTABLE", "ABORTED"));
+        cfg.save();
+        assertIncidentResultOptions("History > Incidents, incidentResults with ABORTED",
+                select(filterForm(page("batch-control/history/?kind=incidents")), "result"));
+        cfg.setIncidentResults(Arrays.asList("FAILURE"));
+        cfg.save();
+        assertIncidentResultOptions("History > Incidents, incidentResults [FAILURE]",
+                select(filterForm(page("batch-control/history/?kind=incidents")), "result"));
+
+        HtmlPage list = page("batch-control/incidents/");
+        for (HtmlForm form : list.getForms()) {
+            DomElement control = control(form, "result");
+            if (control != null) { // the incidents list has no Result filter at the time of writing (note 361 point 9)
+                assertTrue(control instanceof HtmlSelect, "the incidents list's Result filter must be a dropdown: " + control.asXml());
+                assertIncidentResultOptions("the incidents list", (HtmlSelect) control);
+            }
+        }
+    }
+
+    /**
+     * T-UI-269c (#18.3 follow-up, owner decision 1 of 2026-10-14, the reason ABORTED stays offered):
+     * an incident opened by an ABORTED build while {@code incidentResults} held ABORTED stays
+     * searchable after ABORTED is taken out of the setting: choosing Aborted in the History &gt;
+     * Incidents Result dropdown and submitting leads to {@code result=ABORTED} and lists that incident
+     * and not the FAILURE one.
+     */
+    @Test
+    public void t_ui_269c_pastAbortedIncidentsStaySearchableAfterTheSettingChanges() throws Exception {
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        cfg.setRunControlEnabled(false); // a plain fixture build, as the setUp builds
+        cfg.setIncidentResults(Arrays.asList("FAILURE", "UNSTABLE", "ABORTED"));
+        cfg.save();
+        FreeStyleProject aborted = j.createFreeStyleProject("aborted-x");
+        aborted.getBuildersList().add(new ResultFixtures.SetResult("ABORTED"));
+        j.buildAndAssertStatus(Result.ABORTED, aborted);
+        cfg.setIncidentResults(Arrays.asList("FAILURE", "UNSTABLE"));
+        cfg.setRunControlEnabled(true);
+        cfg.save();
+        String all = table(page("batch-control/history/?kind=incidents"));
+        assertTrue(all.contains("aborted-x") && all.contains("fail-x"), "premise: both incidents are listed unfiltered: " + all);
+
+        HtmlForm form = filterForm(page("batch-control/history/?kind=incidents"));
+        HtmlSelect result = select(form, "result");
+        assertTrue(values(result).contains("ABORTED"), "ABORTED must stay offered after it left incidentResults: " + values(result));
+        result.setSelectedAttribute("ABORTED", true);
+        HtmlPage filtered = submit(form);
+        assertTrue(filtered.getUrl().getQuery() != null && filtered.getUrl().getQuery().contains("result=ABORTED"),
+                "the filter URL must carry result=ABORTED: " + filtered.getUrl());
+        assertTrue(table(filtered).contains("aborted-x"), "the past ABORTED incident must be found: " + table(filtered));
+        assertFalse(table(filtered).contains("fail-x"), "the FAILURE incident must be filtered out: " + table(filtered));
+    }
+
+    /**
+     * T-UI-269d (#18.3 follow-up, owner decision 1 of 2026-10-14, guard on T-UI-253): a hand-edited
+     * {@code ?kind=incidents&result=SUCCESS} (and {@code result=NOT_BUILT}) keeps the T-UI-253
+     * behaviour for a value that is not in the list: it stays selected as one extra option whose value
+     * is exactly the typed text; the offered results are still exactly FAILURE, UNSTABLE, ABORTED
+     * after Any, and the other result that cannot open an incident is not offered.
+     */
+    @Test
+    public void t_ui_269d_typedResultThatCannotOpenAnIncidentIsKeptAsTyped() throws Exception {
+        for (String typed : List.of("SUCCESS", "NOT_BUILT")) {
+            HtmlSelect result = select(filterForm(page("batch-control/history/?kind=incidents&result=" + typed)), "result");
+            String where = "History > Incidents with result=" + typed;
+            assertEquals(List.of(typed), selected(result), where + ": the typed value must stay selected as typed");
+            assertEquals(1, values(result).stream().filter(typed::equals).count(), where + ": the kept value must be one option: "
+                    + values(result));
+            List<String> offered = new ArrayList<>(values(result));
+            offered.remove(typed);
+            assertEquals(ResultFixtures.INCIDENT_RESULT_OPTIONS, offered, where + ": besides the one kept value the dropdown"
+                    + " offers Any, FAILURE, UNSTABLE, ABORTED only, in this order: " + values(result));
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * The incident Result dropdown of T-UI-269b: a {@code jenkins-select} with "Any" selected and
+     * exactly the results that can open an incident, each reading its label.
+     */
+    private static void assertIncidentResultOptions(String where, HtmlSelect result) {
+        assertDropdown(result, where);
+        assertEquals(List.of(""), selected(result), where + ": with no result in the URL, 'Any' must be selected");
+        List<String> values = values(result);
+        assertFalse(values.contains("SUCCESS"), where + ": SUCCESS cannot open an incident and must not be offered: " + values);
+        assertFalse(values.contains("NOT_BUILT"), where + ": NOT_BUILT cannot open an incident and must not be offered: " + values);
+        assertEquals(ResultFixtures.INCIDENT_RESULT_OPTIONS, values, where + ": the Result dropdown offers Any, FAILURE,"
+                + " UNSTABLE, ABORTED, in this order (ABORTED whatever incidentResults holds)");
+        List<String> texts = new ArrayList<>();
+        for (HtmlOption o : result.getOptions()) {
+            texts.add(o.asNormalizedText().trim());
+        }
+        assertEquals(List.of("Any", "Failed", "Unstable", "Aborted"), texts, where + ": the options read their labels");
+    }
 
     private static void assertResultOptions(HtmlSelect result) {
         List<String> values = values(result);
