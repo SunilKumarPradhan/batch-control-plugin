@@ -50,15 +50,30 @@ public final class StatusLabels {
     /** The run request page's wording for an approved request whose run has not started yet. */
     public static final String APPROVED_WAITING_TO_RUN = "Approved, waiting to run";
 
-    /** The results a run or an incident can carry, best first (core's order). */
+    /** The label of a build that has no result yet because it is still running. */
+    public static final String IN_PROGRESS = "In progress";
+
+    /** The results a run can carry, best first (core's order). */
     private static final List<Result> RESULTS =
             List.of(Result.SUCCESS, Result.UNSTABLE, Result.FAILURE, Result.NOT_BUILT, Result.ABORTED);
 
+    /**
+     * The results that can open an incident (SPEC 11): FAILURE and UNSTABLE by default, ABORTED
+     * the one that may be added. Fixed, not read from {@code incidentResults}, so an incident
+     * recorded under an earlier setting stays searchable.
+     */
+    private static final List<Result> INCIDENT_RESULTS = List.of(Result.FAILURE, Result.UNSTABLE, Result.ABORTED);
+
     private StatusLabels() {}
 
-    /** The result names a Result filter offers, best first. */
+    /** The result names the runs' Result filter offers, best first. */
     public static List<String> resultNames() {
         return RESULTS.stream().map(Result::toString).toList();
+    }
+
+    /** The result names the incidents' Result filter offers: the results that can open an incident. */
+    public static List<String> incidentResultNames() {
+        return INCIDENT_RESULTS.stream().map(Result::toString).toList();
     }
 
     /**
@@ -119,19 +134,24 @@ public final class StatusLabels {
     }
 
     /**
-     * A build result for a filter option or a tooltip, worded as core's status icons
-     * ({@code BallColor#getDescription}); the name itself for a token that is not a result.
+     * The label of a build result, worded as core's status icons in English: the one mapping
+     * behind the Result filter options and every result cell (the incidents list, the incident
+     * page, History, the dashboard, the run request page's Build table), so the two cannot drift
+     * apart. A result is plain text, never a badge (no {@link #tone}). The name itself for a value
+     * that is not a result name; an empty string for {@code null}. CSV exports keep the name.
      */
     public static String ofResult(@CheckForNull String result) {
         if (result == null) {
             return "";
         }
-        for (Result r : RESULTS) {
-            if (r.toString().equals(result)) {
-                return r.color.getDescription();
-            }
-        }
-        return result;
+        return switch (result) {
+            case "SUCCESS" -> "Success";
+            case "UNSTABLE" -> "Unstable";
+            case "FAILURE" -> "Failed";
+            case "NOT_BUILT" -> "Not built";
+            case "ABORTED" -> "Aborted";
+            default -> result;
+        };
     }
 
     private static String request(RequestStatus status) {

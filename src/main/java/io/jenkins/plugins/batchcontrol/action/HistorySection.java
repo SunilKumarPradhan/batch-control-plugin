@@ -332,14 +332,19 @@ public class HistorySection implements ModelObject, StaplerProxy {
     }
 
     /**
-     * #18.3: the Result dropdown's options ({@link FilterOptions#results}), on the tabs whose
-     * records carry a result (runs and incidents); {@code null} elsewhere, where the view keeps a
-     * result from the URL as a hidden field so switching tabs does not drop it.
+     * #18.3: the Result dropdown's options, on the tabs whose records carry a result: every build
+     * result on runs ({@link FilterOptions#results}), only the results that can open an incident
+     * on incidents ({@link FilterOptions#incidentResults}); {@code null} elsewhere, where the view
+     * keeps a result from the URL as a hidden field so switching tabs does not drop it.
      */
     @CheckForNull
     public List<FilterOptions.Option> getResultOptions() {
         String kind = getKind();
-        return "runs".equals(kind) || "incidents".equals(kind) ? FilterOptions.results(getFilter().getResult(), getFilter().getIgnoredResult()) : null;
+        FilterParser.Filter f = getFilter();
+        if ("runs".equals(kind)) {
+            return FilterOptions.results(f.getResult(), f.getIgnoredResult());
+        }
+        return "incidents".equals(kind) ? FilterOptions.incidentResults(f.getResult(), f.getIgnoredResult()) : null;
     }
 
     /**

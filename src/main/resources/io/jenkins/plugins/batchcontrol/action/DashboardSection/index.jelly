@@ -57,7 +57,7 @@
                   <td><bc:status value="${r.causeType}"/></td>
                   <td>${r.user}</td>
                   <td style="white-space: pre-wrap;">${it.parameters(r.parameters)}</td>
-                  <td>${r.result}</td>
+                  <td><bc:result value="${r.result}"/></td>
                   <td>${it.format(r.startedAt)}</td>
                   <td>${it.duration(r.durationMs)}</td>
                   <td>${r.abortedBy}</td>

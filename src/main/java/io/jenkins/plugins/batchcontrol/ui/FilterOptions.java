@@ -52,9 +52,18 @@ public final class FilterOptions {
 
     private FilterOptions() {}
 
-    /** The Result dropdown: Any, then every build result. */
+    /** The Result dropdown of the runs: Any, then every build result. */
     public static List<Option> results(@CheckForNull String current, @CheckForNull String ignored) {
         return options(StatusLabels.resultNames(), StatusLabels::ofResult, current, ignored);
+    }
+
+    /**
+     * The Result dropdown of the incidents: Any, then only the results that can open an incident
+     * ({@link StatusLabels#incidentResultNames}), whatever {@code incidentResults} holds today. A
+     * typed result outside that list (SUCCESS, NOT_BUILT) is kept as the extra, selected option.
+     */
+    public static List<Option> incidentResults(@CheckForNull String current, @CheckForNull String ignored) {
+        return options(StatusLabels.incidentResultNames(), StatusLabels::ofResult, current, ignored);
     }
 
     /** The Status dropdown of the incidents: Any, then every incident status. */

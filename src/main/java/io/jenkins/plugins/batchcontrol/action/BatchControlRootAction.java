@@ -143,6 +143,15 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
     }
 
     /**
+     * #18.2 (owner decision 2026-10-14): the readable label of a build result for {@code bc:result}
+     * ({@link StatusLabels#ofResult}), reached through this action for the same reason as
+     * {@link #pagerQuery}. A result is plain text, never a badge.
+     */
+    public String resultLabel(@CheckForNull String result) {
+        return StatusLabels.ofResult(result);
+    }
+
+    /**
      * #18.2 (colour badges): the tone of the badge {@code bc:status} renders for a request or
      * incident status ({@link StatusLabels#tone}); {@code null} for anything else (a run cause,
      * a value that is not an enum constant), which the tag then shows as plain text. With

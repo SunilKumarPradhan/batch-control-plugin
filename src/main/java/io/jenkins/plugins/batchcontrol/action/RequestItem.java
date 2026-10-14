@@ -514,9 +514,10 @@ public class RequestItem implements ModelObject {
             this.url = run.getUrl();
             // One read: getResult() is @CheckForNull and is null while the build is running.
             Result runResult = run.getResult();
+            // The readable label (StatusLabels#ofResult), plain text; "In progress" while running.
             this.result = run.isBuilding()
-                    ? "IN PROGRESS"
-                    : runResult == null ? "UNKNOWN" : runResult.toString();
+                    ? StatusLabels.IN_PROGRESS
+                    : runResult == null ? "Unknown" : StatusLabels.ofResult(runResult.toString());
             this.started = Dates.format(Instant.ofEpochMilli(run.getStartTimeInMillis()));
             this.duration = run.isBuilding() ? "" : RunLinks.formatDuration(run.getDuration());
         }
@@ -530,6 +531,7 @@ public class RequestItem implements ModelObject {
             return url;
         }
 
+        /** The result's readable label ({@code Failed}), or {@code In progress} while the build runs. */
         public String getResult() {
             return result;
         }

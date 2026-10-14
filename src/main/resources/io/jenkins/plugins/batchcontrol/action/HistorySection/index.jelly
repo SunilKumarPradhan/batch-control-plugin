@@ -47,7 +47,9 @@
         <!-- #18.3 (Wave D, D2): Result and Status are core jenkins-select dropdowns starting with
              "Any" (no filter), on the tabs whose records carry them (HistorySection#getResultOptions,
              #getStatusOptions). The option values are the enum names, so URLs, bookmarks and
-             FilterParser tokens are unchanged; the texts are readable labels. A token from a
+             FilterParser tokens are unchanged; the texts are readable labels, the same words as
+             the result cells (bc:result). Runs offer every result; incidents only the results that
+             can open one (FAILURE, UNSTABLE, ABORTED, whatever incidentResults holds). A token from a
              hand-edited URL that names no option is kept as one extra selected option (SPEC 6).
              On a tab without the dropdown, a value from the URL is kept as a hidden field, as the
              tab links keep it. Escaped by default. -->
@@ -199,7 +201,7 @@
                         </j:choose>
                       </td>
                       <td>${i.jobFullName}</td>
-                      <td>${i.result}</td>
+                      <td><bc:result value="${i.result}"/></td>
                       <td><bc:status value="${i.status}"/></td>
                       <td>${it.format(it.incidentCreatedAt(i))}</td>
                     </tr>
@@ -281,7 +283,7 @@
                       <td><bc:status value="${r.causeType}"/></td>
                       <td>${r.user}</td>
                       <td style="white-space: pre-wrap;">${it.parameters(r.parameters)}</td>
-                      <td>${r.result}</td>
+                      <td><bc:result value="${r.result}"/></td>
                       <td>${it.format(r.startedAt)}</td>
                       <td>${it.duration(r.durationMs)}</td>
                       <td>${r.abortedBy}</td>
