@@ -477,7 +477,7 @@ def sec_G():
               not bad and len(detail) >= 3 and len(base["rows"]) > 0, rows_unfiltered=len(base["rows"]),
               values_unfiltered=sorted(set(x for x in all_values if x)), per_option=detail, wrong=bad[:2])
         check("G", f"D2 #18.3 History > {kind.capitalize()}, {control.capitalize()} dropdown: 'Any' lists everything again and "
-              "the token leaves the filter", q.get(control, "") == "" and len(v["rows"]) == len(base["rows"]) > 0
+              "the token leaves the filter", seen is not None and q.get(control, "") == "" and len(v["rows"]) == len(base["rows"]) > 0
               and s.page.locator(f"{FORM} select[name={control}]").input_value() == "",
               url=s.page.url.replace(lib.BASE, ""), rows=len(v["rows"]), before=len(base["rows"]))
         if kind == "incidents" and control == "result":

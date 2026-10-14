@@ -231,8 +231,9 @@ UNITS = [
     # one deletion adds an administrator with a long user id to the matrix and removes it again. The first step leaves
     # the records for the second (BC_D2_KEEP_FIXTURE=1), which sweeps the requester's pending r27-d2 requests at its end;
     # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
-    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). Weight: WEIGHT_D2
-    Unit("r27-labels-filters", 2.5, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). Weight: 141 to 157 s
+    # in seven runs on a fresh stack through ci/run.sh, both steps (2026-10-14, local).
+    Unit("r27-labels-filters", 2.4, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
                                      ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
          doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
              "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
