@@ -233,8 +233,9 @@ UNITS = [
     # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
     # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). The owner decisions of
     # 2026-10-14 added sections I and L (incident results, result labels, a build held running for about half a minute,
-    # incidentResults changed and put back, the result labels read in three browser languages). Weight: 164 to 170 s in
-    # three runs on a fresh stack through ci/run.sh, both steps (2026-10-14, local, five stacks at once); r16-params
+    # incidentResults changed and put back, the result labels read in three browser languages); T-UI-269j added section N
+    # (the Incidents introduction under five settings saved on the configuration page). Weight: 164 to 170 s in four runs
+    # on a fresh stack through ci/run.sh, both steps, with section N (2026-10-15, local, five stacks at once); r16-params
     # moved to "job ui other roles" so that this group stays under the heaviest group's 19.5.
     Unit("r27-labels-filters", 2.8, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
                                      ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
