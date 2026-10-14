@@ -231,16 +231,20 @@ UNITS = [
     # one deletion adds an administrator with a long user id to the matrix and removes it again. The first step leaves
     # the records for the second (BC_D2_KEEP_FIXTURE=1), which sweeps the requester's pending r27-d2 requests at its end;
     # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
-    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). Weight: 141 to 148 s
-    # in nine runs on a fresh stack through ci/run.sh, both steps (2026-10-14, local).
-    Unit("r27-labels-filters", 2.4, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). The owner decisions of
+    # 2026-10-14 added sections I and L (incident results, result labels, a build held running for about half a minute,
+    # incidentResults changed and put back). Weight: 158 to 161 s in four runs on a fresh stack through ci/run.sh, both
+    # steps (2026-10-14, local); the group stays at the heaviest group's 19.5.
+    Unit("r27-labels-filters", 2.7, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
                                      ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
          doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
              "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
              "data-batch-control-status on every screen and for five accounts; request and incident statuses colour "
-             "badges with the contract's tones (approvals neutral in the Ended tables), causes plain; contrast in the "
-             "light and dark theme, geometry at 1280/1024/768, no CSP violation under enforcement, forced colours; "
-             "guards: CSV, filters, JSON keep enums"),
+             "badges with the contract's tones (approvals neutral in the Ended tables), causes plain; the Incidents "
+             "Result filter offers Any, Failed, Unstable, Aborted; build results plain-text labels on six screens "
+             "(In progress while running); contrast in the light and dark theme, geometry at 1280/1024/768 (inside "
+             "the cell, no new sideways scroll), no CSP violation under enforcement, forced colours; guards: CSV, "
+             "filters, JSON keep enums"),
     # e2e-19 (gap audit, docs/reports/e2e-19.md): SPEC acceptance lines no CI step checked before. r19/arrange.py is
     # idempotent and self-contained (items r19-*, accounts from JCasC). Each driver exits non-zero and prints FAIL lines,
     # and restores what it changes globally (executors, authorize-project's authenticator). Weights: minutes measured on
