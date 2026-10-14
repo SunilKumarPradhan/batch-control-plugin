@@ -94,6 +94,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  * theme variables. CSV exports, filter values and the JSON summary gain no tone. Whether the
  * colours are readable (contrast, light and dark theme) is verified in e2e, not here. Written from
  * that contract and from pages rendered on this branch (8f4d38c8); no src/main knowledge.
+ *
+ * <p><b>Approved, but no longer in effect</b> (matrix rows T-UI-269 and T-UI-269a, note 361 point
+ * 8; contract point 8, decided by the owner 2026-10-14). The one exception to "the tone follows the
+ * constant": in the Ended table of the grants list and of the activations list an APPROVED request
+ * is no longer in effect, so its badge is {@code neutral} whatever the cell words ("Expired",
+ * "Revoked by ...", "Approved (superseded)"); it keeps {@code data-batch-control-status="APPROVED"}.
+ * Everywhere else APPROVED stays {@code info}. Written from that decision and from pages rendered
+ * on this branch (9a976729); no src/main knowledge.
  */
 @WithJenkins
 public class StatusLabelPageTest {
@@ -106,6 +114,13 @@ public class StatusLabelPageTest {
     private static final Map<String, Pattern> TONES = tones();
     /** The contract's tone of every request and incident status, by enum name (point 2). */
     private static final Map<String, String> TONE_OF = toneOf();
+    /**
+     * What the Ended tables of the grants and activations lists read today for an approved request
+     * that is no longer in effect: a window that expired or was revoked (with the reason, if any),
+     * an activation request that a later one replaced (point 8).
+     */
+    private static final Pattern ENDED_APPROVED_WORDING =
+            Pattern.compile("Expired|Revoked(?: \\(.*\\))? by \\S+|Approved \\(superseded\\)");
     /** A hard-coded colour in a stylesheet rule. */
     private static final Pattern COLOUR_LITERAL = Pattern.compile("#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba?|hsla?)\\(");
     /** A tone used as a word in data (lower case, as the attribute holds it). */
@@ -611,6 +626,111 @@ public class StatusLabelPageTest {
         }
     }
 
+    /**
+     * T-UI-269 (#18.2, colour badges, contract point 8): in the Ended table of the grants list a
+     * window that has ended (expired, revoked, or ended because its item was deleted) belongs to an
+     * APPROVED request that is no longer in effect: the cell that says how it ended is a badge
+     * carrying {@code data-batch-control-status="APPROVED"}, with today's wording as its whole text
+     * and the tone {@code neutral}. The rejected request of the same table stays {@code danger}, the
+     * open window of the Active table has no badge, and the request pages of the three ended
+     * windows keep APPROVED {@code info}.
+     */
+    @Test
+    public void t_ui_269_endedWindowsAreNeutralBadgesInTheGrantsList() throws Exception {
+        for (String name : List.of("exp-x", "rev-x", "del-x", "live-x", "rej-x")) {
+            j.createFreeStyleProject(name);
+        }
+        cfg.setRunControlEnabled(true);
+        cfg.save();
+        String expired = anHourAgo(() -> approvedWindow("exp-x")); // a 30 minute window, granted 61 minutes ago
+        expireOverdue();
+        String revoked = approvedWindow("rev-x");
+        ApproverFormFixtures.assertSuccess(ApproverFormFixtures.post(j, "admin", "batch-control/grants/"
+                + WindowStateFixtures.windowId("u1", "rev-x") + "/revoke", List.of()), "fixture: admin revokes the window on rev-x");
+        String deleted = approvedWindow("del-x");
+        as("admin", () -> {
+            j.jenkins.getItemByFullName("del-x").delete();
+            return null;
+        });
+        approvedWindow("live-x");
+        String rejected = ApproverFormFixtures.submitGrantOk(j, "u1", "rej-x", List.of("CONFIGURE"), 30, "tune it", null, "a1");
+        ApproverFormFixtures.assertSuccess(ApproverFormFixtures.decideGrant(j, "a1", rejected, "reject", "no"),
+                "fixture: a1 rejects the window request on rej-x");
+        Map<String, String> wordings = new LinkedHashMap<>(); // item -> what its Ended row reads today
+        wordings.put("exp-x", "Expired");
+        wordings.put("rev-x", "Revoked by admin");
+        wordings.put("del-x", "Revoked (its item was deleted) by admin");
+        for (String id : List.of(expired, revoked, deleted)) {
+            assertEquals(RequestStatus.APPROVED, GrantRequestService.get().load(id).getStatus(), "fixture: the request of an"
+                    + " ended window stays APPROVED");
+            // guard: point 2 is unchanged on the request page
+            assertBadges(page("batch-control/grants/" + id + "/"), "the request page of an ended window", "APPROVED");
+        }
+        assertEquals("live-x", WindowStateFixtures.active(WindowStateFixtures.windowId("u1", "live-x")).getScope().getFullName(),
+                "fixture: the window on live-x is open, the only one");
+
+        HtmlPage list = page("batch-control/grants/");
+        for (Map.Entry<String, String> e : wordings.entrySet()) {
+            String where = "the grants list, Ended, the window on " + e.getKey();
+            List<DomElement> rows = WindowStateFixtures.endedRowsNaming(list, e.getKey());
+            assertEquals(1, rows.size(), where + ": premise: one Ended row names the item; tables read: " + excerpt(tables(list)));
+            assertEndedApprovedBadge(rows.get(0), e.getValue(), where);
+        }
+        assertBadges(list, "the grants list", "APPROVED", "REJECTED");
+        assertOneBadgePerRow(list, "the grants list (three ended windows and a rejected request; the open window has no badge)",
+                List.of("APPROVED", "APPROVED", "APPROVED", "REJECTED"));
+    }
+
+    /**
+     * T-UI-269a (#18.2, colour badges, contract point 8): in the Ended table of the activations list
+     * an approved request that a later approved one replaced reads "Approved (superseded)" in a badge
+     * carrying {@code data-batch-control-status="APPROVED"} with the tone {@code neutral}: an
+     * ACTIVATE replaced by a HOLD, and that HOLD replaced by a second ACTIVATE (SPEC 6a: an approved
+     * hold marks the job not activated, an approved activation marks it activated). The rejected
+     * request of the same table stays {@code danger}, the request in effect (Active table) has no
+     * badge, and the request pages of the two replaced requests keep APPROVED {@code info}.
+     */
+    @Test
+    public void t_ui_269a_supersededActivationsAreNeutralBadgesInTheActivationsList() throws Exception {
+        cfg.setRunControlEnabled(true);
+        cfg.save();
+        FreeStyleProject job = j.createFreeStyleProject("act-x"); // created under run control: not activated
+        Map<String, String> replaced = new LinkedHashMap<>(); // what the request was -> its id
+        String inEffect = null;
+        for (String action : List.of("ACTIVATE", "HOLD", "ACTIVATE")) {
+            String id = ActivationFixtures.submitActivationOk(j, "u1", job, action, "step " + replaced.size(), "a1");
+            ApproverFormFixtures.assertSuccess(ActivationFixtures.decideActivation(j, "a1", id, "approve", "ok"),
+                    "fixture: a1 approves the " + action);
+            if (replaced.size() < 2) {
+                replaced.put(replaced.isEmpty() ? "the ACTIVATE that a HOLD replaced" : "the HOLD that an ACTIVATE replaced", id);
+            } else {
+                inEffect = id;
+            }
+        }
+        assertTrue(ActivationFixtures.isActivated(job), "fixture: the second ACTIVATE is in effect");
+        String rejected = activation("act2-x");
+        ApproverFormFixtures.assertSuccess(ActivationFixtures.decideActivation(j, "a1", rejected, "reject", "no"),
+                "fixture: a1 rejects the activation request for act2-x");
+        for (String id : replaced.values()) {
+            assertEquals(RequestStatus.APPROVED, ActivationService.get().load(id).getStatus(), "fixture: a replaced request"
+                    + " stays APPROVED");
+            // guard: point 2 is unchanged on the request page
+            assertBadges(page("batch-control/activations/" + id + "/"), "the request page of a replaced activation request",
+                    "APPROVED");
+        }
+
+        HtmlPage list = page("batch-control/activations/");
+        assertTrue(list.querySelectorAll(WindowStateFixtures.ENDED_LIST + " a[href*='" + inEffect + "']").isEmpty(),
+                "premise: the request in effect is not among the ended rows: " + excerpt(tables(list)));
+        for (Map.Entry<String, String> e : replaced.entrySet()) {
+            String where = "the activations list, Ended, " + e.getKey();
+            assertEndedApprovedBadge(endedRow(list, e.getValue(), where), "Approved (superseded)", where);
+        }
+        assertBadges(list, "the activations list", "APPROVED", "REJECTED");
+        assertOneBadgePerRow(list, "the activations list (two replaced requests and a rejected one; the request in effect has"
+                + " no badge)", List.of("APPROVED", "APPROVED", "REJECTED"));
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /**
@@ -664,23 +784,81 @@ public class StatusLabelPageTest {
             if (status == null) {
                 continue; // a run cause: T-UI-263
             }
-            String tone = TONE_OF.get(name);
+            String tone = toneOf(e, name);
             assertNotNull(tone, "the contract names no tone for " + name + ": it needs one, and a line in this test's table");
             assertTrue(classes(e).contains(BADGE_CLASS), where + ": the element showing " + name + " must be a badge, with"
                     + " the class \"" + BADGE_CLASS + "\": " + e.asXml().trim());
             assertEquals(tone, e.getAttribute(TONE), where + ": the badge for " + name + " must carry " + TONE + "=\"" + tone
-                    + "\": " + e.asXml().trim());
+                    + "\"" + (noLongerInEffect(e) ? " (approved, but no longer in effect: an Ended table)" : "") + ": "
+                    + e.asXml().trim());
             String label = label(status);
             String text = text(e);
             boolean unchanged = text.equals(label)
                     || status == RequestStatus.APPROVED && text.equals("Approved, waiting to run")
                     || status == RequestStatus.EXPIRED && text.equals("Expired without a decision")
-                    || text.matches(Pattern.quote(label) + " by \\S+");
+                    || text.matches(Pattern.quote(label) + " by \\S+")
+                    || status == RequestStatus.APPROVED && noLongerInEffect(e) && ENDED_APPROVED_WORDING.matcher(text).matches();
             assertTrue(unchanged, where + ": the badge for " + name + " must hold its label and nothing else (\"" + label
                     + "\", or the wording this screen had before the badges), was \"" + text + "\"");
             assertNoInlineStyle(e, where);
         }
         assertOnlyStatusesAreBadges(page, where);
+    }
+
+    /**
+     * The tone the element showing the status {@code name} must carry: the constant's (point 2),
+     * but neutral for APPROVED where the request is no longer in effect (point 8).
+     */
+    private static String toneOf(DomElement e, String name) {
+        return "APPROVED".equals(name) && noLongerInEffect(e) ? "neutral" : TONE_OF.get(name);
+    }
+
+    /** The element is in the Ended table of the grants list or of the activations list (point 8). */
+    private static boolean noLongerInEffect(DomElement e) {
+        if (!e.getPage().getUrl().getPath().matches(".*/batch-control/(grants|activations)/")) {
+            return false; // a request page, History, the requests list
+        }
+        for (DomNode n = e; n instanceof DomElement a; n = n.getParentNode()) {
+            if ("table".equals(a.getTagName()) && "ended".equals(a.getAttribute("data-batch-control-list"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An Ended row of an approved request that is no longer in effect: its premise is that the row
+     * reads {@code wording} today; it must show it in one badge that carries
+     * {@code data-batch-control-status="APPROVED"}, holds exactly that wording and is neutral.
+     */
+    private static void assertEndedApprovedBadge(DomElement row, String wording, String where) {
+        String reads = row.asNormalizedText().replaceAll("\\s+", " ").trim();
+        assertTrue(reads.contains(wording), where + ": premise: the row reads \"" + wording + "\": " + excerpt(reads));
+        List<DomNode> hooked = row.querySelectorAll("[data-batch-control-status]");
+        assertTrue(hooked.size() == 1 && "APPROVED".equals(((DomElement) hooked.get(0)).getAttribute("data-batch-control-status")),
+                where + ": the row must show how the approved request ended (\"" + wording + "\") in one element carrying"
+                        + " data-batch-control-status=\"APPROVED\", found " + hooked.size() + " status element(s) in: "
+                        + excerpt(reads));
+        DomElement badge = (DomElement) hooked.get(0);
+        assertEquals(wording, text(badge), where + ": the badge holds the wording the cell has today and nothing else");
+        assertTrue(classes(badge).contains(BADGE_CLASS), where + ": the element must be a badge, with the class \"" + BADGE_CLASS
+                + "\": " + badge.asXml().trim());
+        assertEquals("neutral", badge.getAttribute(TONE), where + ": an approved request that is no longer in effect is"
+                + " neutral in the Ended table (APPROVED is info only where it is in effect): " + badge.asXml().trim());
+        assertNoInlineStyle(badge, where);
+    }
+
+    /** The one row of the page's Ended table that links to the request or window {@code id}. */
+    private static DomElement endedRow(HtmlPage list, String id, String where) {
+        List<DomElement> rows = new ArrayList<>();
+        for (DomNode n : list.querySelectorAll(WindowStateFixtures.ENDED_LIST + " tr")) {
+            if (!n.querySelectorAll("a[href*='" + id + "']").isEmpty()) {
+                rows.add((DomElement) n);
+            }
+        }
+        assertEquals(1, rows.size(), where + ": premise: the Ended table has one row linking to " + id + "; tables read: "
+                + excerpt(tables(list)));
+        return rows.get(0);
     }
 
     /**
@@ -697,9 +875,9 @@ public class StatusLabelPageTest {
             String name = e.getAttribute("data-batch-control-status");
             assertNotNull(status(name), where + ": only an element that shows a request or an incident status (and keeps"
                     + " it in data-batch-control-status) is a badge: " + e.asXml().trim());
-            assertTrue(classes(e).contains(BADGE_CLASS) && e.getAttribute(TONE).equals(TONE_OF.get(name)), where
+            assertTrue(classes(e).contains(BADGE_CLASS) && e.getAttribute(TONE).equals(toneOf(e, name)), where
                     + ": a badge has the class \"" + BADGE_CLASS + "\" and the tone of its status (" + name + " is "
-                    + TONE_OF.get(name) + "): " + e.asXml().trim());
+                    + toneOf(e, name) + " here): " + e.asXml().trim());
         }
     }
 
@@ -994,6 +1172,14 @@ public class StatusLabelPageTest {
                         List.of("OPEN", "OPEN")),
                 new Screen("the incidents list", "batch-control/incidents/", openOnce),
                 new Screen("History > Incidents", "batch-control/history/?kind=incidents", openOnce));
+    }
+
+    /** A window request by u1 for CONFIGURE on {@code item} for 30 minutes, approved by a1; returns the request id. */
+    private String approvedWindow(String item) throws Exception {
+        String id = ApproverFormFixtures.submitGrantOk(j, "u1", item, List.of("CONFIGURE"), 30, "tune it", null, "a1");
+        ApproverFormFixtures.assertSuccess(ApproverFormFixtures.decideGrant(j, "a1", id, "approve", "ok"),
+                "fixture: a1 approves the window request on " + item);
+        return id;
     }
 
     /** A pending ACTIVATE request by u1 for a new job created under run control (so not activated). */
