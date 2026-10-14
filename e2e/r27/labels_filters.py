@@ -37,7 +37,8 @@ G  #18.3 the dropdowns in use (approver-1): every option of every dropdown, chos
    leads to a URL carrying the token and a table whose rows all carry it (premise: without the filter there are rows
    that do not), the same rows as the CSV export link of that view; "Any" lists everything again; a filter combined
    with from/to dates; paging under a filter (the pager links keep the token and page 2 holds only matching rows);
-   keyboard use (Tab to the dropdown, type to select, Enter submits); the form submits with GET, without a crumb in the
+   keyboard use (Tab to the dropdown, type to select, Tab to the Filter button, Enter or Space on it, each on a fresh
+   load; owner decision 2026-10-15, see sec_G); the form submits with GET, without a crumb in the
    URL and without any POST.
 K  #18.3 kept input: a hand-edited value with markup stays one extra selected option, escaped, is not applied (the
    page says so) and filters nothing; a token-shaped unknown value is kept and lists nothing; a known value in lower
@@ -424,8 +425,9 @@ def sec_F():
               and 'name="result"' not in r.text and 'name="status"' not in r.text, status=r.status_code)
 
 
-def submit(s, control, value, how="button"):
-    """Chooses `value` in the dropdown `control` and submits the filter form; returns what the navigation did."""
+def submit(s, control, value):
+    """Chooses `value` in the dropdown `control` and submits the filter form with its Filter button; returns what the
+    navigation did."""
     seen = []
     if s.page.locator(f"{FORM} select[name={control}]").count() == 0:  # no dropdown (a build before D2)
         return None
@@ -433,10 +435,7 @@ def submit(s, control, value, how="button"):
     s.page.on("request", listener)
     s.page.locator(f"{FORM} select[name={control}]").select_option(value)
     with s.page.expect_navigation(timeout=20000):
-        if how == "button":
-            s.page.locator(f"{FORM} button[type=submit]").first.click()
-        else:
-            s.page.locator(f"{FORM} select[name={control}]").press("Enter")
+        s.page.locator(f"{FORM} button[type=submit]").first.click()
     s.page.wait_for_load_state("load")
     s.page.remove_listener("request", listener)
     return seen
@@ -557,33 +556,44 @@ def sec_G():
     s.done()
 
     # ---- keyboard, GET, no crumb
-    s = Session(who)
-    s.go(f"/batch-control/history/?kind=requests&job={P}")
-    posts, navs = [], []
-    s.page.on("request", lambda r: (posts if r.method != "GET" else navs if r.is_navigation_request() else []).append(r.url))
-    s.page.locator(f"{FORM} input[name=user]").focus()
-    s.page.keyboard.press("Tab")
-    focused = s.page.evaluate("document.activeElement.tagName + ':' + document.activeElement.name")
-    s.page.keyboard.type("Exec")
-    typed = s.page.locator(f"{FORM} select[name=status]").input_value() if s.page.locator(f"{FORM} select[name=status]").count() else None
-    before = s.page.url
-    s.page.keyboard.press("Enter")
-    how = lib.react(s.page, before, timeout=8000)
-    v, q = view(s), query(s.page.url)
-    crumb_field = s.page.locator(f"{FORM} input[name='Jenkins-Crumb']").count()
-    s.done()
-    check("G", "D2 #18.3 keyboard: Tab from the User field reaches the Status dropdown, typing 'Exec' selects EXECUTED and "
-          "Enter submits: the URL carries status=EXECUTED and the rows are the executed requests",
-          focused == "SELECT:status" and typed == "EXECUTED" and how == "navigated" and q.get("status") == "EXECUTED"
-          and len(v["rows"]) >= 1 and all(r["status"] == "EXECUTED" for r in v["rows"]), focused=focused, typed=typed,
-          reaction=how, query=q)
+    # Platform difference (GitHub Actions run 38592709764, 2026-10-14): Enter on a focused, closed <select> submits its
+    # form in Chromium on macOS but opens the dropdown on Linux (the same Chromium 153.0.8010.12 headless shell); HTML
+    # does not require implicit submission from a select. Owner decision 2026-10-15: the keyboard path selects the value
+    # from the keyboard, Tabs to the Filter button and presses Enter, and on a fresh load Space; each submission is the
+    # one the GET guard judges.
     plain = api(who, f"/batch-control/history/?kind=requests&job={P}&status=EXECUTED", crumb=False)
-    check("G", "guard: the filter form submits with GET: no request other than GET is made, the URL carries no crumb, and "
-          "the same URL answers 200 to a plain GET", not posts and len(navs) >= 1
-          and not any("crumb" in u.lower() for u in navs) and "Jenkins-Crumb" not in q and plain.status_code == 200,
-          posts=posts[:3], navigations=[u.replace(lib.BASE, "") for u in navs][-1:], crumb_field_in_form=crumb_field,
-          plain_get=plain.status_code)
-
+    for key in ("Enter", "Space"):
+        s = Session(who)
+        s.go(f"/batch-control/history/?kind=requests&job={P}")
+        posts, navs = [], []
+        s.page.on("request", lambda r: (posts if r.method != "GET" else navs if r.is_navigation_request() else []).append(r.url))
+        s.page.locator(f"{FORM} input[name=user]").focus()
+        s.page.keyboard.press("Tab")
+        focused = s.page.evaluate("document.activeElement.tagName + ':' + document.activeElement.name")
+        s.page.keyboard.type("Exec")
+        typed = s.page.locator(f"{FORM} select[name=status]").input_value() if s.page.locator(f"{FORM} select[name=status]").count() else None
+        s.page.keyboard.press("Tab")
+        button = s.page.evaluate("""() => { const e = document.activeElement;
+          return e.tagName + ':' + (e.getAttribute('type') || '') + ':' + (e.textContent || e.value || '').replace(/\\s+/g, ' ').trim(); }""")
+        before = s.page.url
+        s.page.keyboard.press(key)
+        how = lib.react(s.page, before, timeout=8000)
+        v, q = view(s), query(s.page.url)
+        crumb_field = s.page.locator(f"{FORM} input[name='Jenkins-Crumb']").count()
+        if key == "Space":
+            s.shot("#main-panel", "R27-D2-G-keyboard-space-executed")
+        s.done()
+        check("G", f"D2 #18.3 keyboard ({key}): Tab from the User field reaches the Status dropdown, typing 'Exec' selects "
+              f"EXECUTED, Tab reaches the Filter button and {key} on it submits: the URL carries status=EXECUTED and the "
+              "rows are the executed requests", focused == "SELECT:status" and typed == "EXECUTED"
+              and button == "BUTTON:submit:Filter" and how == "navigated" and q.get("status") == "EXECUTED"
+              and len(v["rows"]) >= 1 and all(r["status"] == "EXECUTED" for r in v["rows"]), focused=focused, typed=typed,
+              button=button, reaction=how, query=q, rows=len(v["rows"]))
+        check("G", f"guard: the keyboard submission ({key}) is a GET: no request other than GET is made, the URL carries no "
+              "crumb, and the same URL answers 200 to a plain GET", not posts and len(navs) >= 1
+              and not any("crumb" in u.lower() for u in navs) and "Jenkins-Crumb" not in q and plain.status_code == 200,
+              posts=posts[:3], navigations=[u.replace(lib.BASE, "") for u in navs][-1:], crumb_field_in_form=crumb_field,
+              plain_get=plain.status_code)
 
 def ensure_pending(n):
     """Premise of the paging check: at least `n` PENDING run requests in History's default range (the setup's seed
@@ -735,7 +745,7 @@ INTRO_REST = ("are registered automatically as incidents. Open an incident to ac
 INTRO_CASES = (("FAILURE, UNSTABLE, ABORTED", "Failed, unstable and aborted builds"), ("FAILURE", "Failed builds"),
                ("ABORTED, FAILURE", "Failed and aborted builds"), ("UNSTABLE, ABORTED", "Unstable and aborted builds"),
                ("ABORTED", "Aborted builds"))
-INTRO_JS = """() => [...document.querySelectorAll('#main-panel p')].map(p => p.textContent.replace(/\s+/g, ' ').trim())
+INTRO_JS = """() => [...document.querySelectorAll('#main-panel p')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())
   .filter(t => /registered automatically|Open an incident to acknowledge/.test(t))"""
 CONFIG = "/manage/batch-control-configuration/"
 
