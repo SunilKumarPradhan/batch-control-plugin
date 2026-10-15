@@ -284,6 +284,14 @@ UNITS = [
     Unit("r22-cancelled-notice", 0.5, [("r22-cancelled-notice", py("r22/cancelled_notice.py"))],
          doc="e2e-22 R2-05: an approved run whose queue item was cancelled (from the queue, or by disabling the job) is not "
              "shown as starting shortly; the request page says the queued run was cancelled and will not start"),
+    # e2e-27 D3 (Wave D, #18.5, #6 and #18.1). r27/decision_tables.py arranges its own items (r27-d3-*), runs each once per
+    # pass (one aborted by admin), appends one WEIRD run record (r27-d3-ghost#7) once, disables r27-d3-off and enables it
+    # again, and cancels what it leaves pending.
+    Unit("r27-decision-tables", 1.5, [("r27-decision-tables", py("r27/decision_tables.py"))],
+         group="job ui params and restart",
+         doc="e2e-27 D3: the run request page's Decision right after Parameters with one comment box and Approve/Reject "
+             "(approve, reject, blank reject kept and refused, disabled job: Reject only), all in the browser; the run "
+             "and incident tables' 7 columns with the icon/job/#n Run cell, folded and cut parameters, no wrapping"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",
