@@ -5,7 +5,7 @@ History > Incidents) 4, each with a Run cell holding core's status icon, the job
 result label as visible text, in that order; the Parameters cell folds and cuts; the Batch Control settings are grouped
 under five headings on both configuration pages.
 
-usage: python decision_tables.py [AOPJBEXTLICQZ]   rows: out/decision_tables.jsonl, shots: screenshots/run-27/R27-D3-*.png
+usage: python decision_tables.py [AOPJBEXTLICSDQZ]   rows: out/decision_tables.jsonl, shots: screenshots/run-27/R27-D3-*.png
 Items (approval required): r27-d3-batch (DAY, MODE; succeeds), r27-d3-off (DAY; disabled in X), r27-d3-ten (P01..P10:
 P01 holds a line break, P02 is 300 characters, a's then b's then z's, P03 is markup), r27-d3-fail (fails: an incident),
 r27-d3-abort (sleeps; aborted by admin), and a job with a long name and twelve parameters for the screenshots
@@ -52,6 +52,16 @@ I  #6 (administrator) the Incidents list and History > Incidents: exactly the co
    danger, "Open").
 C  #18.1 the Run cell with a long job name (administrator, History > Runs, 1280 and 768 px): every part stays inside the
    cell; a NOTE says how many lines it takes, the icon's size and the cell's width.
+S  #6 the Run cell's text and layout (T-UI-291, owner decisions of 2026-10-15): its text content, white space collapsed,
+   reads exactly "<job> #<n> <label>" (the aborted run adds " Aborted by admin") on the four tables, for admin (links)
+   and auditor (no links), and for runs that have no link for anyone (the WEIRD record; r27-d3-gone, deleted after its
+   failed run: its run and incident stay). At 1280 and 768 px (admin, History > Runs and the Incidents list): the short
+   names render the job, "#n" and the label on one line, separated by one space's width, with "#n" and the label each
+   whole; the 58-character name wraps inside the Run column, whose content is the cell's minimum width (16em) and no
+   wider, and nothing overflows the cell (the widths are in the row).
+D  #18.5 the space under the decision buttons (owner decision of 2026-10-15): the gap between the Approve/Reject row and
+   the next heading equals the gap between the Parameters table and the Decision heading, pending, refused and with
+   the job disabled, in the light and the dark theme (approver-1).
 Q  #18 global configuration (owner decisions of 2026-10-14, grouping 2026-10-15): in the Batch Control section of
    Manage Jenkins > System and of the Batch Control configuration page (admin) and of the latter (manager, BatchControl
    /Manage): exactly five group headings, in order Switches, Approval, Permission windows, Incidents and retention,
@@ -78,7 +88,7 @@ from lib import api, check, note, Session, norm  # noqa: E402
 
 lib.LOGNAME[0] = "decision_tables"
 P = "r27-d3-"
-BATCH, OFF, TEN, FAIL, ABORT, GHOST = (P + x for x in ("batch", "off", "ten", "fail", "abort", "ghost"))
+BATCH, OFF, TEN, FAIL, ABORT, GHOST, GONE = (P + x for x in ("batch", "off", "ten", "fail", "abort", "ghost", "gone"))
 LONGJOB = P + "settlement-reconciliation-for-the-regional-ledger-nightly"
 COLUMNS = ["Run", "Cause", "User", "Parameters", "Started", "Duration", "Request id"]
 INCIDENT_COLUMNS = ["Run", "Incident", "Status", "Created"]
@@ -169,6 +179,13 @@ def sec_A():
     S["long"] = run_once(LONGJOB, LONG_VALUES)
     S["fail"] = run_once(FAIL)
     S["abort"] = run_once(ABORT, after=stop_when_running(ABORT))
+    # a failed run (and its incident) whose job is deleted afterwards: the record stays, without links for anyone
+    if api("admin", lib.jpath(GONE) + "/api/json").status_code == 200:
+        api("admin", lib.jpath(GONE) + "/doDelete", "POST")
+    lib.ensure_item(GONE, lib.job_xml("fs", shell="echo e2e-27 D3 gone; exit 1"))
+    lib.set_property(GONE, approval=True)
+    S["gone"] = run_once(GONE)
+    S["gone"]["deleted"] = api("admin", lib.jpath(GONE) + "/doDelete", "POST").status_code
     ghost = lib.gv(f"""def csv = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control/runs')
 def seen = csv.exists() && csv.listFiles().any {{ it.isFile() && it.getText('UTF-8').contains('{GHOST}#7') }}
 if (seen) return 'present'
@@ -176,11 +193,13 @@ if (seen) return 'present'
   {lib.BC}.model.CauseType.OTHER, 'WEIRD', {lib.BC}.store.BatchClock.clock().instant(), 10L))
 return 'appended'""")
     ok = (all(p.startswith("approvalRequired=true") for p in props.values())
-          and [S[k]["result"] for k in ("batch", "off", "ten", "long", "fail", "abort")]
-          == ["SUCCESS", "SUCCESS", "SUCCESS", "SUCCESS", "FAILURE", "ABORTED"] and ghost in ("present", "appended"))
+          and [S[k]["result"] for k in ("batch", "off", "ten", "long", "fail", "abort", "gone")]
+          == ["SUCCESS", "SUCCESS", "SUCCESS", "SUCCESS", "FAILURE", "ABORTED", "FAILURE"] and ghost in ("present", "appended")
+          and S["gone"]["deleted"] in (200, 302) and api("admin", lib.jpath(GONE) + "/api/json").status_code == 404)
     check("A", "arrangement: one approved run each of r27-d3-batch, -off, -ten, the long-named job (SUCCESS), -fail "
-          "(FAILURE) and -abort (ABORTED by admin); the WEIRD run record of r27-d3-ghost#7", ok, created=created,
-          swept=S["swept"], runs={k: S[k] for k in ("batch", "off", "ten", "long", "fail", "abort")}, stop=S.get("stop"),
+          "(FAILURE), -abort (ABORTED by admin) and -gone (FAILURE, then the job deleted); the WEIRD run record of "
+          "r27-d3-ghost#7", ok, created=created,
+          swept=S["swept"], runs={k: S[k] for k in ("batch", "off", "ten", "long", "fail", "abort", "gone")}, stop=S.get("stop"),
           ghost=ghost, enable=S["enable"])
 
 
@@ -656,6 +675,143 @@ def sec_C():
          "table and page width", measured=measured)
 
 
+# ---------------------------------------------------------------- S: the Run cell's text and layout (T-UI-291)
+# The row of job#number on the page's first run or incident table, found by the Run cell's text (with or without
+# whitespace between the parts), with the Run cell's whole text, and its parts measured: the job, the "#n" and the
+# label elements (the element children of the cell's first span, the icon left out), their line boxes, the gaps
+# between them, the width of a space in their font, and the cell's and the span's widths.
+CELL_JS = """([job, number]) => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const esc = s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+  const want = new RegExp('(^|[\\\\s/])' + esc(job) + '\\\\s*#' + number + '(?!\\\\d)');
+  for (const table of document.querySelectorAll('#main-panel table')) {
+    const heads = [...table.querySelectorAll('thead th')].map(h => n(h.textContent)); const ri = heads.indexOf('Run');
+    if (ri < 0) continue;
+    for (const tr of table.querySelectorAll('tbody tr')) { const cell = tr.children[ri]; if (!cell || !want.test(n(cell.textContent))) continue;
+      const span = cell.querySelector(':scope > span') || cell;
+      const parts = [...span.children].filter(e => e.tagName.toLowerCase() !== 'svg' && n(e.textContent));
+      const rects = e => [...e.getClientRects()].map(r => ({left: r.left, right: r.right, top: r.top, bottom: r.bottom}));
+      const cs = getComputedStyle(parts[0] || span); const cv = document.createElement('canvas').getContext('2d');
+      cv.font = cs.font; const space = cv.measureText(' ').width;
+      const c = cell.getBoundingClientRect(), s = span.getBoundingClientRect(), cc = getComputedStyle(cell);
+      const all = [...cell.querySelectorAll('*')].map(e => e.getBoundingClientRect()).filter(r => r.width && r.height);
+      // every element child of the span, also those without text (what takes room between the parts)
+      const kids = [...span.children].map(e => { const r = e.getBoundingClientRect();
+        return {tag: e.tagName.toLowerCase(), cls: (e.getAttribute('class') || '').slice(0, 60), text: n(e.textContent).slice(0, 30),
+                w: Math.round(r.width * 10) / 10, left: Math.round(r.left), visible: getComputedStyle(e).visibility}; });
+      return {text: n(cell.textContent), heads, parts: parts.map(e => ({text: n(e.textContent), rects: rects(e)})), space, kids,
+        fontSize: parseFloat(cs.fontSize), cell: {w: c.width, padL: parseFloat(cc.paddingLeft), padR: parseFloat(cc.paddingRight)},
+        span: {w: s.width, display: getComputedStyle(span).display, minWidth: getComputedStyle(span).minWidth},
+        inside: all.every(r => r.left >= c.left - 0.5 && r.right <= c.right + 0.5)}; } }
+  return null; }"""
+SHORT = (("fail", "FAILURE"), ("batch", "SUCCESS"), ("abort", "ABORTED"), ("off", "SUCCESS"), ("ten", "SUCCESS"))
+
+
+def cell_of(s, job, number):
+    return s.page.evaluate(CELL_JS, [job, str(number)])
+
+
+def sec_S():
+    n_fail, n_gone, n_abort = S["fail"]["number"], S["gone"]["number"], S["abort"]["number"]
+    cases = {"run": [(FAIL, n_fail, "FAILURE", ""), (ABORT, n_abort, "ABORTED", " Aborted by admin"), (GONE, n_gone, "FAILURE", ""),
+                     (GHOST, 7, None, "")],
+             "incident": [(FAIL, n_fail, "FAILURE", ""), (GONE, n_gone, "FAILURE", "")]}
+    pages = (("/batch-control/dashboard/", "dashboard", "run"), (f"/batch-control/history/?kind=runs&job={P}", "history-runs", "run"),
+             ("/batch-control/incidents/", "incidents", "incident"),
+             (f"/batch-control/history/?kind=incidents&job={P}", "history-incidents", "incident"))
+    for who in ("admin", "auditor"):
+        s = Session(who)
+        for path, tag, kind in pages:
+            s.go(path)
+            for job, num, result, tail in cases[kind]:
+                c = cell_of(s, job, num)
+                want = f"{job} #{num} {LABEL[result] if result else 'WEIRD'}{tail}"
+                linked = who == "admin" and job not in (GONE, GHOST)
+                check("S", f"D3 #6 (T-UI-291) {tag}: the Run cell of {job}#{num} ({'linked' if linked else 'no links'}) "
+                      f"reads exactly '{want}' as its text, the parts separated by whitespace ({who})",
+                      bool(c) and c["text"] == want, shown=(c or {}).get("text"), found=bool(c))
+        s.done()
+    s = Session("admin")
+    measured = {}
+    for width in (1280, 768):
+        s.page.set_viewport_size({"width": width, "height": 900})
+        for path, tag in ((f"/batch-control/history/?kind=runs&job={P}", "history-runs"), ("/batch-control/incidents/", "incidents")):
+            s.go(path)
+            for short, result in SHORT if tag == "history-runs" else (("fail", "FAILURE"),):
+                job, num = P + short, S[short]["number"]
+                c = cell_of(s, job, num) or {}
+                parts = c.get("parts") or []
+                trio = parts[:3]
+                tops = {round(r["top"]) for x in trio for r in x["rects"]}
+                whole = len(trio) == 3 and all(len(x["rects"]) == 1 for x in trio[1:])
+                gaps = ([round(trio[1]["rects"][0]["left"] - trio[0]["rects"][-1]["right"], 1),
+                         round(trio[2]["rects"][0]["left"] - trio[1]["rects"][-1]["right"], 1)] if len(trio) == 3 and all(x["rects"] for x in trio) else None)
+                sp = c.get("space")
+                measured[f"{tag} {width} {short}"] = {"lines": len(tops), "gaps": gaps, "space": sp and round(sp, 1),
+                                                       "parts": [x["text"] for x in trio], "cell": c.get("cell"),
+                                                       "children": c.get("kids")}
+                check("S", f"D3 #6 (owner decision 2026-10-15) {tag} at {width} px: {job}#{num}'s job, '#{num}' and label are on "
+                      "one line, '#n' and the label each whole, and each gap between them is one space wide (no CSS gap)",
+                      whole and [x["text"] for x in trio] == [job, f"#{num}", LABEL[result]] and len(tops) == 1 and gaps
+                      and sp and all(abs(g - sp) <= 1.0 for g in gaps), **measured[f"{tag} {width} {short}"])
+        s.go(f"/batch-control/history/?kind=runs&job={P}")
+        c = cell_of(s, LONGJOB, S["long"]["number"]) or {}
+        parts = c.get("parts") or []
+        em = c.get("fontSize") or 0
+        span, cell = c.get("span") or {}, c.get("cell") or {}
+        content = (cell.get("w") or 0) - (cell.get("padL") or 0) - (cell.get("padR") or 0)
+        measured[f"long {width}"] = {"jobLines": len(parts[0]["rects"]) if parts else None, "span": span, "cell": cell,
+                                     "content": round(content, 1), "16em": 16 * em, "inside": c.get("inside")}
+        check("S", f"D3 #18.1 (owner decision 2026-10-15) History > Runs at {width} px: the 58-character job name wraps inside "
+              "the Run column, whose content is the Run cell's minimum width, 16em, and no wider (measured), and nothing "
+              "overflows the cell", bool(parts) and len(parts[0]["rects"]) > 1 and c.get("inside")
+              and span.get("minWidth") == f"{16 * em:g}px" and abs(span.get("w", 0) - 16 * em) <= 2 and content <= 16 * em + 2,
+              **measured[f"long {width}"])
+    s.done()
+    note("S", "the Run cell measured (lines of the job/#n/label, the gaps against one space, the cell; the long name's "
+         "span, cell and content width against 16em)", measured=measured)
+
+
+# ---------------------------------------------------------------- D: the space under the decision buttons
+DGAP_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const hs = [...document.querySelectorAll('#main-panel h2')]; const dec = hs.find(h => n(h.textContent) === 'Decision');
+  if (!dec) return null; const next = hs[hs.indexOf(dec) + 1] || null;
+  const btn = [...document.querySelectorAll('#main-panel button')].find(b => n(b.textContent) === 'Reject');
+  const row = btn ? (btn.closest('.jenkins-buttons-row') || btn.parentElement) : null;
+  let prev = dec.previousElementSibling; while (prev && !prev.getBoundingClientRect().height) prev = prev.previousElementSibling;
+  return {next: next ? n(next.textContent) : null, prev: prev ? prev.tagName.toLowerCase() + '.' + (prev.className || '') : null,
+    buttons: next && row ? Math.round((next.getBoundingClientRect().top - row.getBoundingClientRect().bottom) * 10) / 10 : null,
+    parameters: prev ? Math.round((dec.getBoundingClientRect().top - prev.getBoundingClientRect().bottom) * 10) / 10 : null,
+    sectionPadding: getComputedStyle(document.documentElement).getPropertyValue('--section-padding').trim(),
+    theme: document.documentElement.getAttribute('data-theme')}; }"""
+
+
+def sec_D():
+    st, pend = lib.submit_run("requester", BATCH, "e2e-27 D3 decision spacing", params={"DAY": "2026-10-15", "MODE": "full"})
+    api("admin", lib.jpath(OFF) + "/enable", "POST")
+    st2, drid = lib.submit_run("requester", OFF, "e2e-27 D3 decision spacing (disabled)", params={"DAY": "2026-10-15"})
+    seen = {}
+    try:
+        api("admin", lib.jpath(OFF) + "/disable", "POST")
+        for theme, radio in (("light", "none"), ("dark", "dark")):
+            set_theme("approver-1", radio)
+            s = Session("approver-1")
+            for state, rid, action in (("pending", pend, None), ("refused", pend, ("Reject", "   ")), ("disabled", drid, None)):
+                s.go(f"/batch-control/requests/{rid}/")
+                if action:
+                    press(s, *action)
+                    s.page.wait_for_load_state("load")
+                g = s.page.evaluate(DGAP_JS) or {}
+                seen[f"{theme} {state}"] = g
+                check("D", f"D3 #18.5 (owner decision 2026-10-15) {state}, {theme} theme: the gap between the decision buttons "
+                      f"and the next heading ('Recent Runs of This Job') equals the gap between the Parameters table and the "
+                      "Decision heading (approver-1)", g.get("next") == "Recent Runs of This Job" and g.get("buttons") is not None
+                      and g.get("parameters") is not None and abs(g["buttons"] - g["parameters"]) <= 2 and g["buttons"] > 8, **g)
+            s.done()
+    finally:
+        set_theme("approver-1", "none")
+        api("admin", lib.jpath(OFF) + "/enable", "POST")
+    note("D", "the gaps measured (px)", gaps=seen)
+
 # ---------------------------------------------------------------- Q: the global configuration
 CONFIG_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
   const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
@@ -838,6 +994,13 @@ def sec_Z():
                     f = f"R27-D3-Z-{theme}-{width}-{name}"
                     lib.page_shot(s, f)
                     shots.append(f)
+                    if name == "history-runs":
+                        row = s.page.locator(f"#main-panel tr:has(a[href$='{lib.jpath(LONGJOB)}/'])").first
+                        if row.count():
+                            row.evaluate("e => e.scrollIntoView({block: 'center'})")
+                        f = f"R27-D3-Z-{theme}-{width}-long-job-name"
+                        s.page.screenshot(path=str(lib.SHOTS / f"{f}.png"))
+                        shots.append(f)
                 s.done()
                 s = Session("approver-1")
                 s.page.set_viewport_size({"width": width, "height": 900})
@@ -872,7 +1035,7 @@ def sec_Z():
             set_theme(who, "none")
         api("admin", lib.jpath(OFF) + "/enable", "POST")
     note("Z", "screenshots for the owner (screenshots/run-27)", shots=shots, refused_page=rid)
-    check("Z", "arrangement: 2 themes x 2 widths x 9 screens were captured", len(shots) == 36, count=len(shots))
+    check("Z", "arrangement: 2 themes x 2 widths x 10 screens were captured", len(shots) == 40, count=len(shots))
 
 
 def cleanup():
@@ -882,4 +1045,4 @@ def cleanup():
 
 
 lib.run(sys.argv, {"A": sec_A, "O": sec_O, "P": sec_P, "J": sec_J, "B": sec_B, "E": sec_E, "X": sec_X, "T": sec_T,
-                   "L": sec_L, "I": sec_I, "C": sec_C, "Q": sec_Q, "Z": sec_Z}, cleanup)
+                   "L": sec_L, "I": sec_I, "C": sec_C, "S": sec_S, "D": sec_D, "Q": sec_Q, "Z": sec_Z}, cleanup)

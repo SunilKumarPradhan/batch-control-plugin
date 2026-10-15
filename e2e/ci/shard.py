@@ -290,7 +290,7 @@ UNITS = [
     # strategy once and migrates back, and cancels what it leaves pending. Section Z (screenshots in two themes and two
     # widths for the owner) is not run here: `python r27/decision_tables.py Z` after the others. Weight: 31 to 34 s in
     # four runs through ci/run.sh (three on a fresh stack, one in its group; 2026-10-15, local).
-    Unit("r27-decision-tables", 0.6, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICQ"))],
+    Unit("r27-decision-tables", 0.6, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICSDQ"))],
          group="job ui params and restart",
          doc="e2e-27 D3: the run request page's Decision right after Parameters with one comment box and Approve/Reject "
              "in one form (approve, reject, refused reject and approval with the form following the refused verb, "
