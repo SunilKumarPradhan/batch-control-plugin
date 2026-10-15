@@ -466,7 +466,8 @@ def judge(sec, s, status, who, kind, rid, expected, what, shot, copy=False, eith
     # breadcrumb is wider than its box). Since D3 that text is the subject alone, so shorter names are no longer cut.
     tips = p["tips"]
     tooltip = [x["value"] for x in tips if x["attr"] == "tooltip"]
-    check(sec, f"D3 #18 breadcrumb tooltip (T-UI-285): everything the {what} page's last breadcrumb carries besides its "
+    # with nothing besides its text (a short breadcrumb), the check holds before D3 as well: a guard then
+    check(sec, ("D3 #18 breadcrumb tooltip" if tips else "guard (breadcrumb tooltip)") + f" (T-UI-285): everything the {what} page's last breadcrumb carries besides its "
           f"text is the subject '{subject}' (core adds its tooltip to a long breadcrumb, and must when it shows it cut; "
           f"cut: {p['last_cut']}) ({who})", all(x["value"] == subject for x in tips)
           and (tooltip == [subject] if p["last_cut"] else len(tooltip) <= 1), attributes=tips, cut=p["last_cut"])

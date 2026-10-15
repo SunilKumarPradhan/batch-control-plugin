@@ -350,15 +350,17 @@ def sec_B():
 def sec_E():
     st, rid = lib.submit_run("requester", BATCH, "e2e-27 D3 refused approval", params={"DAY": "2026-10-09", "MODE": "y"})
     typed = "e2e-27 D3 vertical tab \u000b here"
+    rest = lib.decide("approver-1", "requests", rid, "approve", typed)
+    check("E", "guard: an approval whose comment holds U+000B (a character that cannot be stored) is refused (REST, 4xx): "
+          "the store keeps PENDING", rest is not None and 400 <= rest < 500 and lib.stored("run", rid).get("status") == "PENDING",
+          http=rest, stored=lib.stored("run", rid))
     after, errors, chrome, how, url = refused("E", rid, "Approve", typed, "comment", "approve", "approve-refused")
     stored = lib.stored("run", rid)
     approve, reject = targets(rid)
     tgt = {b["text"].lower(): b["target"] for b in (after or {}).get("buttons", [])}
-    check("E", "guard: an approval whose comment holds U+000B (a character that cannot be stored) is refused: the store "
-          "keeps PENDING", stored.get("status") == "PENDING" and how is not None, stored=stored, reaction=how, url=url)
     check("E", "D3 #18.5 after the refused approval the page shows the one box with the typed text, the message about "
           "the comment next to it, Approve and Reject, and the form's action is the refused verb (.../approve)",
-          bool(chrome) and after is not None and len(after["boxes"]) == 1
+          stored.get("status") == "PENDING" and bool(chrome) and after is not None and len(after["boxes"]) == 1
           and after["boxes"][0]["value"] in (typed, typed.replace("\u000b", "\ufffd"))
           and bool(errors) and len(after["forms"]) == 1 and after["forms"][0]["action"] == approve
           and tgt.get("approve") == approve and tgt.get("reject") == reject, after=after, errors=errors)
@@ -383,7 +385,7 @@ def sec_X():
     check("X", "D3 #18.5 with the job disabled the Decision section comes right after Parameters",
           "Decision" in h and "Parameters" in h and h.index("Decision") == h.index("Parameters") + 1, headings=h)
     approve, reject = targets(rid)
-    check("X", "D3 #18.5 / D-55 with the job disabled the page says so, offers only Reject next to the one box, and the "
+    check("X", "guard (D-55, unchanged): with the job disabled the page says so, offers only Reject next to the one box, and the "
           "form posts to .../reject", "disabled" in text.lower() and "approve" not in caps and caps.count("reject") == 1
           and len(d["boxes"]) == 1 and len(d["forms"]) == 1 and d["forms"][0]["action"] == reject,
           buttons=d["buttons"], boxes=d["boxes"], forms=d["forms"])
@@ -394,7 +396,7 @@ def sec_X():
         lib.page_shot(s, "R27-D3-X-02-disabled-job-rejected")
     s.done()
     stored = lib.stored("run", rid)
-    check("X", "D3 #18.5 Reject through the one box works while the job is disabled: REJECTED with the typed comment",
+    check("X", "guard (D-55, unchanged): Reject through the one box works while the job is disabled: REJECTED with the typed comment",
           stored.get("status") == "REJECTED" and stored.get("decisionComment") == "e2e-27 D3 job is retired",
           stored=stored, reaction=how)
     api("admin", lib.jpath(OFF) + "/enable", "POST")
@@ -471,7 +473,7 @@ def run_cell_ok(sec, where, row, job, number, result, columns, who="admin"):
           f"({who})", kinds == ["icon", "job", "run", "label"] and (not same_line or [lefts[k][0] for k in kinds]
                                                                     == sorted(lefts[k][0] for k in kinds)),
           order=kinds, positions=lefts, parts=[{k: v for k, v in x.items() if k in ("kind", "text", "path")} for x in parts][:8])
-    check(sec, f"D3 #6 {where}: nothing in {job}#{number}'s Run cell is a badge and the raw word {result} is not in the "
+    check(sec, f"guard (D2 kept) {where}: nothing in {job}#{number}'s Run cell is a badge and the raw word {result} is not in the "
           f"row ({who})", bool(row) and row["runBadges"] == 0 and result not in row["rowText"],
           badges=(row or {}).get("runBadges"), row=(row or {}).get("rowText", "")[:200], tooltips=(row or {}).get("tips"))
 
