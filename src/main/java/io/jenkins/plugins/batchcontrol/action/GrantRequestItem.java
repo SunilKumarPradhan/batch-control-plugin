@@ -93,13 +93,20 @@ public class GrantRequestItem implements ModelObject {
      * never approved has no window and keeps the name it was made for.
      *
      * <p>Decided on every call for the user the calling thread runs as, and never cached: this is
-     * the page's {@code <title>}, app bar heading and breadcrumb, all rendered in the viewer's
-     * request. Do not call it under {@code ACL.SYSTEM2}, which would answer as an administrator.
+     * the page's last breadcrumb (D3, owner decision 2026-10-14: the subject alone; core's
+     * breadcrumb bar reads it from here), and through {@link #getPageTitle()} its {@code <title>}
+     * and app bar heading, all rendered in the viewer's request. Do not call it under
+     * {@code ACL.SYSTEM2}, which would answer as an administrator.
      */
     @Override
     public String getDisplayName() {
         String fullName = getShownScope().getFullName();
-        return "Grant request: " + (fullName == null ? request.getId() : fullName);
+        return fullName == null ? request.getId() : fullName;
+    }
+
+    /** #18.4: the {@code <title>} and the app bar heading, {@code Grant request: <subject>} for this viewer. */
+    public String getPageTitle() {
+        return "Grant request: " + getDisplayName();
     }
 
     /** Jelly helper: human-readable timestamp. */
