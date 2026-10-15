@@ -119,7 +119,6 @@ PluginInteraction*Test
 ChangeRecord*Test
 ChangeControlWithoutMatrixAuthGapTest ChangesMonthDefaultTest ConfigAuditTest
 DatesClockZoneTest DiffSummaryAndDatesTest RecordHistoryGapTest RunRecordListenerTest
-RunTableColumnsTest
 Csv*Test
 History*Test
 Snapshot*Test
@@ -144,7 +143,7 @@ ValuesFile*Test
 
 [pages forms and config]
 # status and result labels, History filter dropdowns
-FilterDropdownTest ResultLabelPageTest StatusLabelPageTest StatusLabelsTest
+FilterDropdownTest ResultLabelPageTest RunTableColumnsTest StatusLabelPageTest StatusLabelsTest
 # pages, forms and the global configuration
 ConfigPagePolishTest ConfigUsabilityTest ConfigurationValidationGapTest DashboardLimitTest
 FilterFormCrumbTest FormRefusalUsabilityTest PolishMarkupTest SwitchSaveFailureTest
