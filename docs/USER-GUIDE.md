@@ -209,6 +209,11 @@ or reverting a strategy variant (step 2) with Batch Control's buttons writes
 `STRATEGY_CHANGE`; changing the strategy on **Manage Jenkins → Security** writes
 no Batch Control record. A save that changes nothing writes nothing.
 
+The section groups its fields under five headings, in the order of the table
+below: **Switches**, **Approval**, **Permission windows**, **Incidents and
+retention**, and **Notifications and strategy**. The last appears only while
+it holds something: the e-mail switch or the strategy entry.
+
 | Field | Default | Meaning |
 |---|---|---|
 | Enable run control | off | The approval gate at queue entry |
@@ -219,11 +224,11 @@ no Batch Control record. A save that changes nothing writes nothing.
 | Approved-but-not-run timeout (minutes) | 60 | An approved request that was never queued expires after this |
 | Grant duration options (minutes, comma-separated) | 15, 30, 60 | The choices offered on the window request form |
 | Maximum grant duration (minutes) | 240 | Upper bound on a custom duration |
+| Notify before expiry (minutes) | 10 | How long before a pending request or an active grant window expires its requester or holder is notified |
 | Results that open an incident (comma-separated) | FAILURE, UNSTABLE | `ABORTED` can be added |
 | Retention period (months) | 24 | Month files older than this are deleted, and the deletion is recorded |
-| Notify before expiry (minutes) | 10 | How long before a pending request or an active grant window expires its requester or holder is notified |
 | Send e-mail notifications | off | Shown only while the Mailer plugin is installed; no mail is sent while it is off |
-| Batch Control strategy | shown only while installed | Not a saved field: while a Batch Control authorization strategy variant is installed (step 2), a Jenkins administrator (`Overall/Administer`) finds **Revert to the plain strategy** under the section's **Advanced** button, as its last entry; anyone else gets no Advanced button and reads "Only a Jenkins administrator can change the authorization strategy." instead |
+| Batch Control strategy | shown only while installed | Not a saved field: while a Batch Control authorization strategy variant is installed (step 2), a Jenkins administrator (`Overall/Administer`) finds **Revert to the plain strategy**, with what reverting does, under the **Advanced** button of **Notifications and strategy**, as its last entry; anyone else gets no Advanced button, no word of the revert, and reads "Only a Jenkins administrator can change the authorization strategy." instead |
 
 A request cannot be created unless every designated approver is on the Approvers
 list, and `BatchControl/Approve` is checked on them again when they decide.
@@ -262,8 +267,9 @@ is on; run control and recording need neither.
   note](#converting-from-the-global-matrix-strategy-turns-on-per-item-permissions)
   first.
 - To go back, a Jenkins administrator uses **Revert to the plain strategy**,
-  under the **Advanced** button of the Batch Control section of **Manage
-  Jenkins → System**, shown while a variant is installed.
+  under the **Advanced** button of the Batch Control section's **Notifications
+  and strategy** group (**Manage Jenkins → System**), shown while a variant is
+  installed.
 
 While a window is open, the variant *adds* its action (`Item/Create`,
 `Item/Configure` or `Item/Delete`) on the one item it names (`Item/Create`
@@ -343,7 +349,11 @@ expiry.
 ### Run Requests, and the entries on a job's page
 
 **Run Requests** carries each request's stored parameters, reason, requester,
-approver, status and decision history, and is where the approver decides.
+approver, status and decision history, and is where the approver decides. The
+request page's **Decision** area follows the parameters directly: one comment
+box (optional when approving, required when rejecting) and the **Approve** and
+**Reject** buttons. A refused decision comes back with the comment kept. While
+the job is disabled only **Reject** is offered.
 
 - A protected job's sidebar carries **Request Run**, the same form with the
   job's parameters, and Jenkins' build entry is relabelled **Direct Build (needs
@@ -367,14 +377,14 @@ approver, status and decision history, and is where the approver decides.
 |---|---|
 | **Grants** | Pending window requests, the time left on an active window, the history of expired ones and a link to request another. |
 | **Activations** | Activation and hold requests, the ones awaiting your decision first; the approver decides here. A request starts from **Request activation** in the job page's notice. |
-| **Dashboard** (titled *Run Dashboard*) | The 50 most recent builds, with a link to **History** for older ones: cause (User, Timer, Upstream job, Approved request, SCM change, Other), user, parameters, result, duration, and approved runs linked to their request. |
-| **History** | Runs, incidents, change records and requests filtered by period, job, user, result and status, each exportable as CSV, and a monthly summary. A CSV cell whose first non-whitespace character is `=`, `+`, `-` or `@` is prefixed so a spreadsheet does not evaluate it. |
+| **Dashboard** (titled *Run Dashboard*) | The 50 most recent builds, with a link to **History** for older ones, in seven columns: Run (the result icon, the job, `#n` and the result label), Cause (User, Timer, Upstream job, Approved request, SCM change, Other), User, Parameters (the first three; the rest folded under "N more"; values cut at 120 characters), Started, Duration and Request id, which links an approved run to its request. |
+| **History** | Runs, incidents, change records and requests filtered by period, job, user, result and status, each exportable as CSV, and a monthly summary. Runs use the dashboard's seven columns; incidents show Run, Incident, Status and Created. A CSV cell whose first non-whitespace character is `=`, `+`, `-` or `@` is prefixed so a spreadsheet does not evaluate it. |
 | **Change Records** | The create / configure / delete / rename / move trail from every path (UI, REST, CLI, Job DSL), with a unified diff and the window it was made under, or an explicit note where there was none. A change with no usable earlier configuration to compare is recorded without a diff, with a note saying why ([Limitations](LIMITATIONS.md#records-and-screens) item 53). |
 
 ### Incidents
 
-**Incidents** collects the failures that opened automatically, each with the
-last 100 console lines, and offers acknowledge, resolve, comment and a rerun
+**Incidents** collects the failures that opened automatically (listed as Run,
+Incident, Status and Created), each with the last 100 console lines, and offers acknowledge, resolve, comment and a rerun
 request. The lifecycle runs Open → Acknowledged → Resolved, one way only,
 each transition with a user, a timestamp and a comment.
 
