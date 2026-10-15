@@ -43,8 +43,12 @@ MATRIX = ("<?xml version='1.1' encoding='UTF-8'?><matrix-project><description>e2
 FAILING = lib.job_xml("fs", shell='echo "r25 run link check"; exit 1')
 S = {"runs": {}, "incidents": {}}  # full name#number -> {"url": path of the run's own URL, "contract": bool}
 LINKS_JS = """() => [...document.querySelectorAll('#main-panel a[href]')].map(a => {
-  const tr = a.closest('tr');
+  const tr = a.closest('tr'); const td = a.closest('td');
+  // Wave D D3 (#6): the Run cell holds the job (a link, or text for a viewer without Item/Read), then "#n", then the label
+  const texts = []; if (td) { const w = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = x.data.replace(/\\s+/g, ' ').trim(); if (v && !x.parentElement.closest('svg')) texts.push(v); } }
   return {href: a.getAttribute('href'), abs: a.href, text: a.textContent.trim(),
+          runJob: texts.find(v => !/^#\\d+$/.test(v)) || null,
           cells: tr ? [...tr.querySelectorAll('td')].map(td => td.textContent.replace(/\\s+/g, ' ').trim()) : []}; })"""
 
 
@@ -178,13 +182,14 @@ def check_links(sec, where, links, s, find):
 
 def by_row(rid, lk):
     """History/dashboard rows: the Run cell links '#N' and the Job cell holds the full name."""
-    full, num = rid.rsplit("#", 1)
-    return lk is None or (lk["text"] == f"#{num}" and full in lk["cells"])
+    full, num = rid.rsplit("#", 1)  # since D3 the job is in the Run cell, before "#N"
+    return lk is None or (lk["text"] == f"#{num}" and (full in lk["cells"] or lk.get("runJob") == full))
 
 
 def by_run_id(rid, lk):
     """Incident rows and pages: the link text is the run id 'full#N'."""
-    return lk is None or lk["text"] == rid
+    full, num = rid.rsplit("#", 1)  # since D3 the Run cell links the job and "#N" apart
+    return lk is None or lk["text"] == rid or (lk["text"] == f"#{num}" and lk.get("runJob") == full)
 
 
 def sec_H():

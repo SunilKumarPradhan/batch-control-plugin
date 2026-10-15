@@ -13,15 +13,20 @@ page.
 
 Every check looks at content (the text of the title, the heading and the breadcrumb, attributes, the position in the
 DOM), never only at an HTTP status. A check named "D1 #18.4" / "D1 #18.7" fails on a plugin without the change; one
-named "guard" already holds there and must keep holding.
+named "guard" already holds there and must keep holding. Wave D D3 (owner decisions of 2026-10-14, T-UI-285, T-UI-287)
+changed two things every page judgement reads: the last breadcrumb shows only the subject ("r27-d1/batch...", while
+<title> and heading keep "Run request: ..."), with core's tooltip carrying the subject when the breadcrumb is shown cut
+(measured, not assumed from the length); and the ID row's copy button has no "message" attribute. Those checks are
+named "D3 #18"; they fail on a plugin without D3.
 
 A  arrangement: the items; sweeps the requester's pending r27-d1 requests and windows of an earlier pass; files a run
    request on five jobs, a permission window request for CONFIGURE (job in the folder, odd name), CREATE (the folder
    itself) and DELETE (top-level job), an ACTIVATE request on three jobs and a HOLD request on r27-d1/hold.
 T  #18.4 run request page, for the requester, the designated approver approver-1, manager (BatchControl/Manage), admin
-   and approver-2 (reads the job, neither requester nor designated approver): <title>, app bar heading (the only h1)
-   and last breadcrumb read "Run request: r27-d1/batch" and none of them holds the id; the breadcrumb, cut by core,
-   carries the same text as its tooltip; exactly one "ID" row, in the summary table, shows the full id in code style
+   and approver-2 (reads the job, neither requester nor designated approver): <title> and app bar heading (the only
+   h1) read "Run request: r27-d1/batch", the last breadcrumb "r27-d1/batch" (D3), and none of them holds the id; the
+   breadcrumb, when core shows it cut, carries the same text as its tooltip; exactly one "ID" row, in the summary
+   table, shows the full id in code style
    with core's copy button (button.jenkins-copy-button, text=<id>, tooltip "Copy the ID"); pressing it puts the id on
    the clipboard and marks the button copied. Guards: the page answers 200 and still links the job.
 G  #18.4 permission window (grant) request page, same four roles: "Grant request: r27-d1/batch" (CONFIGURE); for a
@@ -150,6 +155,8 @@ REVERT = f"administrativeMonitor/{lib.STRATEGY_MONITOR}/revert"
 REVERT_URL = f"{lib.PREFIX}/manage/{REVERT}"
 REVERT_TEXT = "Revert to the plain strategy"
 ASK_ADMIN = "Only a Jenkins administrator can change the authorization strategy."
+INSTALLED = "A Batch Control authorization strategy is installed."
+REVERTING = "Reverting stops active grants"
 CONFIG_PAGES = (("/manage/configure", "system", 1), ("/manage/batch-control-configuration/", "bc-config", 2))
 REVERT_SEL = f"[data-url$='{REVERT}'], [formaction$='{REVERT}'], [href$='{REVERT}'], form[action$='{REVERT}'] button"
 SNAPSHOT = "r27-d1-strategy.xml"
@@ -187,6 +194,7 @@ PAGE_JS = """([stem, full]) => { const n = t => (t || '').replace(/\\s+/g, ' ').
   const shown = document.body.innerText;
   return {title: document.title, h1: [...document.querySelectorAll('h1')].map(h => n(h.innerText)),
     crumbs: crumbs.map(li => n(li.innerText)), last_current: last ? last.getAttribute('aria-current') : null,
+    last_cut: last ? [last, ...last.querySelectorAll('*')].some(e => e.scrollWidth > e.clientWidth + 1) : null,
     last_href: last && last.querySelector('a') ? last.querySelector('a').getAttribute('href') : null, tips, rows,
     scope: (() => { const th = [...document.querySelectorAll('#main-panel table tr > th')].find(x => n(x.textContent) === 'Scope');
       return th && th.parentElement.querySelector('td') ? n(th.parentElement.querySelector('td').innerText) : null; })(),
@@ -426,19 +434,25 @@ def judge(sec, s, status, who, kind, rid, expected, what, shot, copy=False, eith
     item's kind), whose item the title must name.
     `raw_absent`: strings that the page's HTML (as rendered and as served) and the answers of the page's
     contextMenu, childrenContextMenu and api/json must not hold. Returns the title shown."""
-    if cut:  # core's script adds the tooltip after it measured the breadcrumb
-        lib._r6.until(s.page, lambda: s.page.locator(".jenkins-breadcrumbs__list-item").last.locator("[tooltip]").count(), 3000)
     p = s.page.evaluate(PAGE_JS, list(name or ("", "")))
+    if p["last_cut"]:  # core's script adds the tooltip after it measured the breadcrumb
+        lib._r6.until(s.page, lambda: s.page.locator(".jenkins-breadcrumbs__list-item").last.locator("[tooltip]").count(), 3000)
+        p = s.page.evaluate(PAGE_JS, list(name or ("", "")))
     t = lib.titles(s.page)
     lib.page_shot(s, f"{shot}-page")
     s.shot("#main-panel table", f"{shot}-summary")
     check(sec, f"guard: {who} opens the {what} page (200)" if want_status == 200 else
           f"guard: {who} is answered the {what} page with HTTP {want_status}", status == want_status, status=status)
     accepted = [expected] + ([either] if either else [])
-    check(sec, f"D1 #18.4 title: the {what} page's <title>, app bar heading and last breadcrumb read "
+    subject = expected.split(": ", 1)[1]
+    # Wave D D3 (owner decision 2026-10-14, T-UI-285): the last breadcrumb shows only the subject; <title> and the app
+    # bar heading keep "<Kind> request: <subject>" (D1).
+    check(sec, f"D1 #18.4 title: the {what} page's <title> and app bar heading read "
           + " or ".join(f"'{x}'" for x in accepted) + f" ({who})",
-          t[0] in accepted and list(t) == [t[0]] * 3 and p["title"] == t[0] + " - Jenkins",
+          t[0] in accepted and t[1] == t[0] and p["title"] == t[0] + " - Jenkins",
           expected=accepted, shown=t, document_title=p["title"])
+    check(sec, f"D3 #18 breadcrumb (T-UI-285): the {what} page's last breadcrumb reads only the subject '{subject}' "
+          f"({who})", t[2] == subject, shown=t[2], breadcrumbs=p["crumbs"])
     # At the page's own URL core marks the last breadcrumb as the current page; a refusal is rendered at the POST URL
     # below it (…/reject), where core keeps that breadcrumb a link back to the request's page.
     own_url = want_status == 200
@@ -448,18 +462,14 @@ def judge(sec, s, status, who, kind, rid, expected, what, shot, copy=False, eith
           and p["h1"] == [t[1]] and (p["last_current"] == "page" if own_url else (p["last_href"] or "").endswith(f"/{rid}/")),
           id=rid, shown=t, h1=p["h1"], breadcrumbs=p["crumbs"], last=[p["last_current"], p["last_href"]])
     # Core 2.568.3 renders the current page's breadcrumb as a <span> and gives it a `tooltip` (and `title`) with the
-    # full text only when the text is long (27 characters and more were seen with one, 26 and fewer without) and the
-    # breadcrumb, at most 224 px wide, shows it cut.
+    # full text only when the breadcrumb, at most 224 px wide, shows it cut (measured here: some element of the last
+    # breadcrumb is wider than its box). Since D3 that text is the subject alone, so shorter names are no longer cut.
     tips = p["tips"]
     tooltip = [x["value"] for x in tips if x["attr"] == "tooltip"]
-    if cut:
-        check(sec, f"D1 #18.4 tooltip: the {what} page's last breadcrumb is shown cut and its tooltip carries the full "
-              f"title unchanged, as does everything else it carries ({who})", tooltip == [t[0]] and t[0] in accepted
-              and all(x["value"] == t[0] for x in tips), attributes=tips)
-    else:
-        check(sec, f"guard (tooltip): nothing the {what} page's last breadcrumb carries besides its text differs from "
-              f"the title ({who}); a short title fits and gets no tooltip from core (here: {len(tooltip)})",
-              all(x["value"] == t[0] for x in tips), attributes=tips)
+    check(sec, f"D3 #18 breadcrumb tooltip (T-UI-285): everything the {what} page's last breadcrumb carries besides its "
+          f"text is the subject '{subject}' (core adds its tooltip to a long breadcrumb, and must when it shows it cut; "
+          f"cut: {p['last_cut']}) ({who})", all(x["value"] == subject for x in tips)
+          and (tooltip == [subject] if p["last_cut"] else len(tooltip) <= 1), attributes=tips, cut=p["last_cut"])
     rows = p["rows"]
     row = rows[0] if rows else {}
     btn = [b for b in row.get("buttons", []) if "jenkins-copy-button" in (b.get("cls") or "")]
@@ -469,6 +479,8 @@ def judge(sec, s, status, who, kind, rid, expected, what, shot, copy=False, eith
           len(rows) == 1 and row.get("table") == 0 and {"Status", "Requester"} <= set(row.get("headers", []))
           and row.get("cell") == rid and row.get("code") == rid and len(btn) == 1 and btn[0].get("text") == rid
           and btn[0].get("tooltip") == "Copy the ID", id=rid, rows=rows)
+    check(sec, f"D3 #18 copy button (T-UI-287): the ID row's copy button carries no 'message' attribute ({who}, {what})",
+          len(btn) == 1 and btn[0].get("message") is None, buttons=row.get("buttons"))
     crumb_texts = list(t) + list(p["crumbs"]) + [x["value"] for x in tips]
     if absent:
         check(sec, f"guard (T-UI-236/237): none of the {what} page's title, heading, breadcrumbs and tooltip holds "
@@ -591,11 +603,14 @@ def sec_F():
         rid = S[key][1]
         s = Session("approver-1")
         s.go(f"/batch-control/{lib.KIND_URL[kind]}/{rid}/")
-        form = s.page.locator("form[name=reject]")
+        # the run request page's one Decision form (D3) names /reject in Reject's formaction; before D3, and on the
+        # activation request page, Reject is the submit button of the form named "reject"
+        reject = s.page.locator("#main-panel button[formaction$='/reject'], form[name=reject] button[name=Submit], "
+                                "form[name=reject] button[type=submit], form[name=reject] input[type=submit]")
         status = None
-        if form.count():  # Reject without a comment: the plugin refuses and re-renders the page inside the POST
+        if reject.count():  # Reject without a comment: the plugin refuses and re-renders the page inside the POST
             with s.page.expect_navigation() as nav:
-                form.locator("button[name=Submit], button[type=submit], input[type=submit]").first.click()
+                reject.first.click()
             s.page.wait_for_load_state("load")
             status = nav.value.status if nav.value else None
         url, text = s.page.url.replace(lib.BASE, ""), norm(s.text())
@@ -974,7 +989,9 @@ def sec_H():
 
 # ---------------------------------------------------------------- R, P: the revert entry
 STATE_JS = """(sel) => { const fieldSel = 'input[name^="_."], select[name^="_."], textarea[name^="_."]';
-  const sec = document.querySelector('[name="_.runControlEnabled"]')?.closest('section') || null;
+  const outer = e => { let s = e ? e.closest('section') : null;
+    while (s && s.parentElement && s.parentElement.closest('section')) s = s.parentElement.closest('section'); return s; };
+  const sec = outer(document.querySelector('[name="_.runControlEnabled"]'));  // the Batch Control section, not a D3 group
   const ctl = [...document.querySelectorAll(sel)];
   const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length) && getComputedStyle(e).visibility !== 'hidden';
   const probe = host => { const p = document.createElement('span'); p.setAttribute('style', 'color: var(--destructive-color)');
@@ -995,6 +1012,10 @@ STATE_JS = """(sel) => { const fieldSel = 'input[name^="_."], select[name^="_."]
     advanced: sec ? [...sec.querySelectorAll('button.advanced-button, button.advancedButton')].map(b => (
       {visible: vis(b), expanded: b.dataset.expanded || null, marked: b.hasAttribute('data-r27-adv')})) : [],
     fields: sec ? sec.querySelectorAll(fieldSel).length : 0,
+    revertSentence: [...document.querySelectorAll('#main-panel *')].filter(e => e.children.length === 0
+      && /Reverting stops active grants/.test(e.textContent)).map(e => ({inAdvancedBody: !!e.closest('.advancedBody'),
+        sameItem: !!(ctl[0] && e.closest('.jenkins-form-item') && e.closest('.jenkins-form-item') === ctl[0].closest('.jenkins-form-item')),
+        text: e.textContent.replace(/\\s+/g, ' ').trim()})),
     hiddenText: sec ? [...sec.querySelectorAll('.advancedBody')].map(b => b.textContent.replace(/\\s+/g, ' ').trim()) : []}; }"""
 SECTION = "section:has([name='_.runControlEnabled'])"
 
@@ -1035,6 +1056,10 @@ def revert_place(sec, path, tag, n, strategy_name):
           advanced_button=c.get("advancedButton"), advanced_buttons=before["advanced"])
     check(sec, f"D1 #18.7 {path}: the revert entry is not visible before Advanced is pressed (not among the routine "
           "settings)", bool(ctls) and not any(x["visible"] for x in ctls), controls=ctls)
+    rs = before["revertSentence"]
+    check(sec, f"guard (T-UI-286, administrator): {path}: the sentence 'Reverting stops active grants ...' is said once, "
+          "inside core's Advanced body, in the same form item as the revert entry", len(rs) == 1
+          and rs[0]["inAdvancedBody"] and rs[0]["sameItem"], sentence=rs)
     b = s.page.locator("[data-r27-adv='1']")
     pressed = False
     if b.count() == 1 and b.is_visible():
@@ -1126,7 +1151,9 @@ def revert_through(sec, s, path, tag, n, plain):
 
 HOLDER_JS = """(sentence) => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
   const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length) && getComputedStyle(e).visibility !== 'hidden';
-  const sec = document.querySelector('[name="_.runControlEnabled"]')?.closest('section') || null;
+  const outer = e => { let s = e ? e.closest('section') : null;
+    while (s && s.parentElement && s.parentElement.closest('section')) s = s.parentElement.closest('section'); return s; };
+  const sec = outer(document.querySelector('[name="_.runControlEnabled"]'));  // the Batch Control section, not a D3 group
   const holds = [...document.querySelectorAll('#main-panel *')].filter(e => n(e.textContent).includes(sentence));
   const inner = holds.filter(e => !holds.some(o => o !== e && e.contains(o)));
   return {section: !!sec, sentence: inner.map(e => ({text: n(e.textContent), displayed: vis(e), inSection: !!(sec && sec.contains(e)),
@@ -1156,6 +1183,11 @@ def told_without_advanced(sec, who, path, shot, what):
     check(sec, f"guard: {what} is offered no revert on {path}, not even hidden: no control in the DOM, neither its URL "
           "nor its caption in the HTML", r is not None and r.status == 200 and not st["controls"] and REVERT not in html
           and REVERT_TEXT not in html, controls=st["controls"])
+    flat = norm(html)
+    check(sec, f"D3 #18 revert sentence (T-UI-286): {what} reads that the strategy is installed and whom to ask, and "
+          f"'{REVERTING} ...' is nowhere in the HTML of {path} (administrators only)", r is not None and r.status == 200
+          and REVERTING not in flat and INSTALLED in flat and ASK_ADMIN in flat, installed=INSTALLED in flat,
+          reverting=REVERTING in flat)
 
 
 def refused(who, method="POST", crumb=True):

@@ -1,65 +1,114 @@
-"""e2e-27 D3 (Wave D, issue #18 item 5, issues #6 and #18 item 1): on the run request page the Decision section comes
-right after Parameters with ONE comment box and two buttons, Approve and Reject, on the unchanged endpoints; the run
-tables (Run Dashboard, History > Runs, Incidents, History > Incidents) shrink to 7 columns with a Run cell holding the
-status icon, the job link and the #n run link.
+"""e2e-27 D3 (Wave D, issue #18 items 5 and 1, issue #6; TEST-MATRIX T-UI-270..290, note 362): on the run request page
+the Decision comes right after Parameters with ONE comment box and two buttons, Approve and Reject, on the unchanged
+endpoints; the run tables (Run Dashboard, History > Runs) have 7 columns and the incident tables (Incidents list,
+History > Incidents) 4, each with a Run cell holding core's status icon, the job link, the "#n" run link and the D2
+result label as visible text, in that order; the Parameters cell folds and cuts; the Batch Control settings are grouped
+under five headings on both configuration pages.
 
-usage: python decision_tables.py [AOPJBXTLI]   rows: out/decision_tables.jsonl, shots: screenshots/run-27/R27-D3-*.png
-Items (approval required): r27-d3-batch (DAY, MODE; succeeds), r27-d3-off (DAY; disabled in X), r27-d3-ten (P01..P10;
-P02 is 300 characters, a's then b's then z's, P03 is markup), r27-d3-fail (fails: an incident), r27-d3-abort (sleeps;
-aborted by admin). A run record of r27-d3-ghost#7 with the unknown result WEIRD is appended once through the store's own
-method from the script console (arrangement: no job can produce an unknown result). The requester files the requests
-over REST; approver-1 decides them in the browser; the server state is read from the store and Jenkins REST.
+usage: python decision_tables.py [AOPJBEXTLICQZ]   rows: out/decision_tables.jsonl, shots: screenshots/run-27/R27-D3-*.png
+Items (approval required): r27-d3-batch (DAY, MODE; succeeds), r27-d3-off (DAY; disabled in X), r27-d3-ten (P01..P10:
+P01 holds a line break, P02 is 300 characters, a's then b's then z's, P03 is markup), r27-d3-fail (fails: an incident),
+r27-d3-abort (sleeps; aborted by admin), and a job with a long name and twelve parameters for the screenshots
+(r27-d3-settlement-reconciliation-for-the-regional-ledger-nightly). A run record of r27-d3-ghost#7 with the unknown
+result WEIRD is appended once through the store's own method from the script console (arrangement: no job can produce
+an unknown result). The requester files the requests over REST; approver-1 decides them in the browser; the server
+state is read from the store and Jenkins REST. A check named "D3 ..." fails on a plugin without D3; "guard" holds on
+both.
 
 A  arrangement: the items; sweeps the requester's pending r27-d3 requests; one approved run each of r27-d3-batch,
-   r27-d3-off, r27-d3-ten, r27-d3-fail (so the request pages have recent runs) and r27-d3-abort (stopped by admin while
-   it runs); the ghost record once.
+   r27-d3-off, r27-d3-ten, r27-d3-fail, the long-named job (so the request pages have recent runs) and r27-d3-abort
+   (stopped by admin while it runs); the ghost record once.
 O  #18.5 (approver-1): with Approver Changes shown (the requester re-designated approver-1 and approver-2), the heading
    right after Parameters is Decision, before Recent Runs of This Job and Approver Changes; the Decision section has
-   exactly one comment box and one Approve and one Reject button, posting to .../approve and .../reject. Guards: GET of
-   both endpoints is refused, a POST without the crumb answers 403, the requester and approver-unlisted are refused (4xx),
-   and the request stays PENDING.
-P  #18.5 approve through the one box (browser): "e2e-27 D3 ship it" + Approve: the store says APPROVED/EXECUTED by
-   approver-1 with that comment, the build runs (GET /job/r27-d3-batch/<n>/api/json 200) with the requested DAY and MODE.
-J  #18.5 reject through the one box (browser): "e2e-27 D3 wrong day" + Reject: REJECTED by approver-1 with that comment;
-   no build runs.
-B  #18.5 a reject with only blanks in the box is refused: the store keeps PENDING, the page still shows the one box
-   holding the blanks, an error naming the comment next to it, and both buttons; no bare error page.
+   exactly one comment box and one Approve and one Reject button, posting to .../approve and .../reject; the form's own
+   action is .../approve. Guards: GET of both endpoints is refused, a POST without the crumb answers 403, the requester
+   and approver-unlisted are refused (4xx), and the request stays PENDING.
+P  #18.5 approve through the one box (browser): the store says APPROVED/EXECUTED by approver-1 with that comment, the
+   build runs (GET /job/r27-d3-batch/<n>/api/json 200) with the requested DAY and MODE.
+J  #18.5 reject through the one box (browser): REJECTED by approver-1 with that comment; no build runs.
+B  #18.5 a reject with only blanks in the box is refused: PENDING; the page still shows the one box holding the
+   blanks, an error naming the comment next to it, and both buttons; the form's action now follows the refused verb
+   (.../reject) while Approve and Reject keep their own targets.
+E  #18.5 an approval refused by the service (a comment holding U+000B, a character that cannot be stored): PENDING;
+   the page shows the one box with the typed text, the message next to it, both buttons, and the form's action is
+   .../approve, the refused verb.
 X  #18.5 / D-55 with r27-d3-off disabled: Decision right after Parameters, the page says disabled, only Reject is
-   offered; Reject through the one box works. Guard: a direct POST approve is refused and the request stays PENDING.
+   offered and the form posts to .../reject; Reject through the one box works. Guard: a direct POST approve is refused
+   and the request stays PENDING.
 T  #6/#18.1 (administrator) the Run Dashboard and History > Runs (job=r27-d3-): exactly the columns Run, Cause, User,
-   Parameters, Started, Duration, Request id, every row 7 cells; the Run cell of r27-d3-ten and r27-d3-fail holds a
-   status icon whose tooltip names the result, the job link and the "#n" run link to the run's own URL, and the row does
-   not print the result; the ghost's unknown result is text with no icon and no link; r27-d3-ten's Parameters cell shows
-   P01..P03 with P04..P10 in one <details>, P02 cut (a's shown, no z's), P03's markup as text; r27-d3-abort's row still
-   says "aborted by admin" with no Aborted by column; the Cause, User, Started and Duration cells of r27-d3-ten stay on
-   one line at 1280 px. Guards: the full P02 in runs.csv, on the request page and on the build's parameters page.
-L  #6 link rule: auditor (ViewHistory, no Item/Read) gets r27-d3-fail's row with "#n" and no link to the job or run on
-   the four tables; approver-1 (Item/Read) gets the job link in the Run cell.
-I  #6 (administrator) the Incidents list and History > Incidents: no Job or Result column; the Run cell of
-   r27-d3-fail's incident holds the icon with a tooltip naming the failure, the job link and the #n run link.
-cleanup: r27-d3-off enabled again; the requester's pending r27-d3 requests cancelled."""
+   Parameters, Started, Duration, Request id, every row 7 cells; the Run cell of r27-d3-ten and r27-d3-fail holds, in
+   this order (DOM and left to right), core's status icon, the job link, the "#n" link to the run's own URL and the D2
+   label ("Success", "Failed") as an element's visible whole text, nothing in it is a badge, and the raw result word is
+   not in the row; the Cause cell reads "Approved request" (not a badge); the ghost's unknown result is text with no
+   icon and no link; r27-d3-ten's Parameters cell shows P01..P03 with the other seven in one <details> "7 more", P02 cut
+   at 120 characters ("P02=" + 100 a's + 20 b's + "…"), P01's line break shown as one line, P03's markup as text;
+   r27-d3-abort's Run cell says "Aborted by admin" on a line of its own below the run, with no Aborted by column; the
+   Cause, User, Started and Duration cells of r27-d3-ten stay on one line at 1280 px. Guards: the full P02 and P01 (with
+   its line break) in runs.csv, on the request page and on the build's parameters page.
+L  #6 link rule (D-44): auditor (ViewHistory, no Item/Read) gets r27-d3-fail's row with the job name and "#n" as text
+   and no link to the job or the run on the four tables; approver-1 (Item/Read) gets the job and run links.
+I  #6 (administrator) the Incidents list and History > Incidents: exactly the columns Run, Incident, Status, Created;
+   the Run cell of r27-d3-fail's incident as in T ("Failed"); the Status cell is the incident's badge (OPEN, tone
+   danger, "Open").
+C  #18.1 the Run cell with a long job name (administrator, History > Runs, 1280 and 768 px): every part stays inside the
+   cell; a NOTE says how many lines it takes, the icon's size and the cell's width.
+Q  #18 global configuration (owner decisions of 2026-10-14, grouping 2026-10-15): in the Batch Control section of
+   Manage Jenkins > System and of the Batch Control configuration page (admin) and of the latter (manager, BatchControl
+   /Manage): exactly five group headings, in order Switches, Approval, Permission windows, Incidents and retention,
+   Notifications and strategy, each followed by its fields (names unchanged), the fifth by the e-mail switch and the
+   "Batch Control strategy" entry (admin: inside Advanced with the revert; manager: the strategy is installed and only a
+   Jenkins administrator can change it). The group headings are visibly smaller than the section's title (computed font
+   size; NOTE). Save round-trip through the real form: with every setting at a value other than the default the
+   administrator saves both pages unchanged and the manager the Batch Control page, and every value reads back as it
+   was; then the administrator changes one field in each group but Switches on the Batch Control page and the store
+   holds the new values. With the plain strategy installed the fifth group holds only the e-mail switch. Everything is
+   put back.
+Z  screenshots for the owner (light and dark theme, 1280 and 768 px): the dashboard, History > Runs with the long job
+   name and its parameters, the Incidents list, the Decision area pending, refused and with the job disabled, and the
+   global configuration as admin and as manager.
+cleanup: r27-d3-off enabled again; the settings and the strategy as they were; the accounts' theme back to the default;
+the requester's pending r27-d3 requests cancelled."""
+import json
 import re
 import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import lib  # noqa: E402
-from lib import api, check, note, Session  # noqa: E402
+from lib import api, check, note, Session, norm  # noqa: E402
 
 lib.LOGNAME[0] = "decision_tables"
 P = "r27-d3-"
 BATCH, OFF, TEN, FAIL, ABORT, GHOST = (P + x for x in ("batch", "off", "ten", "fail", "abort", "ghost"))
+LONGJOB = P + "settlement-reconciliation-for-the-regional-ledger-nightly"
 COLUMNS = ["Run", "Cause", "User", "Parameters", "Started", "Duration", "Request id"]
+INCIDENT_COLUMNS = ["Run", "Incident", "Status", "Created"]
+LABEL = {"SUCCESS": "Success", "UNSTABLE": "Unstable", "FAILURE": "Failed", "NOT_BUILT": "Not built", "ABORTED": "Aborted"}
 LONG = "a" * 100 + "b" * 100 + "z" * 100
+CUT = "P02=" + "a" * 100 + "b" * 20 + "…"
+TWO_LINES = "first line\nsecond line"
 MARKUP = "<img src=x onerror=alert(1)>"
-TEN_VALUES = {f"P{i:02d}": (LONG if i == 2 else MARKUP if i == 3 else f"v{i}") for i in range(1, 11)}
+TEN_VALUES = {f"P{i:02d}": (TWO_LINES if i == 1 else LONG if i == 2 else MARKUP if i == 3 else f"v{i}") for i in range(1, 11)}
+LONG_VALUES = {k: f"{k.lower()}-value-{i}" for i, k in enumerate(("DAY", "MODE", "REGION", "LEDGER", "BATCH_SIZE", "CURRENCY",
+                                                                   "CUTOFF", "RETRIES", "NOTIFY", "OWNER", "WINDOW", "TAG"), 1)}
+GROUPS = ["Switches", "Approval", "Permission windows", "Incidents and retention", "Notifications and strategy"]
+GROUP_FIELDS = [["_.runControlEnabled", "_.changeControlEnabled"],
+                ["_.approversText", "_.allowAdminSelfApproval", "_.pendingTimeoutHours", "_.approvedRunTimeoutMinutes"],
+                ["_.grantDurationOptions", "_.maxGrantMinutes", "_.notifyBeforeExpiryMinutes"],
+                ["_.incidentResults", "_.retentionMonths"],
+                ["_.emailNotifications"]]
+ASK_ADMIN = "Only a Jenkins administrator can change the authorization strategy."
+INSTALLED = "A Batch Control authorization strategy is installed."
+REVERTING = "Reverting stops active grants"
+CONFIGS = (("/manage/configure", "system"), ("/manage/batch-control-configuration/", "bc-config"))
 S = {}
 
 # The Decision section, read without assuming one form or two: everything whose nearest preceding h2 reads "Decision".
-DECISION_JS = """() => { const out = {headings: [], boxes: [], buttons: []}; let h = null;
+DECISION_JS = """() => { const out = {headings: [], boxes: [], buttons: [], forms: []}; let h = null;
   const w = document.createTreeWalker(document.querySelector('#main-panel'), NodeFilter.SHOW_ELEMENT);
   for (let n = w.currentNode; n; n = w.nextNode()) {
     if (n.tagName === 'H2') { h = n.textContent.trim(); out.headings.push(h); continue; }
     if (h !== 'Decision') continue;
+    if (n.tagName === 'FORM') out.forms.push({name: n.getAttribute('name'), action: n.getAttribute('action') ? new URL(n.getAttribute('action'), location.href).pathname : null});
     if ((n.tagName === 'TEXTAREA' || n.tagName === 'INPUT') && n.name === 'comment' && n.type !== 'hidden')
       out.boxes.push({tag: n.tagName.toLowerCase(), value: n.value, visible: !!n.getClientRects().length});
     if (n.tagName === 'BUTTON' || (n.tagName === 'INPUT' && n.type === 'submit')) {
@@ -78,10 +127,10 @@ MARK_JS = """() => { let h = null; let i = 0;
       n.setAttribute('data-r27-box', String(i++));
     if (n.tagName === 'BUTTON' || (n.tagName === 'INPUT' && n.type === 'submit'))
       n.setAttribute('data-r27-btn', (n.tagName === 'INPUT' ? n.value : n.textContent).trim().toLowerCase()); } }"""
-ERROR_JS = """() => { const box = document.querySelector('[data-r27-box="0"]'); if (!box) return null;
+ERROR_JS = """(word) => { const box = document.querySelector('[data-r27-box="0"]'); if (!box) return null;
   const near = [box.parentElement, box.parentElement && box.parentElement.parentElement].filter(Boolean);
   const errs = [...document.querySelectorAll('[data-batch-control-field-error="comment"], .error, [role=alert]')]
-    .filter(e => /comment/i.test(e.textContent) && near.some(p => p.contains(e)));
+    .filter(e => new RegExp(word, 'i').test(e.textContent) && near.some(p => p.contains(e)));
   return errs.map(e => ({text: e.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160), visible: !!e.getClientRects().length})); }"""
 
 
@@ -104,19 +153,20 @@ def stop_when_running(job):
 
 
 def sec_A():
-    plain = lib.job_xml("fs", shell="echo e2e-27 D3")
     two = lib.job_xml("fs", shell='echo "DAY=$DAY MODE=$MODE"',
                       params=lib.string_p("DAY", "2026-10-01") + lib.string_p("MODE", "full"))
     ten = lib.job_xml("fs", shell="echo e2e-27 D3 ten", params="".join(lib.string_p(k, "d") for k in TEN_VALUES))
-    created = {n: lib.ensure_item(n, x) for n, x in ((BATCH, two), (OFF, two), (TEN, ten),
+    many = lib.job_xml("fs", shell="echo e2e-27 D3 long name", params="".join(lib.string_p(k, "d") for k in LONG_VALUES))
+    created = {n: lib.ensure_item(n, x) for n, x in ((BATCH, two), (OFF, two), (TEN, ten), (LONGJOB, many),
                                                      (FAIL, lib.job_xml("fs", shell="echo e2e-27 D3; exit 1")),
                                                      (ABORT, lib.job_xml("fs", shell="sleep 300")))}
-    props = {n: lib.set_property(n, approval=True) for n in (BATCH, OFF, TEN, FAIL, ABORT)}
+    props = {n: lib.set_property(n, approval=True) for n in (BATCH, OFF, TEN, LONGJOB, FAIL, ABORT)}
     S["enable"] = api("admin", lib.jpath(OFF) + "/enable", "POST").status_code
     S["swept"] = lib.sweep("requester", P)
     S["batch"] = run_once(BATCH, {"DAY": "2026-10-02", "MODE": "full"})
     S["off"] = run_once(OFF, {"DAY": "2026-10-02"})
     S["ten"] = run_once(TEN, TEN_VALUES)
+    S["long"] = run_once(LONGJOB, LONG_VALUES)
     S["fail"] = run_once(FAIL)
     S["abort"] = run_once(ABORT, after=stop_when_running(ABORT))
     ghost = lib.gv(f"""def csv = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control/runs')
@@ -126,13 +176,12 @@ if (seen) return 'present'
   {lib.BC}.model.CauseType.OTHER, 'WEIRD', {lib.BC}.store.BatchClock.clock().instant(), 10L))
 return 'appended'""")
     ok = (all(p.startswith("approvalRequired=true") for p in props.values())
-          and [S[k]["result"] for k in ("batch", "off", "ten", "fail", "abort")] == ["SUCCESS", "SUCCESS", "SUCCESS",
-                                                                                    "FAILURE", "ABORTED"]
-          and ghost in ("present", "appended"))
-    check("A", "arrangement: one approved run each of r27-d3-batch, -off, -ten (SUCCESS), -fail (FAILURE) and -abort "
-          "(ABORTED by admin); the WEIRD run record of r27-d3-ghost#7", ok, created=created, swept=S["swept"],
-          runs={k: S[k] for k in ("batch", "off", "ten", "fail", "abort")}, stop=S.get("stop"), ghost=ghost,
-          enable=S["enable"])
+          and [S[k]["result"] for k in ("batch", "off", "ten", "long", "fail", "abort")]
+          == ["SUCCESS", "SUCCESS", "SUCCESS", "SUCCESS", "FAILURE", "ABORTED"] and ghost in ("present", "appended"))
+    check("A", "arrangement: one approved run each of r27-d3-batch, -off, -ten, the long-named job (SUCCESS), -fail "
+          "(FAILURE) and -abort (ABORTED by admin); the WEIRD run record of r27-d3-ghost#7", ok, created=created,
+          swept=S["swept"], runs={k: S[k] for k in ("batch", "off", "ten", "long", "fail", "abort")}, stop=S.get("stop"),
+          ghost=ghost, enable=S["enable"])
 
 
 def decision(s):
@@ -150,9 +199,17 @@ def press(s, caption, comment):
     s.page.locator("[data-r27-box='0']").fill(comment)
     btn = s.page.locator(f"[data-r27-btn='{caption.lower()}']").first
     btn.scroll_into_view_if_needed()
-    before = s.page.url
-    btn.click()
-    return lib.react(s.page, before, timeout=20000)
+    try:  # a form submission always navigates (to the request page after a decision, or the refusal's page)
+        with s.page.expect_navigation(timeout=20000) as nav:
+            btn.click()
+        return f"navigated ({nav.value.status if nav.value else None})"
+    except Exception as e:  # noqa: nothing navigated
+        return None if "Timeout" in repr(e) else f"error: {e!r}"[:120]
+
+
+def targets(rid):
+    base = f"{lib.PREFIX}/batch-control/requests/{rid}/"
+    return base + "approve", base + "reject"
 
 
 def sec_O():
@@ -164,7 +221,6 @@ def sec_O():
     s.go(f"/batch-control/requests/{rid}/")
     d = decision(s)
     lib.page_shot(s, "R27-D3-O-01-request-page-approver-1")
-    s.shot("#main-panel", "R27-D3-O-02-request-main-panel")
     s.done()
     h = d["headings"]
     idx = {k: (h.index(k) if k in h else -1) for k in ("Parameters", "Decision", "Recent Runs of This Job",
@@ -177,11 +233,13 @@ def sec_O():
           and idx["Decision"] < idx["Approver Changes"], headings=h)
     one_box("O", d, "approver-1")
     caps = [b["text"].lower() for b in d["buttons"]]
-    base = f"{lib.PREFIX}/batch-control/requests/{rid}/"
+    approve, reject = targets(rid)
     tgt = {b["text"].lower(): b["target"] for b in d["buttons"]}
-    check("O", "D3 #18.5 the Decision section offers one Approve and one Reject button, posting to the existing "
-          ".../approve and .../reject endpoints", caps.count("approve") == 1 and caps.count("reject") == 1
-          and tgt.get("approve") == base + "approve" and tgt.get("reject") == base + "reject", buttons=d["buttons"])
+    check("O", "D3 #18.5 the Decision section offers one Approve and one Reject button in one form, posting to the "
+          "existing .../approve and .../reject endpoints; the form's own action is .../approve",
+          caps.count("approve") == 1 and caps.count("reject") == 1 and tgt.get("approve") == approve
+          and tgt.get("reject") == reject and len(d["forms"]) == 1 and d["forms"][0]["action"] == approve,
+          buttons=d["buttons"], forms=d["forms"])
     codes = {}
     for verb in ("approve", "reject"):
         codes[f"GET {verb}"] = api("approver-1", f"/batch-control/requests/{rid}/{verb}").status_code
@@ -212,8 +270,8 @@ def sec_P():
     else:
         how = landed = None
     s.done()
-    result, _ = lib.wait_build(BATCH, n, timeout=180) if how else (None, None)
     st = lib.stored("run", rid)
+    result, _ = lib.wait_build(BATCH, n, timeout=180) if st.get("status") in ("APPROVED", "EXECUTED") else (None, None)
     b = api("admin", f"{lib.jpath(BATCH)}/{n}/api/json?tree=result,actions[parameters[name,value]]")
     params = {p["name"]: p["value"] for a in (b.json().get("actions", []) if b.status_code == 200 else [])
               for p in (a or {}).get("parameters", []) or []}
@@ -246,32 +304,64 @@ def sec_J():
           stored=stored, reaction=how, next_build=lib.next_build(BATCH), expected_next=n)
 
 
-def sec_B():
-    st, rid = lib.submit_run("requester", BATCH, "e2e-27 D3 blank reject", params={"DAY": "2026-10-09", "MODE": "x"})
+def refused(sec, rid, caption, comment, word, verb, shot):
+    """Presses `caption` with `comment` in the one box, expects a refusal re-rendered on the request page. Returns the
+    Decision section after it, the errors next to the box naming `word`, and whether the page has its chrome."""
     s = Session("approver-1")
     s.go(f"/batch-control/requests/{rid}/")
     d = decision(s)
-    after, errors, status, how = None, None, None, None
-    if one_box("B", d, "approver-1"):
-        how = press(s, "Reject", "   ")
+    after, errors, chrome, how, url = None, None, None, None, None
+    if one_box(sec, d, "approver-1"):
+        how = press(s, caption, comment)
         s.page.wait_for_load_state("load")
         s.page.evaluate(MARK_JS)
         after = decision(s)
-        errors = s.page.evaluate(ERROR_JS)
-        status = s.page.locator("#main-panel").count() and s.page.locator(".jenkins-breadcrumbs__list-item").count()
-        lib.page_shot(s, "R27-D3-B-01-blank-reject-refused")
-        s.shot("[data-r27-box='0']", "R27-D3-B-02-blank-reject-box", pad=120)
+        errors = s.page.evaluate(ERROR_JS, word)
+        chrome = s.page.locator("#main-panel").count() and s.page.locator(".jenkins-breadcrumbs__list-item").count()
+        url = s.page.url.replace(lib.BASE, "")
+        lib.page_shot(s, f"R27-D3-{sec}-01-{shot}")
+        s.shot("[data-r27-box='0']", f"R27-D3-{sec}-02-{shot}-box", pad=120)
+        S.setdefault("refused_pages", {})[verb] = (rid, comment)
     s.done()
+    return after, errors, chrome, how, url
+
+
+def sec_B():
+    st, rid = lib.submit_run("requester", BATCH, "e2e-27 D3 blank reject", params={"DAY": "2026-10-09", "MODE": "x"})
+    after, errors, chrome, how, url = refused("B", rid, "Reject", "   ", "comment", "reject", "blank-reject-refused")
     stored = lib.stored("run", rid)
     check("B", "D3 #18.5 a reject with only blanks is refused: the store keeps PENDING", stored.get("status") == "PENDING"
-          and how is not None, stored=stored, reaction=how)
+          and how is not None, stored=stored, reaction=how, url=url)
     caps = [b["text"].lower() for b in (after or {}).get("buttons", [])]
     check("B", "D3 #18.5 after the refused reject the page (not a bare error page) still shows the one box holding the "
-          "blanks, and both Approve and Reject", bool(status) and after is not None and len(after["boxes"]) == 1
-          and after["boxes"][0]["value"] == "   " and "approve" in caps and "reject" in caps,
-          after=after, page_chrome=status)
+          "blanks, and both Approve and Reject", bool(chrome) and after is not None and len(after["boxes"]) == 1
+          and after["boxes"][0]["value"] == "   " and "approve" in caps and "reject" in caps, after=after,
+          page_chrome=chrome)
     check("B", "D3 #18.5 the error naming the comment is shown next to the box", bool(errors)
           and any(e["visible"] for e in errors), errors=errors)
+    approve, reject = targets(rid)
+    tgt = {b["text"].lower(): b["target"] for b in (after or {}).get("buttons", [])}
+    check("B", "D3 #18.5 after the refused reject the form's action follows the refused verb (.../reject), and Approve "
+          "and Reject still post to .../approve and .../reject", after is not None and len(after["forms"]) == 1
+          and after["forms"][0]["action"] == reject and tgt.get("approve") == approve and tgt.get("reject") == reject,
+          forms=(after or {}).get("forms"), buttons=(after or {}).get("buttons"))
+
+
+def sec_E():
+    st, rid = lib.submit_run("requester", BATCH, "e2e-27 D3 refused approval", params={"DAY": "2026-10-09", "MODE": "y"})
+    typed = "e2e-27 D3 vertical tab \u000b here"
+    after, errors, chrome, how, url = refused("E", rid, "Approve", typed, "comment", "approve", "approve-refused")
+    stored = lib.stored("run", rid)
+    approve, reject = targets(rid)
+    tgt = {b["text"].lower(): b["target"] for b in (after or {}).get("buttons", [])}
+    check("E", "guard: an approval whose comment holds U+000B (a character that cannot be stored) is refused: the store "
+          "keeps PENDING", stored.get("status") == "PENDING" and how is not None, stored=stored, reaction=how, url=url)
+    check("E", "D3 #18.5 after the refused approval the page shows the one box with the typed text, the message about "
+          "the comment next to it, Approve and Reject, and the form's action is the refused verb (.../approve)",
+          bool(chrome) and after is not None and len(after["boxes"]) == 1
+          and after["boxes"][0]["value"] in (typed, typed.replace("\u000b", "\ufffd"))
+          and bool(errors) and len(after["forms"]) == 1 and after["forms"][0]["action"] == approve
+          and tgt.get("approve") == approve and tgt.get("reject") == reject, after=after, errors=errors)
 
 
 def sec_X():
@@ -282,6 +372,7 @@ def sec_X():
     state = lib.stored("run", rid).get("status")
     check("X", "guard: approving while the job is disabled is refused (4xx) and the request stays PENDING (D-55)",
           direct is not None and 400 <= direct < 500 and state == "PENDING", direct=direct, state=state, disable=dis)
+    S["disabled_rid"] = rid
     s = Session("approver-1")
     s.go(f"/batch-control/requests/{rid}/")
     d = decision(s)
@@ -291,9 +382,11 @@ def sec_X():
     caps = [b["text"].lower() for b in d["buttons"]]
     check("X", "D3 #18.5 with the job disabled the Decision section comes right after Parameters",
           "Decision" in h and "Parameters" in h and h.index("Decision") == h.index("Parameters") + 1, headings=h)
-    check("X", "D3 #18.5 / D-55 with the job disabled the page says so and offers only Reject next to the one box",
-          "disabled" in text.lower() and "approve" not in caps and caps.count("reject") == 1 and len(d["boxes"]) == 1,
-          buttons=d["buttons"], boxes=d["boxes"])
+    approve, reject = targets(rid)
+    check("X", "D3 #18.5 / D-55 with the job disabled the page says so, offers only Reject next to the one box, and the "
+          "form posts to .../reject", "disabled" in text.lower() and "approve" not in caps and caps.count("reject") == 1
+          and len(d["boxes"]) == 1 and len(d["forms"]) == 1 and d["forms"][0]["action"] == reject,
+          buttons=d["buttons"], boxes=d["boxes"], forms=d["forms"])
     how = None
     if len(d["boxes"]) == 1 and "reject" in caps:
         how = press(s, "Reject", "e2e-27 D3 job is retired")
@@ -307,59 +400,80 @@ def sec_X():
     api("admin", lib.jpath(OFF) + "/enable", "POST")
 
 
-TABLE_JS = """(arg) => { const [jobPath, number] = arg;
-  const row = [...document.querySelectorAll('#main-panel table tbody tr')].find(tr =>
-    [...tr.querySelectorAll('a[href]')].some(a => new URL(a.href).pathname === jobPath + number + '/'));
+# One row of a run or incident table, found by its run link (or, for a viewer without links, by the job name and "#n"
+# as text), with its Run cell taken apart: the parts in DOM order with their left edge, the visible texts outside the
+# icon, the badges, and the Cause and Status cells' status elements.
+ROW_JS = """([jobPath, number, job]) => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  const rows = [...document.querySelectorAll('#main-panel table tbody tr')];
+  const row = rows.find(tr => [...tr.querySelectorAll('a[href]')].some(a => new URL(a.href).pathname === jobPath + number + '/'))
+    || rows.find(tr => { const t = n(tr.textContent); return t.includes(job) && new RegExp('#' + number + '(?!\\\\d)').test(t); });
   if (!row) return null; const table = row.closest('table');
   const cells = [...row.children].filter(c => c.tagName === 'TD' || c.tagName === 'TH');
-  const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim());
-  const run = cells[headers.indexOf('Run')] || null;
+  const headers = [...table.querySelectorAll('thead th')].map(th => n(th.textContent));
+  const cellOf = h => cells[headers.indexOf(h)] || null;
+  const run = cellOf('Run');
+  const parts = []; if (run) { const w = document.createTreeWalker(run, NodeFilter.SHOW_ELEMENT);
+    for (let e = w.nextNode(); e; e = w.nextNode()) {
+      if (e.closest('svg') && e.tagName.toLowerCase() !== 'svg') continue;
+      const r = e.getBoundingClientRect();
+      if (e.tagName === 'svg' || e.tagName === 'IMG' || e.tagName.toLowerCase() === 'svg')
+        parts.push({kind: 'icon', left: r.left, top: r.top, w: r.width, h: r.height});
+      else if (e.tagName === 'A' && e.hasAttribute('href'))
+        parts.push({kind: 'link', path: new URL(e.href).pathname, text: n(e.textContent), left: r.left, top: r.top, bottom: r.bottom});
+      else if (!e.querySelector('*') && n(e.textContent) && vis(e) && !e.closest('a'))
+        parts.push({kind: 'text', text: n(e.textContent), left: r.left, top: r.top, bottom: r.bottom,
+                    display: getComputedStyle(e).display, tag: e.tagName.toLowerCase()}); } }
+  const hooks = c => c ? [...c.querySelectorAll('[data-batch-control-status]')].map(e => ({enum: e.getAttribute('data-batch-control-status'),
+      text: n(e.textContent), badge: e.classList.contains('batch-control-status'), tone: e.getAttribute('data-batch-control-tone')})) : [];
   const tips = run ? [...run.querySelectorAll('*')].flatMap(e => ['tooltip', 'title', 'data-tooltip', 'aria-label']
-    .map(a => (e.getAttribute(a) || '').toLowerCase())).filter(Boolean) : [];
-  const links = run ? [...run.querySelectorAll('a[href]')].map(a => ({path: new URL(a.href).pathname, text: a.textContent.trim()})) : [];
-  return {headers, cellCount: cells.length, rowText: row.innerText.replace(/\\s+/g, ' '),
+    .map(a => e.getAttribute(a) || '')).filter(Boolean) : [];
+  const box = run ? run.getBoundingClientRect() : null;
+  return {headers, cellCount: cells.length, rowText: n(row.innerText),
     rowCells: [...table.querySelectorAll('tbody > tr')].map(tr => [...tr.children].filter(c => c.tagName === 'TD' || c.tagName === 'TH').length),
-    icon: run ? run.querySelectorAll('svg, img').length : 0, tips, links}; }"""
-PARAMS_JS = """(arg) => { const [jobPath, number] = arg;
-  const row = [...document.querySelectorAll('#main-panel table tbody tr')].find(tr =>
-    [...tr.querySelectorAll('a[href]')].some(a => new URL(a.href).pathname === jobPath + number + '/'));
-  if (!row) return null; const table = row.closest('table');
-  const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim());
-  const cells = [...row.children].filter(c => c.tagName === 'TD' || c.tagName === 'TH');
-  const cell = cells[headers.indexOf('Parameters')]; if (!cell) return {headers};
-  const outside = n => [...n.childNodes].map(c => c.nodeType === 3 ? c.data : (c.tagName === 'DETAILS' ? '' : outside(c))).join(' ');
-  const lines = col => { const c = cells[headers.indexOf(col)]; if (!c) return null;
-    const tops = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
-    for (let t = w.nextNode(); t; t = w.nextNode()) { if (!t.data.trim()) continue; const r = document.createRange();
-      r.selectNodeContents(t); for (const b of r.getClientRects()) tops.push(b.top); }
-    const lh = parseFloat(getComputedStyle(c).lineHeight) || 16;
-    return {text: c.textContent.replace(/\\s+/g, ' ').trim(), spread: tops.length ? Math.max(...tops) - Math.min(...tops) : null,
-            lineHeight: lh, whiteSpace: getComputedStyle(c).whiteSpace}; };
-  return {headers, details: cell.querySelectorAll('details').length, outside: outside(cell),
-    inside: [...cell.querySelectorAll('details')].map(d => d.textContent).join(' '), text: cell.textContent,
-    imgs: cell.querySelectorAll('img').length, requestCell: (cells[headers.indexOf('Request id')] || {}).textContent || null,
-    wrap: Object.fromEntries(['Cause', 'User', 'Started', 'Duration'].map(c => [c, lines(c)]))}; }"""
+    parts, tips, runBox: box ? {left: box.left, right: box.right, top: box.top, bottom: box.bottom, w: box.width} : null,
+    runBadges: run ? run.querySelectorAll('.batch-control-status, [data-batch-control-tone]').length : null,
+    hrefs: [...row.querySelectorAll('a[href]')].map(a => new URL(a.href).pathname),
+    cause: hooks(cellOf('Cause')), status: hooks(cellOf('Status'))}; }"""
 
 
 def run_row(s, job, number):
-    return s.page.evaluate(TABLE_JS, [f"{lib.PREFIX}{lib.jpath(job)}/", str(number)])
+    return s.page.evaluate(ROW_JS, [f"{lib.PREFIX}{lib.jpath(job)}/", str(number), job])
 
 
-def run_cell_ok(sec, where, row, job, number, tip, result):
+def run_cell_ok(sec, where, row, job, number, result, columns, who="admin"):
+    """The D3 Run cell of `job#number` on one table as `row` read it; `columns` the table's expected headings."""
     jp = f"{lib.PREFIX}{lib.jpath(job)}/"
-    ok_cols = bool(row) and row["headers"] == COLUMNS
-    check(sec, f"D3 #6/#18.1 {where}: the run table has exactly the columns {COLUMNS} and every row 7 cells",
-          ok_cols and set(row["rowCells"]) == {7}, headers=(row or {}).get("headers"),
-          cells=sorted(set((row or {}).get("rowCells") or [])))
-    links = (row or {}).get("links") or []
-    check(sec, f"D3 #6 {where}: the Run cell of {job}#{number} holds a status icon whose tooltip names the result "
-          f"('{tip}'), the job link and the '#{number}' link to the run's own URL",
-          bool(row) and row["icon"] > 0 and any(tip in t for t in row["tips"]) and any(l["path"] == jp for l in links)
-          and any(l["path"] == f"{jp}{number}/" and l["text"] == f"#{number}" for l in links),
-          icon=(row or {}).get("icon"), tips=(row or {}).get("tips", [])[:6], links=links, found=bool(row))
-    if result:
-        check(sec, f"D3 #6 {where}: {job}#{number}'s row shows the result as the icon, not the text {result}",
-              bool(row) and result not in row["rowText"], row=(row or {}).get("rowText", "")[:200])
+    check(sec, f"D3 #6/#18.1 {where}: the table has exactly the columns {columns} and every row {len(columns)} cells "
+          f"({who})", bool(row) and row["headers"] == columns and set(row["rowCells"]) == {len(columns)},
+          headers=(row or {}).get("headers"), cells=sorted(set((row or {}).get("rowCells") or [])))
+    parts = (row or {}).get("parts") or []
+    kinds = []
+    for x in parts:  # the first icon, job link, run link and label, in DOM order
+        if x["kind"] == "icon" and "icon" not in kinds:
+            kinds.append("icon")
+        elif x["kind"] == "link" and x["path"] == jp and "job" not in kinds:
+            kinds.append("job")
+        elif x["kind"] == "link" and x["path"] == f"{jp}{number}/" and x["text"] == f"#{number}" and "run" not in kinds:
+            kinds.append("run")
+        elif x["kind"] == "text" and x["text"] == LABEL[result] and "label" not in kinds:
+            kinds.append("label")
+    lefts = {}
+    for x in parts:
+        k = ("icon" if x["kind"] == "icon" else "job" if x["kind"] == "link" and x["path"] == jp else
+             "run" if x["kind"] == "link" and x["path"] == f"{jp}{number}/" else
+             "label" if x["kind"] == "text" and x["text"] == LABEL[result] else None)
+        if k and k not in lefts:
+            lefts[k] = (round(x["left"], 1), round(x["top"], 1))
+    same_line = len({v[1] for v in lefts.values()}) == 1
+    check(sec, f"D3 #6 {where}: the Run cell of {job}#{number} holds core's status icon, the job link, the '#{number}' link "
+          f"to the run's own URL and the D2 label '{LABEL[result]}' as an element's visible whole text, in that order "
+          f"({who})", kinds == ["icon", "job", "run", "label"] and (not same_line or [lefts[k][0] for k in kinds]
+                                                                    == sorted(lefts[k][0] for k in kinds)),
+          order=kinds, positions=lefts, parts=[{k: v for k, v in x.items() if k in ("kind", "text", "path")} for x in parts][:8])
+    check(sec, f"D3 #6 {where}: nothing in {job}#{number}'s Run cell is a badge and the raw word {result} is not in the "
+          f"row ({who})", bool(row) and row["runBadges"] == 0 and result not in row["rowText"],
+          badges=(row or {}).get("runBadges"), row=(row or {}).get("rowText", "")[:200], tooltips=(row or {}).get("tips"))
 
 
 def sec_T():
@@ -368,9 +482,13 @@ def sec_T():
         s.go(path)
         lib.page_shot(s, f"R27-D3-T-{tag}-01-page")
         ten = run_row(s, TEN, S["ten"]["number"])
-        run_cell_ok("T", tag, ten, TEN, S["ten"]["number"], "success", "SUCCESS")
+        run_cell_ok("T", tag, ten, TEN, S["ten"]["number"], "SUCCESS", COLUMNS)
         fail = run_row(s, FAIL, S["fail"]["number"])
-        run_cell_ok("T", tag, fail, FAIL, S["fail"]["number"], "fail", "FAILURE")
+        run_cell_ok("T", tag, fail, FAIL, S["fail"]["number"], "FAILURE", COLUMNS)
+        cause = (ten or {}).get("cause") or []
+        check("T", f"guard (D2 kept) {tag}: r27-d3-ten's Cause cell reads 'Approved request' in its one data-batch-control-status="
+              "APPROVED_REQUEST element, not a badge (D2 kept)", [(c["enum"], c["text"], c["badge"], c["tone"]) for c in cause]
+              == [("APPROVED_REQUEST", "Approved request", False, None)], cause=cause)
         ghost = s.page.evaluate("""(g) => { const tr = [...document.querySelectorAll('#main-panel table tbody tr')]
             .find(r => r.textContent.includes(g)); if (!tr) return null;
           const cells = [...tr.children].filter(c => c.tagName === 'TD' || c.tagName === 'TH');
@@ -383,40 +501,81 @@ def sec_T():
               and ghost["icon"] == 0 and ghost["ghostLinks"] == 0, ghost=ghost)
         pr = s.page.evaluate(PARAMS_JS, [f"{lib.PREFIX}{lib.jpath(TEN)}/", str(S["ten"]["number"])]) or {}
         outside, inside = pr.get("outside") or "", pr.get("inside") or ""
-        check("T", f"D3 #6/#18.1 {tag}: r27-d3-ten's Parameters cell shows P01..P03 and puts P04..P10 in one <details>",
-              pr.get("details") == 1 and all(f"P0{i}" in outside for i in (1, 2, 3))
-              and not any(k in outside for k in [f"P{i:02d}" for i in range(4, 11)])
-              and all(f"P{i:02d}" in inside for i in range(4, 11)), details=pr.get("details"), outside=outside[:300])
-        text = pr.get("text") or ""
-        check("T", f"D3 #18.1 {tag}: the 300-character P02 is cut on screen (all a's shown, no z's)",
-              "a" * 100 in text and "zzz" not in text, sample=text[:400])
-        check("T", f"D3 #6 escaping {tag}: P03's markup is text, not an element", pr.get("imgs") == 0 and "<img" in text,
-              imgs=pr.get("imgs"))
+        check("T", f"D3 #6/#18.1 {tag}: r27-d3-ten's Parameters cell shows P01..P03 and puts the other seven in one "
+              "<details> whose summary reads '7 more'", pr.get("details") == 1 and pr.get("summary") == "7 more"
+              and all(f"P0{i}=" in outside for i in (1, 2, 3))
+              and not any(k + "=" in outside for k in [f"P{i:02d}" for i in range(4, 11)])
+              and all(f"P{i:02d}=" in inside for i in range(4, 11)), details=pr.get("details"),
+              summary=pr.get("summary"), outside=outside[:300])
+        lines = pr.get("lines") or []
+        p02 = [x for x in lines if x["text"].startswith("P02=")]
+        p01 = [x for x in lines if x["text"].startswith("P01=")]
+        check("T", f"D3 #18.1 {tag}: the 300-character P02 is cut at 120 characters with an ellipsis: its line reads "
+              "'P02=' + 100 a's + 20 b's + '…'", [x["text"] for x in p02] == [CUT], p02=[x["text"][:200] for x in p02])
+        check("T", f"D3 #18.1 {tag}: P01's line break is not kept in the table: its line reads 'P01=first line second "
+              "line' as one line of text (owner accepted)", [x["inner"] for x in p01] == ["P01=first line second line"],
+              p01=p01)
+        check("T", f"D3 #6 escaping {tag}: P03's markup is text, not an element", pr.get("imgs") == 0
+              and any(x["text"] == "P03=" + MARKUP for x in lines), imgs=pr.get("imgs"))
         check("T", f"D3 #6 {tag}: the Request id cell names r27-d3-ten's request",
               S["ten"]["id"][:8] in (pr.get("requestCell") or ""), cell=pr.get("requestCell"))
         wrap = pr.get("wrap") or {}
-        check("T", f"D3 #6/#18.1 {tag}: the Cause, User, Started and Duration cells of r27-d3-ten stay on one line at "
-              "1280 px", wrap and all(v and v["spread"] is not None and v["spread"] < 0.5 * v["lineHeight"]
-                                      for v in wrap.values()), wrap=wrap)
+        check("T", f"D3 #6/#18.1 {tag}: the Cause, User, Started and Duration cells of r27-d3-ten do not wrap: computed "
+              "white-space nowrap (or pre) on the cell or around all its text, and on one line at 1280 px",
+              wrap and all(v and v["nowrap"] and v["spread"] is not None and v["spread"] < 0.5 * v["lineHeight"]
+                           for v in wrap.values()), wrap=wrap)
         ab = run_row(s, ABORT, S["abort"]["number"])
-        check("T", f"D3 #6 {tag}: with no Aborted by column, r27-d3-abort's row still says it was aborted by admin",
-              bool(ab) and "Aborted by" not in ab["headers"] and re.search(r"aborted by\W+admin\b", ab["rowText"], re.I),
-              headers=(ab or {}).get("headers"), row=(ab or {}).get("rowText", "")[:240])
+        texts = [x for x in (ab or {}).get("parts", []) if x["kind"] == "text"]
+        runlink = [x for x in (ab or {}).get("parts", []) if x["kind"] == "link" and x["text"] == f"#{S['abort']['number']}"]
+        line = [x for x in texts if re.fullmatch(r"Aborted by admin", x["text"])]
+        check("T", f"D3 #6 {tag}: with no Aborted by column, r27-d3-abort's Run cell says 'Aborted by admin' on a line of "
+              "its own, below the run", bool(ab) and "Aborted by" not in ab["headers"] and len(line) == 1 and bool(runlink)
+              and line[0]["top"] >= runlink[0]["bottom"] - 1, headers=(ab or {}).get("headers"), line=line,
+              run=runlink[:1])
         det = s.page.locator(f"#main-panel tr:has(a[href$='{lib.jpath(TEN)}/{S['ten']['number']}/']) details summary")
         if det.count():
             det.first.click()
         s.shot(f"#main-panel tr:has(a[href$='{lib.jpath(TEN)}/{S['ten']['number']}/'])", f"R27-D3-T-{tag}-02-ten-row")
-        s.shot("#main-panel table", f"R27-D3-T-{tag}-03-table")
         width = s.page.evaluate("() => { const t = document.querySelector('#main-panel table'); "
                                 "return t ? [t.scrollWidth, t.parentElement.clientWidth, innerWidth] : null; }")
-        note("T", f"{tag}: table scroll width vs container and viewport", widths=width)
+        note("T", f"{tag}: table scroll width vs container and viewport at 1280 px", widths=width)
         s.done()
-    csv = api("admin", f"/batch-control/history/runs.csv?job={TEN}")
+    csv = api("admin", f"/batch-control/history/runs.csv?job={TEN}").content.decode("utf-8-sig", "replace")
     req = api("admin", f"/batch-control/requests/{S['ten']['id']}/")
     build = api("admin", f"{lib.jpath(TEN)}/{S['ten']['number']}/parameters/")
     check("T", "guard: the full 300-character P02 stays whole in runs.csv, on the request page and on the build's "
-          "parameters page", LONG in csv.content.decode("utf-8-sig", "replace") and LONG in req.text and LONG in build.text,
-          csv=csv.status_code, request=req.status_code, build=build.status_code)
+          "parameters page", LONG in csv and LONG in req.text and LONG in build.text, request=req.status_code,
+          build=build.status_code)
+    check("T", "guard: P01 keeps its line break in runs.csv and on the request page", TWO_LINES in csv
+          and ("first line\nsecond line" in req.text or "first line&#10;second line" in req.text),
+          in_csv=TWO_LINES in csv)
+
+
+PARAMS_JS = """(arg) => { const [jobPath, number] = arg;
+  const row = [...document.querySelectorAll('#main-panel table tbody tr')].find(tr =>
+    [...tr.querySelectorAll('a[href]')].some(a => new URL(a.href).pathname === jobPath + number + '/'));
+  if (!row) return null; const table = row.closest('table');
+  const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim());
+  const cells = [...row.children].filter(c => c.tagName === 'TD' || c.tagName === 'TH');
+  const cell = cells[headers.indexOf('Parameters')]; if (!cell) return {headers};
+  const outside = n => [...n.childNodes].map(c => c.nodeType === 3 ? c.data : (c.tagName === 'DETAILS' ? '' : outside(c))).join(' ');
+  const lines = [...cell.querySelectorAll('*')].filter(e => !e.querySelector('*') && /^P\\d\\d=/.test(e.textContent))
+    .map(e => ({text: e.textContent, inner: e.innerText, inDetails: !!e.closest('details')}));
+  const spread = col => { const c = cells[headers.indexOf(col)]; if (!c) return null;
+    const tops = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let t = w.nextNode(); t; t = w.nextNode()) { if (!t.data.trim()) continue; const r = document.createRange();
+      r.selectNodeContents(t); for (const b of r.getClientRects()) tops.push(b.top); }
+    const lh = parseFloat(getComputedStyle(c).lineHeight) || 16;
+    const keeps = e => { for (let p = e; p && c.contains(p); p = p.parentElement) if (/^(nowrap|pre)$/.test(getComputedStyle(p).whiteSpace)) return true; return false; };
+    const texts = []; const w2 = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let t = w2.nextNode(); t; t = w2.nextNode()) if (t.data.trim()) texts.push(t.parentElement);
+    return {text: c.textContent.replace(/\\s+/g, ' ').trim(), spread: tops.length ? Math.max(...tops) - Math.min(...tops) : null,
+            lineHeight: lh, whiteSpace: getComputedStyle(c).whiteSpace, nowrap: texts.length > 0 && texts.every(keeps)}; };
+  const sum = cell.querySelector('details > summary');
+  return {headers, details: cell.querySelectorAll('details').length, summary: sum ? sum.textContent.replace(/\\s+/g, ' ').trim() : null,
+    outside: outside(cell), inside: [...cell.querySelectorAll('details')].map(d => d.textContent).join(' '), lines,
+    imgs: cell.querySelectorAll('img').length, requestCell: (cells[headers.indexOf('Request id')] || {}).textContent || null,
+    wrap: Object.fromEntries(['Cause', 'User', 'Started', 'Duration'].map(c => [c, spread(c)]))}; }"""
 
 
 def sec_L():
@@ -424,26 +583,26 @@ def sec_L():
              ("/batch-control/incidents/", "incidents"), (f"/batch-control/history/?kind=incidents&job={P}",
                                                           "history-incidents")]
     n = S["fail"]["number"]
+    jp = f"{lib.PREFIX}{lib.jpath(FAIL)}/"
     for path, tag in pages:
         s = Session("auditor")
         r = s.go(path)
-        row = s.page.evaluate("""(arg) => { const [job, n] = arg; const tr = [...document.querySelectorAll('#main-panel table tbody tr')]
-            .find(r => r.textContent.includes(job) && r.textContent.includes('#' + n)); if (!tr) return null;
-          return {text: tr.innerText.replace(/\\s+/g, ' '), hrefs: [...tr.querySelectorAll('a[href]')].map(a => a.getAttribute('href'))}; }""",
-                              [FAIL, str(n)])
+        row = run_row(s, FAIL, n)
         s.shot("#main-panel table", f"R27-D3-L-auditor-{tag}")
         s.done()
-        check("L", f"D3 #6 link rule {tag}: auditor (no Item/Read) sees r27-d3-fail's row with '#{n}' and no link to the "
-              "job or the run", r is not None and r.status == 200 and bool(row)
-              and not any(f"job/{FAIL}" in h for h in row["hrefs"]), row=row, status=r.status if r else None)
+        texts = [x["text"] for x in (row or {}).get("parts", []) if x["kind"] == "text"]
+        check("L", f"D3 #6 link rule (D-44) {tag}: auditor (no Item/Read) sees r27-d3-fail's Run cell with the job name and "
+              f"'#{n}' as text and no link to the job or the run", r is not None and r.status == 200 and bool(row)
+              and FAIL in texts and f"#{n}" in texts and not any(h.startswith(jp) for h in row["hrefs"]),
+              texts=texts[:6], hrefs=(row or {}).get("hrefs"), status=r.status if r else None)
         s = Session("approver-1")
         s.go(path)
         rr = run_row(s, FAIL, n)
         s.done()
-        jp = f"{lib.PREFIX}{lib.jpath(FAIL)}/"
+        links = [x for x in (rr or {}).get("parts", []) if x["kind"] == "link"]
         check("L", f"D3 #6 link rule {tag}: approver-1 (Item/Read) gets the job link and the '#{n}' run link in the Run "
-              "cell", bool(rr) and any(l["path"] == jp for l in rr["links"])
-              and any(l["path"] == f"{jp}{n}/" for l in rr["links"]), links=(rr or {}).get("links"))
+              "cell", bool(rr) and any(x["path"] == jp for x in links)
+              and any(x["path"] == f"{jp}{n}/" and x["text"] == f"#{n}" for x in links), links=links)
 
 
 def sec_I():
@@ -454,24 +613,271 @@ def sec_I():
         s.go(path)
         row = run_row(s, FAIL, n)
         lib.page_shot(s, f"R27-D3-I-{tag}-01-page")
-        s.shot("#main-panel table", f"R27-D3-I-{tag}-02-table")
         s.done()
-        h = (row or {}).get("headers") or []
-        check("I", f"D3 #6 {tag}: no separate Job or Result column, a Run column", bool(row) and "Job" not in h
-              and "Result" not in h and "Run" in h, headers=h)
-        jp = f"{lib.PREFIX}{lib.jpath(FAIL)}/"
-        links = (row or {}).get("links") or []
-        check("I", f"D3 #6 {tag}: the Run cell of r27-d3-fail#{n} holds the icon with a tooltip naming the failure, the "
-              f"job link and the '#{n}' run link", bool(row) and row["icon"] > 0 and any("fail" in t for t in row["tips"])
-              and any(l["path"] == jp for l in links)
-              and any(l["path"] == f"{jp}{n}/" and l["text"] == f"#{n}" for l in links),
-              icon=(row or {}).get("icon"), tips=(row or {}).get("tips", [])[:6], links=links)
+        run_cell_ok("I", tag, row, FAIL, n, "FAILURE", INCIDENT_COLUMNS)
+        st = (row or {}).get("status") or []
+        check("I", f"guard (D2 kept) {tag}: the Status cell of r27-d3-fail's incident is its one badge: OPEN, tone danger, 'Open' "
+              "(D2 kept)", [(x["enum"], x["text"], x["badge"], x["tone"]) for x in st] == [("OPEN", "Open", True, "danger")],
+              status=st)
+
+
+RUNBOX_JS = """(jobPath) => { const row = [...document.querySelectorAll('#main-panel table tbody tr')].find(tr =>
+    [...tr.querySelectorAll('a[href]')].some(a => new URL(a.href).pathname === jobPath)); if (!row) return null;
+  const cell = row.children[0]; const c = cell.getBoundingClientRect();
+  const inside = [...cell.querySelectorAll('svg, a, span, div')].map(e => e.getBoundingClientRect())
+    .filter(r => r.width && r.height).every(r => r.left >= c.left - 0.5 && r.right <= c.right + 0.5);
+  const tops = new Set(); const w = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+  for (let t = w.nextNode(); t; t = w.nextNode()) { if (!t.data.trim()) continue; const r = document.createRange();
+    r.selectNodeContents(t); for (const b of r.getClientRects()) tops.add(Math.round(b.top)); }
+  const svg = cell.querySelector('svg'); const s = svg ? svg.getBoundingClientRect() : null;
+  const font = parseFloat(getComputedStyle(cell).fontSize);
+  return {cellWidth: Math.round(c.width), cellHeight: Math.round(c.height), lines: tops.size, inside,
+          icon: s ? [Math.round(s.width * 10) / 10, Math.round(s.height * 10) / 10] : null, fontSize: font,
+          tableWidth: Math.round(row.closest('table').getBoundingClientRect().width), doc: [document.documentElement.scrollWidth, innerWidth]}; }"""
+
+
+def sec_C():
+    s = Session("admin")
+    measured = {}
+    for width in (1280, 768):
+        s.page.set_viewport_size({"width": width, "height": 900})
+        s.go(f"/batch-control/history/?kind=runs&job={P}")
+        measured[width] = s.page.evaluate(RUNBOX_JS, f"{lib.PREFIX}{lib.jpath(LONGJOB)}/")
+        loc = s.page.locator(f"#main-panel tr:has(a[href$='{lib.jpath(LONGJOB)}/'])").first
+        if loc.count():
+            loc.evaluate("e => e.scrollIntoView({block: 'center'})")
+        s.page.screenshot(path=str(lib.SHOTS / f"R27-D3-C-long-job-name-{width}.png"))
+    s.done()
+    check("C", "D3 #18.1 the Run cell with a long job name keeps every part inside the cell at 1280 and 768 px",
+          all(v and v["inside"] for v in measured.values()), measured=measured)
+    note("C", "the long-named job's Run cell: lines of text, cell width and height, icon size (px) against the font size, "
+         "table and page width", measured=measured)
+
+
+# ---------------------------------------------------------------- Q: the global configuration
+CONFIG_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  const field = document.querySelector('[name="_.runControlEnabled"]'); if (!field) return null;
+  let sec = field.closest('section'); while (sec && sec.parentElement && sec.parentElement.closest('section')) sec = sec.parentElement.closest('section');
+  const own = sec.querySelector(':scope > .jenkins-section__title, :scope > h2, :scope > legend, :scope > div > .jenkins-section__title');
+  const headings = [...sec.querySelectorAll('h2, h3, h4, h5, h6, legend, [role=heading], .jenkins-section__title')]
+    .filter((e, i, all) => e !== own && !all.some(o => o !== e && o.contains(e)));
+  const order = [...headings, ...sec.querySelectorAll('[name^="_."]')].sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+  const under = {}; let cur = null;
+  for (const e of order) { if (headings.includes(e)) { cur = n(e.textContent); under[cur] = []; continue; }
+    if (cur && !under[cur].includes(e.name) && e.type !== 'hidden') under[cur].push(e.name); }
+  const last = headings[headings.length - 1];
+  const tail = last ? (() => { const r = document.createRange(); r.setStartAfter(last); r.setEndAfter(sec.lastElementChild || sec);
+    return n(r.cloneContents().textContent); })() : '';
+  const fs = e => e ? [parseFloat(getComputedStyle(e).fontSize), getComputedStyle(e).fontWeight, Math.round(e.getBoundingClientRect().height)] : null;
+  return {title: own ? n(own.textContent) : null, titleSize: fs(own), headings: headings.map(h => n(h.textContent)),
+    headingSizes: headings.map(fs), headingTags: headings.map(h => h.tagName.toLowerCase()), under, tail,
+    advanced: [...sec.querySelectorAll('button.advanced-button')].map(b => ({visible: vis(b), inLast: !!(last && last.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)})),
+    revertInLast: [...sec.querySelectorAll('[data-url$="revert"], [href$="revert"]')].map(e => ({inAdvancedBody: !!e.closest('.advancedBody'),
+      afterLast: !!(last && last.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)}))}; }"""
+
+
+def settings():
+    return lib.facts(lib.L25.CFG + """return groovy.json.JsonOutput.toJson([run: cfg.runControlEnabled,
+  change: cfg.changeControlEnabled, approvers: cfg.approversText, self: cfg.allowAdminSelfApproval,
+  pending: cfg.pendingTimeoutHours, approvedRun: cfg.approvedRunTimeoutMinutes, grant: cfg.grantDurationOptionsText,
+  maxGrant: cfg.maxGrantMinutes, notify: cfg.notifyBeforeExpiryMinutes, incidents: cfg.incidentResultsText,
+  retention: cfg.retentionMonths, email: cfg.emailNotifications])""")
+
+
+def put_settings(v):
+    """Arrangement and restore (script console): every setting but the two switches, as `v` holds it."""
+    return lib.gv(lib.L25.CFG + f"""cfg.setApproversText({json.dumps(v['approvers'])}); cfg.setAllowAdminSelfApproval({str(v['self']).lower()})
+cfg.setPendingTimeoutHours({v['pending']}); cfg.setApprovedRunTimeoutMinutes({v['approvedRun']})
+cfg.setGrantDurationOptionsText({json.dumps(v['grant'])}); cfg.setMaxGrantMinutes({v['maxGrant']})
+cfg.setNotifyBeforeExpiryMinutes({v['notify']}); cfg.setIncidentResultsText({json.dumps(v['incidents'])})
+cfg.setRetentionMonths({v['retention']}); cfg.setEmailNotifications({str(v['email']).lower()}); cfg.save(); return 'ok'""")
+
+
+def save_page(who, path, edits=None):
+    """`who` opens `path`, optionally changes fields (name -> value; a bool ticks or unticks a checkbox), and presses
+    Save. Returns the HTTP status of the save."""
+    s = Session(who)
+    s.go(path)
+    for name, value in (edits or {}).items():
+        loc = s.page.locator(f"[name='{name}']").first
+        if isinstance(value, bool):
+            loc.set_checked(value, force=True)
+        else:
+            loc.fill(str(value))
+    with s.page.expect_response(lambda r: r.request.method == "POST" and ("configSubmit" in r.url or "configure" in r.url)) as ri:
+        s.page.locator("button[name=Submit]").first.click()
+    s.page.wait_for_load_state("load")
+    status = ri.value.status
+    s.done()
+    return status
+
+
+def sec_Q():
+    S["settings_before"] = settings()
+    for who, path, tag in (("admin", CONFIGS[0][0], "system"), ("admin", CONFIGS[1][0], "bc-config"),
+                           ("manager", CONFIGS[1][0], "bc-config")):
+        s = Session(who)
+        r = s.go(path)
+        c = s.page.evaluate(CONFIG_JS)
+        flat = norm(s.page.content())
+        lib.page_shot(s, f"R27-D3-Q-{who}-{tag}")
+        s.done()
+        c = c or {}
+        check("Q", f"D3 #18 {path} ({who}): the Batch Control section's settings are grouped under exactly five headings, "
+              f"in order {GROUPS}", r is not None and r.status == 200 and c.get("headings") == GROUPS
+              and c.get("title") == "Batch Control", title=c.get("title"), headings=c.get("headings"), tags=c.get("headingTags"))
+        under = c.get("under") or {}
+        check("Q", f"D3 #18 {path} ({who}): each group holds its fields, names unchanged, in this order: "
+              + "; ".join(f"{g}: {', '.join(f)}" for g, f in zip(GROUPS, GROUP_FIELDS)),
+              [under.get(g) for g in GROUPS] == GROUP_FIELDS, under=under)
+        tail = c.get("tail") or ""
+        if who == "admin":
+            adv = c.get("advanced") or []
+            rv = c.get("revertInLast") or []
+            check("Q", f"D3 #18 {path} (admin): the fifth group ends with the 'Batch Control strategy' entry: its Advanced "
+                  "button and, inside Advanced, the revert", "Batch Control strategy" in tail and len(adv) == 1
+                  and adv[0]["inLast"] and len(rv) == 1 and rv[0]["inAdvancedBody"] and rv[0]["afterLast"],
+                  advanced=adv, revert=rv, tail=tail[-200:])
+        else:
+            check("Q", f"D3 #18 {path} (manager): the fifth group says '{INSTALLED}' and '{ASK_ADMIN}', offers no "
+                  f"Advanced and no revert, and '{REVERTING} ...' is nowhere in the HTML",
+                  "Batch Control strategy" in tail and INSTALLED in tail and ASK_ADMIN in tail and not c.get("advanced")
+                  and not c.get("revertInLast") and REVERTING not in flat, tail=tail[-240:])
+        sizes = c.get("headingSizes") or []
+        title = c.get("titleSize") or [None, None, None]
+        note("Q", f"{path} ({who}): for the owner, no verdict: are the group headings visibly smaller than the section "
+             "title? [computed font size px, font weight, rendered height px] of the title and of each group heading",
+             title=title, groups=dict(zip(c.get("headings") or [], sizes)), tags=c.get("headingTags"),
+             smaller=bool(sizes) and title[0] is not None and all(x[0] < title[0] for x in sizes))
+    s = Session("manager")
+    r = s.go(CONFIGS[0][0])
+    s.done()
+    check("Q", "guard: manager (BatchControl/Manage) cannot open Manage Jenkins > System", r is not None and r.status >= 400,
+          status=r.status if r else None)
+    # ---- the save round-trip through the real form
+    before = S["settings_before"]
+    odd = dict(before, approvers="approver-1\nmanager", self=not before["self"], approvedRun=31, grant="10, 20, 45",
+               maxGrant=121, notify=6, incidents="FAILURE, UNSTABLE, ABORTED", retention=11, email=not before["email"])
+    try:
+        put_settings(odd)
+        arranged = settings()
+        codes = {}
+        for who, path in (("admin", CONFIGS[0][0]), ("admin", CONFIGS[1][0]), ("manager", CONFIGS[1][0])):
+            codes[f"{who} {path}"] = save_page(who, path)
+            codes[f"{who} {path} read back"] = settings() == arranged
+        check("Q", "guard (T-UI-289): with every setting at a value other than its default, the administrator saves both "
+              "configuration pages and the manager the Batch Control page unchanged: each save answers below 400 and "
+              "every value reads back as it was", all(v < 400 for k, v in codes.items() if not k.endswith("back"))
+              and all(v for k, v in codes.items() if k.endswith("back")), codes=codes, arranged=arranged, now=settings())
+        edits = {"_.pendingTimeoutHours": arranged["pending"] + 1, "_.notifyBeforeExpiryMinutes": 7,
+                 "_.retentionMonths": 13, "_.emailNotifications": not arranged["email"]}
+        code = save_page("admin", CONFIGS[1][0], edits)
+        now = settings()
+        check("Q", "guard (field names unchanged): a field changed in each group but Switches (pending timeout in Approval, notify before expiry in "
+              "Permission windows, retention in Incidents and retention, e-mail in Notifications and strategy) and saved "
+              "through the Batch Control page reaches the store; nothing else changes", code < 400
+              and now == dict(arranged, pending=arranged["pending"] + 1, notify=7, retention=13, email=not arranged["email"]),
+              save=code, now=now, arranged=arranged)
+    finally:
+        put_settings(before)
+    back = settings()
+    check("Q", "arrangement: every setting is back to what it was", back == before, before=before, after=back)
+    # ---- the fifth group with the plain strategy installed
+    rv = api("admin", f"/manage/administrativeMonitor/{lib.STRATEGY_MONITOR}/revert", "POST").status_code
+    try:
+        s = Session("admin")
+        s.go(CONFIGS[1][0])
+        c = s.page.evaluate(CONFIG_JS) or {}
+        s.done()
+        check("Q", "D3 #18 with the plain strategy installed (Mailer present) the fifth group is still shown and holds only "
+              "the e-mail switch: no 'Batch Control strategy' entry, no Advanced, no revert", rv < 400
+              and c.get("headings") == GROUPS and (c.get("under") or {}).get(GROUPS[4]) == GROUP_FIELDS[4]
+              and "Batch Control strategy" not in (c.get("tail") or "") and not c.get("advanced"),
+              revert=rv, headings=c.get("headings"), tail=(c.get("tail") or "")[-200:])
+    finally:
+        restored = lib.restore_strategy()
+    check("Q", "arrangement: the Batch Control strategy is installed again", restored[1].startswith("BatchControl"),
+          restored=restored)
+
+
+# ---------------------------------------------------------------- Z: screenshots for the owner
+def set_theme(who, theme):
+    """`who` chooses the theme on the account's Appearance page ('none' is the default, light)."""
+    s = Session(who)
+    s.go(f"/user/{who}/appearance/")
+    s.page.locator(f"input[data-theme={theme}]").check(force=True)
+    with s.page.expect_navigation(timeout=20000):
+        s.page.locator("button[name=Submit]").first.click()
+    s.page.wait_for_load_state("load")
+    s.done()
+
+
+def sec_Z():
+    rid = S.get("refused_pages", {}).get("reject", (None,))[0]
+    st, pend = lib.submit_run("requester", BATCH, "e2e-27 D3 screenshot", params={"DAY": "2026-10-15", "MODE": "full"})
+    shots = []
+    try:
+        for theme, radio in (("light", "none"), ("dark", "dark")):
+            for who in ("admin", "approver-1", "manager"):
+                set_theme(who, radio)
+            for width in (1280, 768):
+                s = Session("admin")
+                s.page.set_viewport_size({"width": width, "height": 900})
+                for path, name in (("/batch-control/dashboard/", "dashboard"),
+                                   (f"/batch-control/history/?kind=runs&job={P}", "history-runs"),
+                                   ("/batch-control/incidents/", "incidents"), (CONFIGS[1][0], "config-admin"),
+                                   (CONFIGS[0][0], "system-config-admin")):
+                    s.go(path)
+                    if name.endswith("config-admin"):
+                        b = s.page.locator("button.advanced-button")
+                        if b.count():
+                            b.last.click()
+                    f = f"R27-D3-Z-{theme}-{width}-{name}"
+                    lib.page_shot(s, f)
+                    shots.append(f)
+                s.done()
+                s = Session("approver-1")
+                s.page.set_viewport_size({"width": width, "height": 900})
+                for name, path, action in (("decision-pending", f"/batch-control/requests/{pend}/", None),
+                                           ("decision-refused", f"/batch-control/requests/{pend}/", ("Reject", "   ")),
+                                           ("decision-disabled", None, None)):
+                    if name == "decision-disabled":
+                        api("admin", lib.jpath(OFF) + "/enable", "POST")
+                        _, drid = lib.submit_run("requester", OFF, "e2e-27 D3 screenshot (disabled)", params={"DAY": "2026-10-15"})
+                        api("admin", lib.jpath(OFF) + "/disable", "POST")
+                        path = f"/batch-control/requests/{drid}/"
+                    s.go(path)
+                    if action:
+                        press(s, *action)
+                        s.page.wait_for_load_state("load")
+                    s.page.locator("#main-panel h2", has_text="Decision").first.evaluate("e => e.scrollIntoView({block: 'start'})")
+                    f = f"R27-D3-Z-{theme}-{width}-{name}"
+                    s.page.screenshot(path=str(lib.SHOTS / f"{f}.png"))
+                    shots.append(f)
+                    if name == "decision-disabled":
+                        api("admin", lib.jpath(OFF) + "/enable", "POST")
+                s.done()
+                s = Session("manager")
+                s.page.set_viewport_size({"width": width, "height": 900})
+                s.go(CONFIGS[1][0])
+                f = f"R27-D3-Z-{theme}-{width}-config-manager"
+                lib.page_shot(s, f)
+                shots.append(f)
+                s.done()
+    finally:
+        for who in ("admin", "approver-1", "manager"):
+            set_theme(who, "none")
+        api("admin", lib.jpath(OFF) + "/enable", "POST")
+    note("Z", "screenshots for the owner (screenshots/run-27)", shots=shots, refused_page=rid)
+    check("Z", "arrangement: 2 themes x 2 widths x 9 screens were captured", len(shots) == 36, count=len(shots))
 
 
 def cleanup():
     note("cleanup", "restore", enable=api("admin", lib.jpath(OFF) + "/enable", "POST").status_code,
-         swept=lib.sweep("requester", P))
+         settings=put_settings(S["settings_before"]) if "settings_before" in S else None,
+         strategy=lib.restore_strategy(), swept=lib.sweep("requester", P))
 
 
-lib.run(sys.argv, {"A": sec_A, "O": sec_O, "P": sec_P, "J": sec_J, "B": sec_B, "X": sec_X, "T": sec_T, "L": sec_L,
-                   "I": sec_I}, cleanup)
+lib.run(sys.argv, {"A": sec_A, "O": sec_O, "P": sec_P, "J": sec_J, "B": sec_B, "E": sec_E, "X": sec_X, "T": sec_T,
+                   "L": sec_L, "I": sec_I, "C": sec_C, "Q": sec_Q, "Z": sec_Z}, cleanup)

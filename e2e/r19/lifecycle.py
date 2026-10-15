@@ -108,7 +108,9 @@ def sec_D():
     assert rid, st
     s = Session("approver-2")
     s.go(f"/batch-control/requests/{rid}/")
-    forms = s.page.locator("form[name=approve], form[name=reject]").count()
+    # Wave D D3 (#18.5): the run request page's decision is one form named "decision" under the heading Decision
+    forms = (s.page.locator("form[name=approve], form[name=reject], form[name=decision]").count()
+             + s.page.locator("#main-panel h2", has_text="Decision").count())
     s.shot("#main-panel", "R19-LIFE-D-01-not-designated")
     s.done()
     r = api("approver-2", f"/batch-control/requests/{rid}/approve", "POST", data={"comment": "not mine"})
@@ -274,7 +276,7 @@ def sec_X():
         s = Session("approver-1")
         s.go(f"/batch-control/requests/{rid}/")
         t = s.text()
-        approve = s.page.locator("form[name=approve]").count()
+        approve = s.page.locator("form[name=approve], #main-panel button[formaction$='/approve']").count()  # D3: one form
         s.shot("#main-panel", "R19-LIFE-X-01-disabled")
         s.done()
         r = api("approver-1", f"/batch-control/requests/{rid}/approve", "POST", data={"comment": "try"})

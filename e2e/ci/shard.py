@@ -286,12 +286,16 @@ UNITS = [
              "shown as starting shortly; the request page says the queued run was cancelled and will not start"),
     # e2e-27 D3 (Wave D, #18.5, #6 and #18.1). r27/decision_tables.py arranges its own items (r27-d3-*), runs each once per
     # pass (one aborted by admin), appends one WEIRD run record (r27-d3-ghost#7) once, disables r27-d3-off and enables it
-    # again, and cancels what it leaves pending.
-    Unit("r27-decision-tables", 1.5, [("r27-decision-tables", py("r27/decision_tables.py"))],
+    # again, sets every Batch Control setting but the switches to other values and puts them back, reverts to the plain
+    # strategy once and migrates back, and cancels what it leaves pending. Section Z (screenshots in two themes and two
+    # widths for the owner) is not run here: `python r27/decision_tables.py Z` after the others.
+    Unit("r27-decision-tables", 1.5, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICQ"))],
          group="job ui params and restart",
          doc="e2e-27 D3: the run request page's Decision right after Parameters with one comment box and Approve/Reject "
-             "(approve, reject, blank reject kept and refused, disabled job: Reject only), all in the browser; the run "
-             "and incident tables' 7 columns with the icon/job/#n Run cell, folded and cut parameters, no wrapping"),
+             "in one form (approve, reject, refused reject and approval with the form following the refused verb, "
+             "disabled job: Reject only), all in the browser; the 7-column run tables and 4-column incident tables with "
+             "the icon/job/#n/label Run cell, the link rule per viewer, folded and cut parameters, no wrapping; the five "
+             "setting groups on both configuration pages for admin and manager, saved through the real form"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",
@@ -714,6 +718,8 @@ def observations():
                 "result_cells": {"read": sum(1 for x in r if x.get("check") == "result-cell"),
                                  "texts": sorted({x.get("key") for x in r if x.get("check") == "result-cell"})[:20],
                                  "raw": sum(1 for x in r if x.get("check") == "raw-result")},
+                # D1 follow-up: pages whose core Advanced controls the crawl pressed before checking them again
+                "advanced_expanded": sorted({f'{x.get("page")} ({x.get("pressed")})' for x in r if x.get("kind") == "advanced"})[:20],
             }
     a = rows("actions.jsonl")
     if a:

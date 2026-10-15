@@ -26,7 +26,15 @@ Content checks (CI, 2026-10-05), on every page reached with status < 400, all ro
     "IN PROGRESS" / "UNKNOWN" instead of its label (#18.2, owner decision 2026-10-14: Success, Unstable, Failed, Not built,
     Aborted, In progress, Unknown); result-badge: a result cell holding a badge (class batch-control-status or a
     data-batch-control-tone): a result is plain text. Every result cell read is logged as check "result-cell" with
-    result INFO, once per URL pattern and text, so the summary can say how many were checked.
+    result INFO, once per URL pattern and text, so the summary can say how many were checked. Since Wave D D3 (#6) the
+    run and incident tables have no Result column: there the Run cell is read (its text after "#n" is the label; a raw
+    word anywhere in the cell is a raw-result, a badge in it a result-badge).
+Advanced (D1 follow-up, owner decision 2026-10-14): on every page reached, core's Advanced controls of the main panel
+are pressed after the page has been checked as loaded, and the content checks run again, so what sits behind Advanced
+(the administrator's revert entry and its sentence on the Batch Control configuration page) is checked too; the controls
+are then listed and clicked in that expanded state (classify_click expands again on its fresh load). A row with kind
+"advanced" says how many were pressed; who gets an Advanced control differs by role (the BatchControl/Manage holder has
+none on that page).
 Raw enum values (e2e-16): an UPPER_SNAKE_CASE constant (GRANT_REVOKE, APPROVED_REQUEST, ...), the scope prefix "ITEM:",
 or a state/action constant of the plugin's vocabulary (PENDING, APPROVED, ..., CONFIGURE, CREATE, DELETE) shown as
 text is logged as check "raw-enum" with result INFO, once per URL pattern and value, without a FAIL: showing these
@@ -135,6 +143,14 @@ CONTENT_JS = r"""
   const resultCell = (c, how, caption) => { const t = (c.innerText || '').replace(/\s+/g, ' ').trim(); const m = RAW_RESULT.exec(t);
     out.results.push({text: t.slice(0, 60), raw: m ? m[1] : null, how, caption: caption.trim().slice(0, 40),
       badge: !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'))}); };
+  // Wave D D3 (#6): a run or incident table without a Result column shows the result in its Run cell: the icon, the job,
+  // the "#n" run, then the label as text (and "Aborted by ..." on its own line). The text right after "#n" is the label.
+  const runCell = (c, caption) => { const texts = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = x.data.replace(/\s+/g, ' ').trim(); if (v && !x.parentElement.closest('svg')) texts.push(v); }
+    const i = texts.findIndex(v => /^#\d+$/.test(v)); const label = i >= 0 && texts[i + 1] && !/^Aborted by\b/.test(texts[i + 1]) ? texts[i + 1] : null;
+    const m = RAW_RESULT.exec(texts.join(' '));
+    out.results.push({text: label ? label.slice(0, 60) : '(no result label)', raw: m ? m[1] : null, how: 'run', caption: caption.trim().slice(0, 40),
+      badge: !!c.querySelector('.batch-control-status, [data-batch-control-tone]')}); };
   const SNAKE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
   const SCOPE = /\b(ITEM|JOB|FOLDER_ONLY|FOLDER): ?(?=\S)/g;
   const WORDS = /\b(PENDING|APPROVED|REJECTED|CANCELLED|EXPIRED|EXECUTED|INVALIDATED|CONSUMED|SUPERSEDED|OPEN|ACKNOWLEDGED|RESOLVED|ACTIVATE|HOLD|CONFIGURE|CREATE|DELETE)\b/g;
@@ -166,6 +182,7 @@ CONTENT_JS = r"""
       if (!heads.length || cells.length !== heads.length) return;
       cells.forEach((c, ci) => {
         if (c.tagName === 'TD' && heads[ci] === 'Result') resultCell(c, 'column', caption);
+        if (c.tagName === 'TD' && heads[ci] === 'Run' && !heads.includes('Result')) runCell(c, caption);
         if (c.tagName === 'TD' && heads[ci] && empty(c))
           out.empty_cells.push({table: ti, caption: caption.trim().slice(0, 40), column: heads[ci], row: (cells[0].innerText || '').trim().slice(0, 40)});
       });
@@ -243,10 +260,29 @@ def check_url(s, url, cache):
     return cache[url]
 
 
+ADVANCED_JS = """() => { const bs = [...document.querySelectorAll('#main-panel button.advanced-button, #main-panel button.advancedButton')]
+  .filter(b => !!(b.offsetWidth || b.offsetHeight || b.getClientRects().length) && b.dataset.expanded !== 'true');
+  bs.forEach(b => b.click()); return bs.length; }"""
+
+
+def expand_advanced(s):
+    """Presses every core Advanced control of the main panel that is shown and not yet expanded (core moves the rows of
+    its div.advancedBody out and keeps the button as a toggle). Returns how many were pressed."""
+    try:
+        pressed = s.page.evaluate(ADVANCED_JS)
+    except Exception:  # noqa: a page that navigated away
+        return 0
+    if pressed:
+        lib.until(s.page, lambda: not s.page.locator("#main-panel .advancedBody *").filter(visible=False).count(), 2000)
+    return pressed
+
+
 def classify_click(s, path, el):
-    """Fresh load, click element el (by index among the same selector), observe."""
+    """Fresh load, Advanced expanded as when the controls were listed, click element el (by index among the same
+    selector), observe."""
     p = s.page
     s.go(path)
+    expand_advanced(s)
     loc = p.locator("a, button, input[type=submit], input[type=button], [role=button], select").nth(el["i"])
     if not loc.count() or not loc.is_visible():
         return "not-visible-on-reload", {}
@@ -334,6 +370,11 @@ def main():
         if status and status >= 400:
             continue
         content_checks(s, path, pt)
+        adv = expand_advanced(s)
+        if adv:  # D1 follow-up: what sits behind Advanced is checked too
+            emit({"page": path, "pattern": pt, "kind": "advanced", "result": "expanded", "pressed": adv,
+                  "revealed": re.sub(r"\s+", " ", s.page.locator("#main-panel").inner_text())[-300:]})
+            content_checks(s, path, pt)
         els = s.page.evaluate(ELEMENTS_JS)
         is_bc = "/batch-control" in path
         for el in els:
