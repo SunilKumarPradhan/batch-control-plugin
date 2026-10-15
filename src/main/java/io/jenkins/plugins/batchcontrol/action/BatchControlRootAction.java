@@ -6,15 +6,20 @@ import hudson.ExtensionList;
 import hudson.model.RootAction;
 import hudson.security.Permission;
 import io.jenkins.plugins.batchcontrol.config.BatchControlConfigurationLink;
+import io.jenkins.plugins.batchcontrol.model.Incident;
 import io.jenkins.plugins.batchcontrol.model.RequestStatus;
+import io.jenkins.plugins.batchcontrol.model.RunRecord;
 import io.jenkins.plugins.batchcontrol.ui.GrantRequestLinks;
 import io.jenkins.plugins.batchcontrol.ui.GuardInfo;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
+import io.jenkins.plugins.batchcontrol.ui.ParameterLines;
 import io.jenkins.plugins.batchcontrol.ui.ReplayedRuns;
+import io.jenkins.plugins.batchcontrol.ui.RunCell;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
 import io.jenkins.plugins.batchcontrol.ui.SectionTabs;
 import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import java.util.List;
+import java.util.Map;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithContextMenu;
 import org.kohsuke.accmod.Restricted;
@@ -164,6 +169,26 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
             return null;
         }
         return ended ? StatusLabels.endedTone(constant) : StatusLabels.tone(constant);
+    }
+
+    /**
+     * #6 (Wave D, D3): the Run cell of a run record for {@code bc:runCell} ({@link RunCell}); the
+     * job and run links follow the viewer's Item/Read (D-44). Reached through this action for the
+     * same reason as {@link #pagerQuery}.
+     */
+    public RunCell runCell(RunRecord record) {
+        return RunCell.of(record.getJobFullName(), record.getNumber(), record.getRunId(), record.getResult(),
+                record.getAbortedBy());
+    }
+
+    /** #6 (Wave D, D3): the Run cell of an incident's run for {@code bc:runCell}, as {@link #runCell(RunRecord)}. */
+    public RunCell incidentRunCell(Incident incident) {
+        return RunCell.of(incident.getJobFullName(), 0, incident.getRunId(), incident.getResult(), null);
+    }
+
+    /** #6, #18.1 (Wave D, D3): the Parameters cell of a run record for {@code bc:parameters} ({@link ParameterLines}). */
+    public ParameterLines parameterLines(@CheckForNull Map<String, String> parameters) {
+        return ParameterLines.of(parameters);
     }
 
     /** The tabs the viewer may open, with their open-item badges (overview page). */

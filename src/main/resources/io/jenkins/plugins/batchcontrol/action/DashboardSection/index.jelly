@@ -27,40 +27,31 @@
           <p>No runs recorded.</p>
         </j:when>
         <j:otherwise>
+          <!-- #6, #18.1 (Wave D, D3): seven columns. The Run cell holds the status icon, the job,
+               the #n run and the result label (tags/runCell.jelly, linked per D-44) and says who
+               aborted the run; the Parameters cell shows three lines and folds the rest
+               (tags/parameters.jelly). Cause, User, Started and Duration do not wrap. -->
           <table class="jenkins-table jenkins-table--small jenkins-!-margin-bottom-0">
             <thead>
               <tr>
                 <th>Run</th>
-                <th>Job</th>
                 <th>Cause</th>
                 <th>User</th>
                 <th>Parameters</th>
-                <th>Result</th>
                 <th>Started</th>
                 <th>Duration</th>
-                <th>Aborted by</th>
-                <th>Request</th>
+                <th class="batch-control-nowrap">Request id</th>
               </tr>
             </thead>
             <tbody>
               <j:forEach var="r" items="${items}">
                 <tr>
-                  <td>
-                    <!-- Linked only with Item/Read on the job (D-44, Visibility#runUrl). -->
-                    <j:set var="runUrl" value="${it.runUrl(r)}"/>
-                    <j:choose>
-                      <j:when test="${runUrl != null}"><a class="model-link" href="${rootURL}/${runUrl}">#${r.number}</a></j:when>
-                      <j:otherwise>#${r.number}</j:otherwise>
-                    </j:choose>
-                  </td>
-                  <td>${r.jobFullName}</td>
-                  <td><bc:status value="${r.causeType}"/></td>
-                  <td>${r.user}</td>
-                  <td style="white-space: pre-wrap;">${it.parameters(r.parameters)}</td>
-                  <td><bc:result value="${r.result}"/></td>
-                  <td>${it.format(r.startedAt)}</td>
-                  <td>${it.duration(r.durationMs)}</td>
-                  <td>${r.abortedBy}</td>
+                  <td><bc:runCell record="${r}"/></td>
+                  <td class="batch-control-nowrap"><bc:status value="${r.causeType}"/></td>
+                  <td class="batch-control-nowrap">${r.user}</td>
+                  <td><bc:parameters value="${r.parameters}"/></td>
+                  <td class="batch-control-nowrap">${it.format(r.startedAt)}</td>
+                  <td class="batch-control-nowrap">${it.duration(r.durationMs)}</td>
                   <td>
                     <!-- Linked only for a user who may open this request (SPEC item 2, DEF-11). -->
                     <j:choose>

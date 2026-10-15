@@ -1,0 +1,26 @@
+<?jelly escape-by-default='true'?>
+<!-- #6, #18.1 (Wave D, D3): the Parameters cell of the run tables (ui.ParameterLines, reached
+     through the root action): one name=value line per parameter, the first three shown and the
+     rest in one details element; each value cut at 120 characters. The full values stay in the
+     CSV export, on the request page and on the build page. Values are stored masked (D-72); every
+     line is escaped by default. -->
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler">
+  <st:documentation>
+    The Parameters cell's content.
+    <st:attribute name="value" use="required">The record's map of parameters (name to value).</st:attribute>
+  </st:documentation>
+  <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
+  <j:set var="bcParamRoot" value="${app.getExtensionList('io.jenkins.plugins.batchcontrol.action.BatchControlRootAction').get(0)}"/>
+  <j:set var="bcParams" value="${bcParamRoot.parameterLines(attrs.value)}"/>
+  <j:forEach var="line" items="${bcParams.shown}">
+    <div class="batch-control-param">${line}</div>
+  </j:forEach>
+  <j:if test="${!empty(bcParams.folded)}">
+    <details>
+      <summary>${bcParams.folded.size()} more</summary>
+      <j:forEach var="line" items="${bcParams.folded}">
+        <div class="batch-control-param">${line}</div>
+      </j:forEach>
+    </details>
+  </j:if>
+</j:jelly>

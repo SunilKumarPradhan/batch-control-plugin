@@ -1,0 +1,39 @@
+<?jelly escape-by-default='true'?>
+<!-- #6, #18.1 (Wave D, D3): the Run cell of the run tables and the incident tables (ui.RunCell,
+     reached through the root action: j:invokeStatic cannot see plugin classes in a real Jenkins).
+     Core's status icon of the result, the job, the #n run and the result's readable label as
+     visible plain text (StatusLabels#ofResult, the D2 words; owner decision 2026-10-15). The icon
+     is decorative (the label says the same) and the result is never a badge: no
+     batch-control-status class, no tone. A result that is not a build result has no icon and is
+     shown as it is. The job and the run link only for a viewer with Item/Read, to their own URLs
+     (D-44, #42), with core's model-link. "Aborted by" follows on its own line. No style
+     attribute: the plugin stylesheet spaces the parts. Escaped by default. -->
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:l="/lib/layout">
+  <st:documentation>
+    The Run cell's content for a run record or an incident.
+    <st:attribute name="record">The io.jenkins.plugins.batchcontrol.model.RunRecord.</st:attribute>
+    <st:attribute name="incident">The io.jenkins.plugins.batchcontrol.model.Incident, when no record is given.</st:attribute>
+  </st:documentation>
+  <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
+  <j:set var="bcRunRoot" value="${app.getExtensionList('io.jenkins.plugins.batchcontrol.action.BatchControlRootAction').get(0)}"/>
+  <j:set var="bcRun" value="${attrs.record != null ? bcRunRoot.runCell(attrs.record) : bcRunRoot.incidentRunCell(attrs.incident)}"/>
+  <span class="batch-control-run">
+    <j:if test="${bcRun.iconSrc != null}">
+      <l:icon src="${bcRun.iconSrc}" class="icon-sm"/>
+    </j:if>
+    <j:choose>
+      <j:when test="${bcRun.jobUrl != null}"><a class="model-link" href="${rootURL}/${bcRun.jobUrl}">${bcRun.jobFullName}</a></j:when>
+      <j:otherwise><span>${bcRun.jobFullName}</span></j:otherwise>
+    </j:choose>
+    <j:choose>
+      <j:when test="${bcRun.runUrl != null}"><a class="model-link batch-control-nowrap" href="${rootURL}/${bcRun.runUrl}">${bcRun.runText}</a></j:when>
+      <j:otherwise><span class="batch-control-nowrap">${bcRun.runText}</span></j:otherwise>
+    </j:choose>
+    <j:if test="${!empty(bcRun.resultLabel)}">
+      <span class="batch-control-run__result batch-control-nowrap">${bcRun.resultLabel}</span>
+    </j:if>
+  </span>
+  <j:if test="${bcRun.abortedBy != null}">
+    <div class="jenkins-!-text-color-secondary">Aborted by ${bcRun.abortedBy}</div>
+  </j:if>
+</j:jelly>

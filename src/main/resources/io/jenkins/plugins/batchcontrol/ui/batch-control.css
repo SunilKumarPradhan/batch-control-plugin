@@ -84,3 +84,29 @@
 .batch-control-status[data-batch-control-tone="neutral"] {
   --batch-control-status-color: var(--text-color-secondary);
 }
+
+/*
+ * #6, #18.1 (tags/runCell.jelly): the Run cell of the run and incident tables: the status icon,
+ * the job, the #n run and the result label, spaced by a margin. The label is plain text in the
+ * secondary text colour, never a badge. The icon sits on the text's line.
+ */
+.batch-control-run > * + * {
+  margin-left: 0.4em;
+}
+
+.batch-control-run svg {
+  vertical-align: text-bottom;
+}
+
+.batch-control-run__result {
+  color: var(--text-color-secondary);
+}
+
+/*
+ * #6, #18.1 (tags/parameters.jelly): one parameter line of a run table. A value (cut at 120
+ * characters) may break anywhere, so one long value without spaces does not widen the table.
+ */
+.batch-control-param {
+  overflow-wrap: anywhere;
+  min-width: 12rem;
+}

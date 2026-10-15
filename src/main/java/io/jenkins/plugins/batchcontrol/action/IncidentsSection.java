@@ -17,7 +17,6 @@ import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.RecordLookup;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
 import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
-import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -179,12 +178,6 @@ public class IncidentsSection implements ModelObject, StaplerProxy {
     /** Human-readable timestamp. */
     public String format(Instant instant) {
         return Dates.format(instant);
-    }
-
-    /** Root-relative build URL for the incident's originating run, or null for plain text (D-44). */
-    @CheckForNull
-    public String runUrl(Incident incident) {
-        return Visibility.runUrlFromRunId(incident.getRunId());
     }
 
     /** Creation timestamp of an incident (Jelly helper for the list column). */
