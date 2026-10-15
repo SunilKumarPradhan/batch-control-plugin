@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.htmlunit.html.DomElement;
+import org.htmlunit.html.DomNode;
 import org.jvnet.hudson.test.TestBuilder;
 
 /**
@@ -36,6 +38,35 @@ final class ResultFixtures {
     static final List<String> INCIDENT_RESULT_OPTIONS = List.of("", "FAILURE", "UNSTABLE", "ABORTED");
 
     private ResultFixtures() {
+    }
+
+    /**
+     * The element of {@code cell} whose visible whole text (white space collapsed) is {@code label},
+     * or null. An element inside an {@code svg} (an icon's {@code title}) does not count, nor does an
+     * element that is not displayed; attributes ({@code tooltip}, {@code title}, {@code aria-label})
+     * do not count (owner decision of 2026-10-15: the D3 Run cell shows the result label as visible
+     * text, an icon tooltip may exist in addition).
+     */
+    static DomElement visibleLabel(DomElement cell, String label) {
+        for (DomNode n : cell.querySelectorAll("*")) {
+            DomElement e = (DomElement) n;
+            if (insideSvg(e, cell) || !e.isDisplayed()) {
+                continue;
+            }
+            if (label.equals(e.getTextContent().replaceAll("\\s+", " ").trim())) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    private static boolean insideSvg(DomElement e, DomElement cell) {
+        for (DomNode n = e; n != null && n != cell; n = n.getParentNode()) {
+            if (n instanceof DomElement a && "svg".equalsIgnoreCase(a.getTagName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Map<String, String> labels() {

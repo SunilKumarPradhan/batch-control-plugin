@@ -72,10 +72,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * merged after these rows were written: results read as labels (Success, Unstable, Failed, Not
  * built, Aborted; {@link ResultFixtures#RESULT_LABELS}) and are plain text, never a badge; run
  * causes are plain labels; request and incident statuses are {@code batch-control-status} badges.
- * In the 7-column tables the result has no column of its own, so the Run cell names it: an element
- * of the cell carries the label exactly, as its tooltip ({@code tooltip}, {@code title},
- * {@code data-tooltip}, {@code aria-label}) or as its text; the raw enum word is not the text of the
- * row; nothing in the cell has the badge class or a tone (T-UI-278, T-UI-284, T-UI-290). The Cause
+ * In the 7-column tables the result has no column of its own, so the Run cell shows it: core's
+ * status icon, the job and run links and the label as an element's visible whole text (owner
+ * decision of 2026-10-15; an icon tooltip may exist in addition, but a tooltip, {@code title} or
+ * {@code aria-label} alone is not enough); the raw enum word is not the text of the row; nothing in
+ * the cell has the badge class or a tone (T-UI-278, T-UI-284, T-UI-290). The Cause
  * cell keeps the D2 cause label as plain text (T-UI-278, as T-UI-258/263) and the incident row keeps
  * its status badge (T-UI-284, as T-UI-257/262). A result the plugin does not know ({@code WEIRD},
  * T-UI-279) has no label and stays its text. Checked against pages rendered at a791e2a1.
@@ -165,8 +166,8 @@ public class RunTableColumnsTest {
 
     /**
      * T-UI-278 (#6): the Run cell of {@code ops/batch-x#1} (SUCCESS) and {@code ops/fail-x#1}
-     * (FAILURE) holds a status icon, an element naming the result by its D2 label exactly (Success,
-     * Failed) as tooltip or text, a link to the job's own URL and a link reading {@code #1} to the
+     * (FAILURE) holds a status icon, an element whose visible whole text is the D2 label (Success,
+     * Failed), a link to the job's own URL and a link reading {@code #1} to the
      * run's own URL; the raw result word is not the text of the row; nothing in the cell is a badge.
      * The Cause cell keeps its D2 label (Approved request) as plain text. On the dashboard and
      * History > Runs, for the administrator.
@@ -352,8 +353,8 @@ public class RunTableColumnsTest {
      * T-UI-290 (D2 guarantees in the D3 tables, note 362 point 9): with an approved run ending in
      * each result (SUCCESS, UNSTABLE, FAILURE, NOT_BUILT, ABORTED; incidentResults holds ABORTED),
      * the Run cell of each run on the dashboard and History > Runs, and of each incident's run
-     * (UNSTABLE, FAILURE, ABORTED) on the Incidents list and History > Incidents, names the result
-     * by its D2 label exactly (tooltip or text), the raw word is not the text of the row, and nothing
+     * (UNSTABLE, FAILURE, ABORTED) on the Incidents list and History > Incidents, shows the result
+     * as the visible text of its D2 label, the raw word is not the text of the row, and nothing
      * in the cell is a badge. This is where T-UI-269e (lists) and T-UI-269f look in the D3 layout.
      */
     @Test
@@ -416,8 +417,8 @@ public class RunTableColumnsTest {
     }
 
     /**
-     * T-UI-290: in the run's row (found by its run link) the Run cell names {@code result} by its D2
-     * label, the raw word is not the row's text, and nothing in the cell is a badge.
+     * T-UI-290: in the run's row (found by its run link) the Run cell shows {@code result}'s D2 label
+     * as visible text, the raw word is not the row's text, and nothing in the cell is a badge.
      */
     private void assertResultInRunCell(HtmlPage page, String path, String job, String result) throws Exception {
         DomElement row = runRow(page, job, 1);
@@ -431,19 +432,14 @@ public class RunTableColumnsTest {
                 .find(), path + ": the raw result word " + result + " is not the text of the row: " + row.asNormalizedText());
     }
 
-    /** An element of the cell carries the D2 label of {@code result} exactly, as a tooltip attribute or as its whole text. */
+    /**
+     * The cell shows the D2 label of {@code result} as an element's visible whole text (owner decision
+     * of 2026-10-15); a tooltip, {@code title} or {@code aria-label} alone does not count.
+     */
     private static void assertNamesResult(DomElement cell, String where, String result) {
         String label = ResultFixtures.RESULT_LABELS.get(result);
-        boolean named = false;
-        for (DomNode n : cell.querySelectorAll("*")) {
-            DomElement e = (DomElement) n;
-            for (String attribute : new String[] {"tooltip", "title", "data-tooltip", "aria-label"}) {
-                named |= label.equals(collapse(e.getAttribute(attribute)));
-            }
-            named |= label.equals(collapse(e.getTextContent()));
-        }
-        assertTrue(named, where + ": the result " + result + " must be named by its D2 label '" + label + "' (tooltip or"
-                + " text of an element in the Run cell): " + cell.asXml());
+        assertNotNull(ResultFixtures.visibleLabel(cell, label), where + ": the result " + result + " must be shown as the"
+                + " visible text '" + label + "' of an element in the Run cell (a tooltip alone is not enough): " + cell.asXml());
     }
 
     /** Neither the cell nor anything inside it has the badge class or a tone (a result or a cause is not a badge). */

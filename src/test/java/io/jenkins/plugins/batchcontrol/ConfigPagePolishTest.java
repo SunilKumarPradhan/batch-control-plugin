@@ -62,7 +62,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code h2}..{@code h6}, a {@code legend}, an element with {@code role="heading"} or a
  * {@code .jenkins-section__title} (a nested core {@code f:section}), except the section's own title
  * and a heading inside another heading; a field belongs to the last heading before it in document
- * order. The heading texts are not pinned (neither SPEC nor the matrix defines them). Pages:
+ * order. The heading texts (whole text, white space collapsed) are "Switches", "Approval",
+ * "Permission windows", "Incidents and retention" and "Notifications and strategy" (owner decision of
+ * 2026-10-15). Pages:
  * {@code manage/configure} (administrator; the manager is refused it) and
  * {@code manage/batch-control-configuration/} (administrator and manager). Written from the owner
  * decision and pages rendered at a791e2a1; no src/main knowledge.
@@ -78,6 +80,9 @@ public class ConfigPagePolishTest {
             List.of("_.grantDurationOptions", "_.maxGrantMinutes", "_.notifyBeforeExpiryMinutes"),
             List.of("_.incidentResults", "_.retentionMonths"),
             List.of("_.emailNotifications"));
+    /** The five group headings, in order (owner decision of 2026-10-15). */
+    private static final List<String> HEADINGS =
+            List.of("Switches", "Approval", "Permission windows", "Incidents and retention", "Notifications and strategy");
     private static final String STRATEGY_LABEL = "Batch Control strategy";
     private static final String ADMINISTRATOR_ONLY = "Only a Jenkins administrator can change the authorization strategy.";
     private static final String REVERT = "administrativeMonitor/batch-control-strategy/revert";
@@ -166,7 +171,8 @@ public class ConfigPagePolishTest {
     /**
      * T-UI-288: on {@code manage/configure} (administrator) and on
      * {@code manage/batch-control-configuration/} (administrator and manager) the Batch Control section
-     * holds exactly five group headings, each non-blank; the fields follow in the order of the five
+     * holds exactly five group headings reading Switches, Approval, Permission windows, Incidents and
+     * retention, Notifications and strategy; the fields follow in the order of the five
      * groups and each sits under its group's heading; the Batch Control strategy entry comes after
      * the e-mail option under the fifth heading, with the administrator's Advanced button and revert
      * there, and the manager's "Only a Jenkins administrator ..." sentence there. Premise: the manager is refused
@@ -206,9 +212,8 @@ public class ConfigPagePolishTest {
             }
             assertEquals(5, headings.size(), where + ": the Batch Control settings are grouped under exactly five headings,"
                     + " found " + texts);
-            for (String t : texts) {
-                assertFalse(t.isBlank(), where + ": every group heading has a text: " + texts);
-            }
+            assertEquals(HEADINGS, texts, where + ": the five headings read, in order, " + HEADINGS
+                    + " (owner decision of 2026-10-15)");
             assertEquals(expectedFields, fields, where + ": the fields follow in the order of the five groups");
             for (int g = 0; g < GROUPS.size(); g++) {
                 for (String name : GROUPS.get(g)) {
