@@ -87,13 +87,10 @@
 
 /*
  * #6, #18.1 (tags/runCell.jelly): the Run cell of the run and incident tables: the status icon,
- * the job, the #n run and the result label, spaced by a margin. The label is plain text in the
- * secondary text colour, never a badge. The icon sits on the text's line.
+ * the job, the #n run and the result label, separated by spaces in the text (no margins, owner
+ * decision 2026-10-15). The label is plain text in the secondary text colour, never a badge. The
+ * icon sits on the text's line.
  */
-.batch-control-run > * + * {
-  margin-left: 0.4em;
-}
-
 .batch-control-run svg {
   vertical-align: text-bottom;
 }
@@ -109,4 +106,13 @@
 .batch-control-param {
   overflow-wrap: anywhere;
   min-width: 12rem;
+}
+
+/*
+ * D3 (owner decision 2026-10-15, RequestItem/index.jelly): the Approve and Reject buttons end the
+ * Decision section with the space core puts after a section's table (--section-padding), so the
+ * next heading does not sit on the buttons.
+ */
+.batch-control-decision__buttons {
+  margin-bottom: var(--section-padding);
 }

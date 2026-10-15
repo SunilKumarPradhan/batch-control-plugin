@@ -3,7 +3,7 @@
      (RequestItem#call, ui.FormErrors): the message is next to the field or above the form it
      concerns and the comment or approver set the user entered is kept. Links on this page are
      absolute because a refusal is rendered at the POST URL (.../reject), not at .../<id>/. -->
-<j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form"
+<j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form" xmlns:st="jelly:stapler"
          xmlns:bc="/io/jenkins/plugins/batchcontrol/tags">
   <l:layout title="${it.pageTitle}" type="one-column" permissions="${it.viewPermissions}">
     <l:main-panel>
@@ -148,6 +148,7 @@
            /reject). The service refuses an approval of a disabled job on its own, whatever this
            page shows. -->
       <j:if test="${it.canDecide}">
+        <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
         <h2>Decision</h2>
         <j:set var="approveErrors" value="${it.formErrors('approve')}"/>
         <j:set var="rejectErrors" value="${it.formErrors('reject')}"/>
@@ -166,7 +167,7 @@
             <bc:fieldError errors="${approveErrors}" field="comment"/>
             <bc:fieldError errors="${rejectErrors}" field="comment"/>
           </f:entry>
-          <div class="jenkins-buttons-row">
+          <div class="jenkins-buttons-row batch-control-decision__buttons">
             <j:if test="${!it.jobDisabled}">
               <button type="submit" formaction="${decisionUrl}approve" class="jenkins-button jenkins-button--primary">Approve</button>
             </j:if>
