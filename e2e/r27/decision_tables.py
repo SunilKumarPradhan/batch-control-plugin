@@ -766,9 +766,52 @@ def sec_S():
               "overflows the cell", bool(parts) and len(parts[0]["rects"]) > 1 and c.get("inside")
               and span.get("minWidth") == f"{16 * em:g}px" and abs(span.get("w", 0) - 16 * em) <= 2 and content <= 16 * em + 2,
               **measured[f"long {width}"])
+    hover(s)
     s.done()
     note("S", "the Run cell measured (lines of the job/#n/label, the gaps against one space, the cell; the long name's "
          "span, cell and content width against 16em)", measured=measured)
+
+
+POS_JS = """(path) => { const a = [...document.querySelectorAll('#main-panel a[href]')].find(x => new URL(x.href).pathname === path);
+  if (!a) return null; const span = a.closest('.batch-control-run') || a.parentElement;
+  const o = span.getBoundingClientRect();  // relative to the cell's span: a scroll moves nothing
+  const kids = [...span.children].filter(e => e.tagName.toLowerCase() !== 'svg').map(e => { const r = e.getBoundingClientRect();
+    return [Math.round((r.left - o.left) * 10) / 10, Math.round((r.top - o.top) * 10) / 10]; });
+  const tops = new Set(); [...span.children].forEach(e => [...e.getClientRects()].forEach(r => tops.add(Math.round(r.top))));
+  const ch = a.querySelector('.jenkins-menu-dropdown-chevron');
+  return {kids, lines: tops.size, chevron: !!ch, chevronShown: ch ? getComputedStyle(ch, '::after').opacity : null}; }"""
+
+
+def hover(s):
+    """Core's model-link chevron on the job and the "#n" link of r27-d3-fail's Run cell (History > Runs, 1280 px): hovering
+    shows it, clicking it opens the context menu, and the hover moves no part of the cell nor changes its line count.
+    Core's hover background may cover the next part (its float behaviour): recorded in a screenshot, not judged."""
+    s.page.set_viewport_size({"width": 1280, "height": 900})
+    s.go(f"/batch-control/history/?kind=runs&job={P}")
+    jp = f"{lib.PREFIX}{lib.jpath(FAIL)}/"
+    seen = {}
+    for name, path in (("job", jp), ("run", f"{jp}{S['fail']['number']}/")):
+        s.page.mouse.move(5, 5)
+        before = s.page.evaluate(POS_JS, path)
+        link = s.page.locator(f"#main-panel a[href$='{path[len(lib.PREFIX):]}']").first
+        link.hover()
+        s.page.wait_for_timeout(400)  # core's hover transition (var(--standard-transition)) before measuring
+        during = s.page.evaluate(POS_JS, path)
+        if name == "job":
+            s.page.screenshot(path=str(lib.SHOTS / "R27-D3-S-hover-job-link.png"),
+                              clip={"x": 100, "y": max(0, link.bounding_box()["y"] - 40), "width": 700, "height": 120})
+        menu = False
+        chev = link.locator(".jenkins-menu-dropdown-chevron")
+        if chev.count():
+            chev.first.click()
+            menu = bool(lib._r6.until(s.page, lambda: s.page.locator(".tippy-box, .jenkins-dropdown").filter(visible=True).count(), 3000))
+            s.page.keyboard.press("Escape")
+        seen[name] = {"before": before, "hovered": during, "menu": menu}
+    ok = all(v["before"] and v["hovered"] and v["hovered"]["chevron"] and v["menu"] and v["before"]["kids"] == v["hovered"]["kids"]
+             and v["before"]["lines"] == v["hovered"]["lines"] for v in seen.values())
+    check("S", "guard (core's model-link, float since 2026-10-16) hovering the job link and the '#n' link of r27-d3-fail shows "
+          "core's chevron, a click on it opens the context menu, and the hover moves no part of the Run cell nor changes its "
+          "line count (History > Runs, 1280 px, admin)", ok, **seen)
 
 
 # ---------------------------------------------------------------- D: the space under the decision buttons
