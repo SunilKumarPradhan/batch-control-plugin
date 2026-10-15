@@ -392,6 +392,82 @@ public class RunTableColumnsTest {
         }
     }
 
+    /**
+     * T-UI-291 (owner decision of 2026-10-15, SPEC 6 usability): in the Run cell of the dashboard,
+     * History &gt; Runs, the Incidents list and History &gt; Incidents the parts are separated by
+     * whitespace in the text itself, not only by CSS margins, so copy and paste and assistive
+     * technology keep them apart. The cell's text content, white space collapsed, reads exactly
+     * {@code <job> #<n> <label>}; the icon adds no text; an "aborted by &lt;user&gt;" part, where the
+     * cell shows one, follows the label after whitespace. A linked run ({@code ops/fail-x#1}: the job
+     * part is the job link's text) and a run without links ({@code ops/gone-x#1}, whose job was
+     * deleted; on the run tables also {@code ops/ghost-x#7} with the unknown result {@code WEIRD})
+     * read the same way. On the run tables also {@code ops/abort-x#1}.
+     */
+    @Test
+    public void t_ui_291_runCellPartsAreSeparatedByWhitespaceInTheText() throws Exception {
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        cfg.setRunControlEnabled(false); // a plain fixture build, as setUp's first builds
+        cfg.save();
+        Folder ops = (Folder) j.jenkins.getItemByFullName("ops");
+        FreeStyleProject gone = ops.createProject(FreeStyleProject.class, "gone-x");
+        gone.getBuildersList().add(new FailureBuilder());
+        j.buildAndAssertStatus(Result.FAILURE, gone);
+        gone.delete();
+        cfg.setRunControlEnabled(true);
+        cfg.save();
+
+        List<String> pages = new ArrayList<>(RUN_PAGES);
+        pages.addAll(INCIDENT_PAGES);
+        for (String path : pages) {
+            HtmlPage page = page("admin", path);
+            DomElement linked = runRow(page, "ops/fail-x", 1);
+            assertNotNull(linked, path + ": premise: ops/fail-x#1 is listed with its run link");
+            DomElement linkedCell = cells(linked).get(headers(table(linked)).indexOf("Run"));
+            String jobText = null;
+            for (DomNode a : linkedCell.querySelectorAll("a")) {
+                if (path((DomElement) a).equals(jobPath("ops/fail-x"))) {
+                    jobText = collapse(a.getTextContent());
+                }
+            }
+            assertNotNull(jobText, path + ": premise (T-UI-278): the Run cell links the job: " + linkedCell.asXml());
+            assertRunCellText(linkedCell, path + ", the linked run ops/fail-x#1", jobText, "fail-x", 1, "Failed");
+
+            DomElement unlinked = rowWithText(page, "gone-x");
+            assertNotNull(unlinked, path + ": premise: the run of the deleted job ops/gone-x is still listed: " + excerpt(page));
+            assertRunCellText(cells(unlinked).get(headers(table(unlinked)).indexOf("Run")),
+                    path + ", the run without links ops/gone-x#1", null, "gone-x", 1, "Failed");
+
+            if (RUN_PAGES.contains(path)) {
+                DomElement ghost = rowWithText(page, "ghost-x");
+                assertNotNull(ghost, path + ": premise: the ghost run is listed");
+                assertRunCellText(cells(ghost).get(headers(table(ghost)).indexOf("Run")),
+                        path + ", the run without links ops/ghost-x#7 (unknown result)", null, "ghost-x", 7, "WEIRD");
+                DomElement aborted = runRow(page, "ops/abort-x", 1);
+                assertNotNull(aborted, path + ": premise: ops/abort-x#1 is listed with its run link");
+                assertRunCellText(cells(aborted).get(headers(table(aborted)).indexOf("Run")),
+                        path + ", the aborted run ops/abort-x#1", null, "abort-x", 1, "Aborted");
+            }
+        }
+    }
+
+    /**
+     * T-UI-291: the cell's text content, white space collapsed, is {@code <job> #<n> <label>},
+     * optionally followed by " aborted by u1" (any case); the job part ends with {@code shortName}
+     * and holds no '#'; with {@code jobText}, the job part is exactly the job link's text.
+     */
+    private static void assertRunCellText(DomElement cell, String where, String jobText, String shortName, int number,
+                                          String label) {
+        String text = collapse(cell.getTextContent());
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(.*\\S) #" + number + " " + java.util.regex.Pattern.quote(label)
+                + "( (?i:aborted by) u1)?").matcher(text);
+        assertTrue(m.matches() && !m.group(1).contains("#") && m.group(1).endsWith(shortName), where + ": the Run cell's"
+                + " text must read '<job> #" + number + " " + label + "' with whitespace between the parts (the icon adds"
+                + " no text), was '" + text + "'");
+        if (jobText != null) {
+            assertEquals(jobText, m.group(1), where + ": the job part is the job link's text");
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private void assertSevenColumns(String path) throws Exception {
