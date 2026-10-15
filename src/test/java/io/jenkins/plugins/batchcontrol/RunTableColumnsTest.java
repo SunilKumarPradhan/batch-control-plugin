@@ -67,6 +67,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Written from the Wave D contract (D3, frozen 2026-10-10), issues #6 and #18, SPEC 6 and 10,
  * and pages rendered on origin/main (d80e5fe); no src/main knowledge.
+ *
+ * <p><b>D2 guarantees in the new tables</b> (note 362 point 9, 2026-10-15). D2 (T-UI-255..269j)
+ * merged after these rows were written: results read as labels (Success, Unstable, Failed, Not
+ * built, Aborted; {@link ResultFixtures#RESULT_LABELS}) and are plain text, never a badge; run
+ * causes are plain labels; request and incident statuses are {@code batch-control-status} badges.
+ * In the 7-column tables the result has no column of its own, so the Run cell names it: an element
+ * of the cell carries the label exactly, as its tooltip ({@code tooltip}, {@code title},
+ * {@code data-tooltip}, {@code aria-label}) or as its text; the raw enum word is not the text of the
+ * row; nothing in the cell has the badge class or a tone (T-UI-278, T-UI-284, T-UI-290). The Cause
+ * cell keeps the D2 cause label as plain text (T-UI-278, as T-UI-258/263) and the incident row keeps
+ * its status badge (T-UI-284, as T-UI-257/262). A result the plugin does not know ({@code WEIRD},
+ * T-UI-279) has no label and stays its text. Checked against pages rendered at a791e2a1.
  */
 @WithJenkins
 public class RunTableColumnsTest {
@@ -153,16 +165,25 @@ public class RunTableColumnsTest {
 
     /**
      * T-UI-278 (#6): the Run cell of {@code ops/batch-x#1} (SUCCESS) and {@code ops/fail-x#1}
-     * (FAILURE) holds a status icon whose tooltip names the result, a link to the job's own URL and
-     * a link reading {@code #1} to the run's own URL; the result is not printed as text in the row.
-     * On the dashboard and History > Runs, for the administrator.
+     * (FAILURE) holds a status icon, an element naming the result by its D2 label exactly (Success,
+     * Failed) as tooltip or text, a link to the job's own URL and a link reading {@code #1} to the
+     * run's own URL; the raw result word is not the text of the row; nothing in the cell is a badge.
+     * The Cause cell keeps its D2 label (Approved request) as plain text. On the dashboard and
+     * History > Runs, for the administrator.
      */
     @Test
     public void t_ui_278_runCellHasIconJobLinkAndRunLink() throws Exception {
         for (String path : RUN_PAGES) {
             HtmlPage page = page("admin", path);
-            assertRunCell(page, path, "ops/batch-x", 1, "success", "SUCCESS");
-            assertRunCell(page, path, "ops/fail-x", 1, "fail", "FAILURE");
+            assertRunCell(page, path, "ops/batch-x", 1, "SUCCESS");
+            assertRunCell(page, path, "ops/fail-x", 1, "FAILURE");
+            // D2 (T-UI-258, T-UI-263): the cause is its label, plain text, not a badge
+            DomElement row = runRow(page, "ops/batch-x", 1);
+            DomElement cause = cells(row).get(headers(table(row)).indexOf("Cause"));
+            List<DomNode> hooked = cause.querySelectorAll("[data-batch-control-status='APPROVED_REQUEST']");
+            assertEquals(1, hooked.size(), path + ": the Cause cell keeps the D2 hook of the cause: " + cause.asXml());
+            assertEquals("Approved request", collapse(hooked.get(0).getTextContent()), path + ": the cause reads its D2 label");
+            assertNotBadge(cause, path + ", the Cause cell");
         }
     }
 
@@ -312,7 +333,61 @@ public class RunTableColumnsTest {
                     + headers);
             int index = headers.indexOf("Run");
             assertTrue(index >= 0, path + ": the table has a Run column: " + headers);
-            assertRunCellContent(cells(row).get(index), path, "ops/fail-x", 1, "fail");
+            assertRunCellContent(cells(row).get(index), path, "ops/fail-x", 1, "FAILURE");
+            assertFalse(row.asNormalizedText().contains("FAILURE"), path + ": the raw result word is not shown: "
+                    + row.asNormalizedText());
+            // D2 (T-UI-257, T-UI-262): the incident's status is still a badge
+            List<DomNode> status = row.querySelectorAll("[data-batch-control-status]");
+            assertEquals(1, status.size(), path + ": the incident row keeps one status element: " + row.asXml());
+            DomElement badge = (DomElement) status.get(0);
+            assertEquals("OPEN", badge.getAttribute("data-batch-control-status"), path + ": the incident is open");
+            assertTrue((" " + badge.getAttribute("class") + " ").contains(" batch-control-status "), path
+                    + ": the status stays a badge: " + badge.asXml());
+            assertEquals("danger", badge.getAttribute("data-batch-control-tone"), path + ": OPEN keeps its tone");
+            assertEquals("Open", collapse(badge.getTextContent()), path + ": OPEN keeps its label");
+        }
+    }
+
+    /**
+     * T-UI-290 (D2 guarantees in the D3 tables, note 362 point 9): with an approved run ending in
+     * each result (SUCCESS, UNSTABLE, FAILURE, NOT_BUILT, ABORTED; incidentResults holds ABORTED),
+     * the Run cell of each run on the dashboard and History > Runs, and of each incident's run
+     * (UNSTABLE, FAILURE, ABORTED) on the Incidents list and History > Incidents, names the result
+     * by its D2 label exactly (tooltip or text), the raw word is not the text of the row, and nothing
+     * in the cell is a badge. This is where T-UI-269e (lists) and T-UI-269f look in the D3 layout.
+     */
+    @Test
+    public void t_ui_290_runCellNamesEveryResultByItsLabel() throws Exception {
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        cfg.setIncidentResults(Arrays.asList("FAILURE", "UNSTABLE", "ABORTED"));
+        cfg.save();
+        Folder ops = (Folder) j.jenkins.getItemByFullName("ops");
+        for (String result : ResultFixtures.ALL_RESULTS) {
+            FreeStyleProject job = ops.createProject(FreeStyleProject.class, resultJob(result));
+            BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
+            job.getBuildersList().add(new ResultFixtures.SetResult(result));
+            RunRequest run;
+            try (ACLContext ignored = as("u1")) {
+                run = RunRequestService.get().create(job, new LinkedHashMap<>(), "run " + result, "a2");
+            }
+            try (ACLContext ignored = as("a2")) {
+                RunRequestService.get().approve(run.getId(), "ok");
+            }
+            j.waitUntilNoActivity();
+            assertNotNull(job.getBuildByNumber(1), "fixture: the approved run of " + job.getFullName() + " executed");
+            assertEquals(Result.fromString(result), job.getBuildByNumber(1).getResult(), "fixture: it ended " + result);
+        }
+        for (String path : RUN_PAGES) {
+            HtmlPage page = page("admin", path);
+            for (String result : ResultFixtures.ALL_RESULTS) {
+                assertResultInRunCell(page, path, "ops/" + resultJob(result), result);
+            }
+        }
+        for (String path : INCIDENT_PAGES) {
+            HtmlPage page = page("admin", path);
+            for (String result : List.of("UNSTABLE", "FAILURE", "ABORTED")) {
+                assertResultInRunCell(page, path, "ops/" + resultJob(result), result);
+            }
         }
     }
 
@@ -330,26 +405,72 @@ public class RunTableColumnsTest {
         }
     }
 
-    private void assertRunCell(HtmlPage page, String path, String job, int number, String tooltip, String result) throws Exception {
+    private void assertRunCell(HtmlPage page, String path, String job, int number, String result) throws Exception {
         DomElement row = runRow(page, job, number);
         assertNotNull(row, path + ": " + job + "#" + number + " is listed with its run link");
         int index = headers(table(row)).indexOf("Run");
         assertEquals(0, index, path + ": Run is the first column: " + headers(table(row)));
-        assertRunCellContent(cells(row).get(index), path, job, number, tooltip);
+        assertRunCellContent(cells(row).get(index), path, job, number, result);
         assertFalse(row.asNormalizedText().contains(result), path + ": the result is shown as an icon, not as the text "
                 + result + ": " + row.asNormalizedText());
     }
 
-    private void assertRunCellContent(DomElement cell, String path, String job, int number, String tooltip) throws Exception {
-        assertFalse(cell.querySelectorAll("svg, img").isEmpty(), path + ": the Run cell must hold the status icon: " + cell.asXml());
+    /**
+     * T-UI-290: in the run's row (found by its run link) the Run cell names {@code result} by its D2
+     * label, the raw word is not the row's text, and nothing in the cell is a badge.
+     */
+    private void assertResultInRunCell(HtmlPage page, String path, String job, String result) throws Exception {
+        DomElement row = runRow(page, job, 1);
+        assertNotNull(row, path + ": " + job + "#1 is listed with its run link");
+        int index = headers(table(row)).indexOf("Run");
+        assertTrue(index >= 0, path + ": the table has a Run column: " + headers(table(row)));
+        DomElement cell = cells(row).get(index);
+        assertNotBadge(cell, path + ", the Run cell of " + job + "#1");
+        assertNamesResult(cell, path + ", the Run cell of " + job + "#1", result);
+        assertFalse(java.util.regex.Pattern.compile("(?<![A-Za-z_])" + result + "(?![A-Za-z_])").matcher(row.asNormalizedText())
+                .find(), path + ": the raw result word " + result + " is not the text of the row: " + row.asNormalizedText());
+    }
+
+    /** An element of the cell carries the D2 label of {@code result} exactly, as a tooltip attribute or as its whole text. */
+    private static void assertNamesResult(DomElement cell, String where, String result) {
+        String label = ResultFixtures.RESULT_LABELS.get(result);
         boolean named = false;
         for (DomNode n : cell.querySelectorAll("*")) {
             DomElement e = (DomElement) n;
             for (String attribute : new String[] {"tooltip", "title", "data-tooltip", "aria-label"}) {
-                named |= e.getAttribute(attribute).toLowerCase(Locale.ROOT).contains(tooltip);
+                named |= label.equals(collapse(e.getAttribute(attribute)));
             }
+            named |= label.equals(collapse(e.getTextContent()));
         }
-        assertTrue(named, path + ": the status icon must have a tooltip naming the result (" + tooltip + "): " + cell.asXml());
+        assertTrue(named, where + ": the result " + result + " must be named by its D2 label '" + label + "' (tooltip or"
+                + " text of an element in the Run cell): " + cell.asXml());
+    }
+
+    /** Neither the cell nor anything inside it has the badge class or a tone (a result or a cause is not a badge). */
+    private static void assertNotBadge(DomElement cell, String where) {
+        List<DomElement> all = new ArrayList<>();
+        all.add(cell);
+        for (DomNode n : cell.querySelectorAll("*")) {
+            all.add((DomElement) n);
+        }
+        for (DomElement e : all) {
+            assertFalse((" " + e.getAttribute("class") + " ").contains(" batch-control-status ") || e.hasAttribute("data-batch-control-tone"),
+                    where + ": a result or a cause is plain text, not a badge: " + cell.asXml());
+        }
+    }
+
+    private static String collapse(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", " ").trim();
+    }
+
+    private static String resultJob(String result) {
+        return "r-" + result.toLowerCase(Locale.ROOT).replace('_', '-') + "-x";
+    }
+
+    private void assertRunCellContent(DomElement cell, String path, String job, int number, String result) throws Exception {
+        assertFalse(cell.querySelectorAll("svg, img").isEmpty(), path + ": the Run cell must hold the status icon: " + cell.asXml());
+        assertNamesResult(cell, path + ", the Run cell of " + job + "#" + number, result);
+        assertNotBadge(cell, path + ", the Run cell of " + job + "#" + number);
         assertTrue(hasLink(cell, jobPath(job)), path + ": the Run cell must link the job " + jobPath(job) + ": " + cell.asXml());
         boolean runLink = false;
         for (DomNode a : cell.querySelectorAll("a")) {

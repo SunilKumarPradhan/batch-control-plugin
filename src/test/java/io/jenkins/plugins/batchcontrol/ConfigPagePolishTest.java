@@ -9,12 +9,15 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import jenkins.model.Jenkins;
 import org.htmlunit.HttpMethod;
 import org.htmlunit.Page;
 import org.htmlunit.WebRequest;
 import org.htmlunit.html.DomElement;
+import org.htmlunit.html.DomNode;
 import org.htmlunit.html.HtmlElement;
 import org.htmlunit.html.HtmlForm;
 import org.htmlunit.html.HtmlInput;
@@ -44,11 +47,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Written from docs/SPEC.md, docs/DECISIONS.md D-53 and docs/TEST-MATRIX.md only (no src/main
  * knowledge).
+ *
+ * <p><b>Five groups</b> (rows T-UI-288, T-UI-289, note 362 point 9; Wave D D3, owner decision of
+ * 2026-10-14, grouping of 2026-10-15). Inside the Batch Control section of the global configuration
+ * the settings are grouped under five headings, in this order: (1) switches: run control, change
+ * control; (2) approval: approvers, administrator self-approval, pending request timeout,
+ * approved-but-not-run timeout; (3) permission windows: grant duration options, maximum grant
+ * duration, notify before expiry; (4) incidents and retention: results that open an incident,
+ * retention period; (5) notifications and strategy: e-mail notifications, then the Batch Control
+ * strategy (the administrator's Advanced control with the revert; for the manager the sentence "Only
+ * a Jenkins administrator can change the authorization strategy."). Field names, stored values and
+ * the save do not change (T-UI-289). "The Batch Control section" is the outermost {@code section}
+ * around {@code _.runControlEnabled}. A group heading is an element inside it that is an
+ * {@code h2}..{@code h6}, a {@code legend}, an element with {@code role="heading"} or a
+ * {@code .jenkins-section__title} (a nested core {@code f:section}), except the section's own title
+ * and a heading inside another heading; a field belongs to the last heading before it in document
+ * order. The heading texts are not pinned (neither SPEC nor the matrix defines them). Pages:
+ * {@code manage/configure} (administrator; the manager is refused it) and
+ * {@code manage/batch-control-configuration/} (administrator and manager). Written from the owner
+ * decision and pages rendered at a791e2a1; no src/main knowledge.
  */
 @WithJenkins
 public class ConfigPagePolishTest {
 
     private static final String CONFIG = "manage/batch-control-configuration/";
+    /** The five groups' fields, in order (names unchanged). */
+    private static final List<List<String>> GROUPS = List.of(
+            List.of("_.runControlEnabled", "_.changeControlEnabled"),
+            List.of("_.approversText", "_.allowAdminSelfApproval", "_.pendingTimeoutHours", "_.approvedRunTimeoutMinutes"),
+            List.of("_.grantDurationOptions", "_.maxGrantMinutes", "_.notifyBeforeExpiryMinutes"),
+            List.of("_.incidentResults", "_.retentionMonths"),
+            List.of("_.emailNotifications"));
+    private static final String STRATEGY_LABEL = "Batch Control strategy";
+    private static final String ADMINISTRATOR_ONLY = "Only a Jenkins administrator can change the authorization strategy.";
+    private static final String REVERT = "administrativeMonitor/batch-control-strategy/revert";
+
     private static final String NOTHING_SAVED = "Nothing was saved.";
 
     private JenkinsRule j;
@@ -130,7 +163,244 @@ public class ConfigPagePolishTest {
                 + breadcrumbText(original));
     }
 
+    /**
+     * T-UI-288: on {@code manage/configure} (administrator) and on
+     * {@code manage/batch-control-configuration/} (administrator and manager) the Batch Control section
+     * holds exactly five group headings, each non-blank; the fields follow in the order of the five
+     * groups and each sits under its group's heading; the Batch Control strategy entry comes after
+     * the e-mail option under the fifth heading, with the administrator's Advanced button and revert
+     * there, and the manager's "Only a Jenkins administrator ..." sentence there. Premise: the manager is refused
+     * {@code manage/configure}.
+     */
+    @Test
+    public void t_ui_288_settingsAreGroupedUnderFiveHeadings() throws Exception {
+        installStrategyEntry();
+        assertTrue(get("manager", "manage/configure", false).getWebResponse().getStatusCode() >= 400,
+                "premise: a BatchControl/Manage holder may not open manage/configure, so it is checked for the administrator");
+        Map<String, String> views = new LinkedHashMap<>();
+        views.put("admin manage/configure", "manage/configure");
+        views.put("admin manage/batch-control-configuration/", "manage/batch-control-configuration/");
+        views.put("manager manage/batch-control-configuration/", "manage/batch-control-configuration/");
+        for (Map.Entry<String, String> view : views.entrySet()) {
+            String where = view.getKey();
+            boolean admin = where.startsWith("admin ");
+            HtmlPage page = groupsPage(admin ? "admin" : "manager", view.getValue());
+            DomElement section = batchControlSection(page, where);
+            List<DomElement> headings = headings(section);
+
+            List<String> expectedFields = new ArrayList<>();
+            GROUPS.forEach(expectedFields::addAll);
+            List<String> fields = new ArrayList<>();
+            for (DomNode n : section.querySelectorAll("input[name], select[name], textarea[name]")) {
+                DomElement f = (DomElement) n;
+                if (f.getAttribute("name").startsWith("_.") && !"hidden".equals(f.getAttribute("type"))) {
+                    fields.add(f.getAttribute("name"));
+                }
+            }
+            assertEquals(new java.util.TreeSet<>(expectedFields), new java.util.TreeSet<>(fields), where
+                    + ": premise: the field names are unchanged");
+
+            List<String> texts = new ArrayList<>();
+            for (DomElement h : headings) {
+                texts.add(collapse(h.getTextContent()));
+            }
+            assertEquals(5, headings.size(), where + ": the Batch Control settings are grouped under exactly five headings,"
+                    + " found " + texts);
+            for (String t : texts) {
+                assertFalse(t.isBlank(), where + ": every group heading has a text: " + texts);
+            }
+            assertEquals(expectedFields, fields, where + ": the fields follow in the order of the five groups");
+            for (int g = 0; g < GROUPS.size(); g++) {
+                for (String name : GROUPS.get(g)) {
+                    DomElement field = (DomElement) section.querySelector("[name='" + name + "']");
+                    assertEquals(g, groupOf(field, headings), where + ": " + name + " sits under heading " + (g + 1)
+                            + " of " + texts);
+                }
+            }
+
+            DomElement strategy = elementIn(section, STRATEGY_LABEL);
+            assertNotNull(strategy, where + ": premise: the Batch Control strategy entry is rendered");
+            assertEquals(4, groupOf(strategy, headings), where + ": the Batch Control strategy sits under the fifth heading");
+            assertTrue(follows(strategy, (DomElement) section.querySelector("[name='_.emailNotifications']")), where
+                    + ": the Batch Control strategy comes after the e-mail option");
+            if (admin) {
+                DomElement advanced = (DomElement) section.querySelector("button.advanced-button");
+                assertNotNull(advanced, where + ": premise (T-UI-234): the administrator's Advanced control is there");
+                assertEquals(4, groupOf(advanced, headings), where + ": the Advanced control sits under the fifth heading");
+                DomElement revert = null;
+                for (DomNode n : section.querySelectorAll("[data-url], [formaction], a[href]")) {
+                    DomElement e = (DomElement) n;
+                    if ((e.getAttribute("data-url") + e.getAttribute("formaction") + e.getAttribute("href")).contains(REVERT)) {
+                        revert = e;
+                    }
+                }
+                assertNotNull(revert, where + ": premise (T-UI-234): the revert is in the section");
+                assertEquals(4, groupOf(revert, headings), where + ": the revert sits under the fifth heading");
+            } else {
+                DomElement sentence = elementIn(section, ADMINISTRATOR_ONLY);
+                assertNotNull(sentence, where + ": premise (T-UI-239): the manager reads '" + ADMINISTRATOR_ONLY + "'");
+                assertEquals(4, groupOf(sentence, headings), where + ": the manager's sentence sits under the fifth heading");
+            }
+        }
+    }
+
+    /**
+     * T-UI-289 (guard, the grouping changes no field name, stored value or save): with every setting
+     * at a value other than its default, the administrator saves {@code manage/configure} and
+     * {@code manage/batch-control-configuration/} unchanged, and the manager saves the latter unchanged; after
+     * each save every value reads back as it was.
+     */
+    @Test
+    public void t_ui_289_aSaveRoundTripsEveryValue() throws Exception {
+        installStrategyEntry();
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        cfg.setRunControlEnabled(true);
+        cfg.setChangeControlEnabled(true);
+        cfg.setApprovers(Arrays.asList("a1", "manager"));
+        cfg.setAllowAdminSelfApproval(false);
+        cfg.setPendingTimeoutHours(24);
+        cfg.setApprovedRunTimeoutMinutes(30);
+        cfg.setGrantDurationOptions(Arrays.asList(10, 20, 45));
+        cfg.setMaxGrantMinutes(120);
+        cfg.setNotifyBeforeExpiryMinutes(5);
+        cfg.setIncidentResults(Arrays.asList("FAILURE", "UNSTABLE", "ABORTED"));
+        cfg.setRetentionMonths(12);
+        cfg.setEmailNotifications(true);
+        cfg.save();
+        Map<String, Object> before = values();
+        assertEquals(Boolean.TRUE, before.get("emailNotifications"), "fixture: the e-mail option is stored");
+
+        for (String[] save : new String[][] {{"admin", "manage/configure"}, {"admin", "manage/batch-control-configuration/"},
+                {"manager", "manage/batch-control-configuration/"}}) {
+            String where = save[0] + " saves " + save[1] + " unchanged";
+            HtmlPage page = (HtmlPage) get(save[0], save[1], true);
+            assertEquals(200, page.getWebResponse().getStatusCode(), where + ": premise: the page opens");
+            HtmlForm form = null;
+            for (HtmlForm f : page.getForms()) {
+                if (!f.querySelectorAll("[name='_.pendingTimeoutHours']").isEmpty()) {
+                    form = f;
+                }
+            }
+            assertNotNull(form, where + ": premise: the settings form");
+            Page answer = j.submit(form);
+            assertTrue(answer.getWebResponse().getStatusCode() < 400, where + ": the save goes through, got HTTP "
+                    + answer.getWebResponse().getStatusCode());
+            assertEquals(before, values(), where + ": every value reads back as it was");
+        }
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * The D3 rows' fixture on top of this class's: change control on and a build authenticator, so
+     * that the "Batch Control strategy" entry (the Batch Control matrix strategy is installed by
+     * {@link #setUp}) is rendered with the administrator's revert.
+     */
+    private static void installStrategyEntry() {
+        StrategyFixtures.changeControlOn();
+        StrategyFixtures.configureBuildAuthenticator();
+    }
+
+    private HtmlPage groupsPage(String user, String path) throws Exception {
+        Page answer = get(user, path, false);
+        assertEquals(200, answer.getWebResponse().getStatusCode(), user + " GET " + path);
+        return (HtmlPage) answer;
+    }
+
+    private Page get(String user, String path, boolean javaScript) throws Exception {
+        JenkinsRule.WebClient wc = j.createWebClient().withThrowExceptionOnFailingStatusCode(false).login(user);
+        wc.getOptions().setJavaScriptEnabled(javaScript);
+        return wc.getPage(new WebRequest(new URL(j.getURL(), path), HttpMethod.GET));
+    }
+
+    private static Map<String, Object> values() {
+        BatchControlGlobalConfiguration cfg = BatchControlGlobalConfiguration.get();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("runControlEnabled", cfg.isRunControlEnabled());
+        out.put("changeControlEnabled", cfg.isChangeControlEnabled());
+        out.put("approvers", new ArrayList<>(cfg.getApprovers()));
+        out.put("allowAdminSelfApproval", cfg.isAllowAdminSelfApproval());
+        out.put("pendingTimeoutHours", cfg.getPendingTimeoutHours());
+        out.put("approvedRunTimeoutMinutes", cfg.getApprovedRunTimeoutMinutes());
+        out.put("grantDurationOptions", new ArrayList<>(cfg.getGrantDurationOptions()));
+        out.put("maxGrantMinutes", cfg.getMaxGrantMinutes());
+        out.put("notifyBeforeExpiryMinutes", cfg.getNotifyBeforeExpiryMinutes());
+        out.put("incidentResults", new ArrayList<>(cfg.getIncidentResults()));
+        out.put("retentionMonths", cfg.getRetentionMonths());
+        out.put("emailNotifications", cfg.isEmailNotifications());
+        return out;
+    }
+
+    /** The outermost {@code section} around {@code _.runControlEnabled}. */
+    private static DomElement batchControlSection(HtmlPage page, String where) {
+        DomNode field = page.querySelector("[name='_.runControlEnabled']");
+        assertNotNull(field, where + ": premise: the Batch Control settings are on the page");
+        DomElement section = null;
+        for (DomNode n = field.getParentNode(); n instanceof DomElement e; n = n.getParentNode()) {
+            if ("section".equals(e.getTagName())) {
+                section = e;
+            }
+        }
+        assertNotNull(section, where + ": premise: the settings are inside a section");
+        return section;
+    }
+
+    /** The group headings of the section, in document order (see the class comment). */
+    private static List<DomElement> headings(DomElement section) {
+        DomElement ownTitle = null;
+        for (DomElement child : section.getChildElements()) {
+            if (classes(child).contains("jenkins-section__title")) {
+                ownTitle = child;
+                break;
+            }
+        }
+        List<DomElement> out = new ArrayList<>();
+        for (DomNode n : section.querySelectorAll("h2, h3, h4, h5, h6, legend, [role='heading'], .jenkins-section__title")) {
+            DomElement e = (DomElement) n;
+            if (e == ownTitle || out.stream().anyMatch(h -> h.isAncestorOf(e))) {
+                continue;
+            }
+            out.add(e);
+        }
+        return out;
+    }
+
+    /** The index of the last heading before {@code e} in document order, -1 if none. */
+    private static int groupOf(DomElement e, List<DomElement> headings) {
+        int group = -1;
+        for (int i = 0; i < headings.size(); i++) {
+            if (follows(e, headings.get(i))) {
+                group = i;
+            }
+        }
+        return group;
+    }
+
+    /** {@code candidate} comes after {@code reference} in document order and is not inside it. */
+    private static boolean follows(DomNode candidate, DomNode reference) {
+        int position = reference.compareDocumentPosition(candidate);
+        return (position & DomNode.DOCUMENT_POSITION_FOLLOWING) != 0 && (position & DomNode.DOCUMENT_POSITION_CONTAINED_BY) == 0;
+    }
+
+    /** The innermost element of {@code root} whose text holds {@code text}, or null. */
+    private static DomElement elementIn(DomElement root, String text) {
+        DomElement found = null;
+        for (DomElement e : root.getDomElementDescendants()) {
+            if (!"script".equals(e.getTagName()) && collapse(e.getTextContent()).contains(text)) {
+                found = e;
+            }
+        }
+        return found;
+    }
+
+    private static java.util.Set<String> classes(DomElement e) {
+        return new java.util.HashSet<>(Arrays.asList(e.getAttribute("class").trim().split("\\s+")));
+    }
+
+    private static String collapse(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", " ").trim();
+    }
+
 
     private HtmlPage configPage(String userId) throws Exception {
         JenkinsRule.WebClient wc = j.createWebClient().withThrowExceptionOnFailingStatusCode(false).login(userId);

@@ -55,6 +55,8 @@ public class RevertPlacementTest {
     private static final List<String> PAGES = List.of("manage/configure", "manage/batch-control-configuration/");
     /** What a user who may not change the strategy is told where the administrator finds the revert. */
     private static final String ADMINISTRATOR_ONLY = "Only a Jenkins administrator can change the authorization strategy.";
+    /** The start of the sentence that explains what the revert does (D3 owner decision, T-UI-286: administrators only). */
+    private static final String REVERTING = "Reverting stops active grants";
 
     private JenkinsRule j;
 
@@ -195,6 +197,41 @@ public class RevertPlacementTest {
         assertEquals(403, post("m1"), "guard (T-UI-235): the revert endpoint keeps its Overall/Administer check");
         assertSame(BatchControlMatrixAuthorizationStrategy.class, j.jenkins.getAuthorizationStrategy().getClass(),
                 "guard: m1's refused POST leaves the Batch Control strategy installed");
+    }
+
+    /**
+     * T-UI-286 (D3 owner decision of 2026-10-14, note 362 point 9): the sentence that starts
+     * "Reverting stops active grants" is for administrators only. m1 (BatchControl/Manage, no
+     * Administer) does not get it anywhere in the HTML of the Batch Control configuration page, and
+     * still reads "Only a Jenkins administrator can change the authorization strategy." (T-UI-239).
+     * Guard first: for the administrator, on each page that offers the revert, the sentence is inside
+     * core's Advanced body, in the same form item as the revert control.
+     */
+    @Test
+    public void t_ui_286_revertSentenceIsForAdministratorsOnly() throws Exception {
+        for (String path : PAGES) {
+            HtmlPage page = page("admin", path, false);
+            HtmlElement control = revertControl(page);
+            if (control == null) {
+                assertFalse(path.equals("manage/configure"), "guard: the administrator is offered the revert on " + path);
+                continue;
+            }
+            DomElement sentence = elementReading(page, REVERTING);
+            assertNotNull(sentence, path + ": guard: the administrator reads '" + REVERTING + "...': " + excerpt(page));
+            assertNotNull(ancestorWithClass(sentence, "advancedBody"), path + ": guard: the sentence is inside Advanced: "
+                    + parentChain(sentence));
+            DomElement item = ancestorWithClass(control, "jenkins-form-item");
+            assertTrue(item != null && item.isAncestorOf(sentence), path + ": guard: the sentence sits next to the revert,"
+                    + " in its form item: " + parentChain(sentence));
+        }
+
+        HtmlPage manager = page("m1", "manage/batch-control-configuration/", false);
+        assertNotNull(elementReading(manager, ADMINISTRATOR_ONLY), "m1 still reads '" + ADMINISTRATOR_ONLY + "' (T-UI-239): "
+                + excerpt(manager));
+        String html = manager.getWebResponse().getContentAsString().replaceAll("\\s+", " ");
+        int at = html.indexOf(REVERTING);
+        assertTrue(at < 0, "the sentence '" + REVERTING + "...' is for administrators only; m1's page holds it: ..."
+                + (at < 0 ? "" : html.substring(Math.max(0, at - 200), Math.min(html.length(), at + 200))) + "...");
     }
 
     // ------------------------------------------------------------------ helpers
