@@ -288,9 +288,9 @@ UNITS = [
     # pass (one aborted by admin), appends one WEIRD run record (r27-d3-ghost#7) once, disables r27-d3-off and enables it
     # again, sets every Batch Control setting but the switches to other values and puts them back, reverts to the plain
     # strategy once and migrates back, and cancels what it leaves pending. Section Z (screenshots in two themes and two
-    # widths for the owner) is not run here: `python r27/decision_tables.py Z` after the others. Weight: 31 to 34 s in
-    # four runs through ci/run.sh (three on a fresh stack, one in its group; 2026-10-15, local).
-    Unit("r27-decision-tables", 0.6, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICSDQ"))],
+    # widths for the owner) is not run here: `python r27/decision_tables.py Z` after the others. Weight: 39 to 40 s in
+    # three runs through ci/run.sh with sections S and D (two on a fresh stack, one in its group; 2026-10-15, local).
+    Unit("r27-decision-tables", 0.7, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICSDQ"))],
          group="job ui params and restart",
          doc="e2e-27 D3: the run request page's Decision right after Parameters with one comment box and Approve/Reject "
              "in one form (approve, reject, refused reject and approval with the form following the refused verb, "
