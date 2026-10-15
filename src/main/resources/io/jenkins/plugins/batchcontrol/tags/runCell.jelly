@@ -19,14 +19,16 @@
   <j:set var="bcRun" value="${attrs.record != null ? bcRunRoot.runCell(attrs.record) : bcRunRoot.incidentRunCell(attrs.incident)}"/>
   <!-- Owner decision 2026-10-15 (T-UI-291): the parts are separated by real spaces in the text
        (${' '}: Jelly trims the white space between tags), so the cell reads "<job> #<n> <label>"
-       and flows as one line; there are no margins between the parts. The job name, "#n" and the
-       label each stay whole, so the cell breaks only between them when the column is too narrow
-       (never at a hyphen inside a short job name). The icon adds no text. -->
+       and flows as one line; there are no margins between the parts. "#n" and the label each stay
+       whole; the job name may wrap (at a hyphen or "/") only when it is longer than the cell's
+       minimum width (.batch-control-run in the plugin stylesheet, owner decision 2026-10-15), so
+       short names stay on one line and long ones do not widen the column. The icon adds no
+       text. -->
   <span class="batch-control-run">
     <j:if test="${bcRun.iconSrc != null}"><l:icon src="${bcRun.iconSrc}" class="icon-sm"/>${' '}</j:if>
     <j:choose>
-      <j:when test="${bcRun.jobUrl != null}"><a class="model-link batch-control-nowrap" href="${rootURL}/${bcRun.jobUrl}">${bcRun.jobFullName}</a></j:when>
-      <j:otherwise><span class="batch-control-nowrap">${bcRun.jobFullName}</span></j:otherwise>
+      <j:when test="${bcRun.jobUrl != null}"><a class="model-link" href="${rootURL}/${bcRun.jobUrl}">${bcRun.jobFullName}</a></j:when>
+      <j:otherwise><span>${bcRun.jobFullName}</span></j:otherwise>
     </j:choose>
     ${' '}
     <j:choose>

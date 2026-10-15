@@ -90,7 +90,17 @@
  * the job, the #n run and the result label, separated by spaces in the text (no margins, owner
  * decision 2026-10-15). The label is plain text in the secondary text colour, never a badge. The
  * icon sits on the text's line.
+ *
+ * Minimum width (owner decision 2026-10-15): an inline-block with a min-width is part of the
+ * cell's min-content width, so it holds the Run column open in the auto-layout table. 16em fits
+ * the icon and a typical line of about 20 characters ("r27-d3-abort #12 Aborted") at the table's
+ * font size; a longer job name wraps inside it at a hyphen or "/" instead of widening the column.
  */
+.batch-control-run {
+  display: inline-block;
+  min-width: 16em;
+}
+
 .batch-control-run svg {
   vertical-align: text-bottom;
 }
