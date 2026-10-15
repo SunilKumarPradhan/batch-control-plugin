@@ -59,6 +59,7 @@ Approv*Test
 DiscoverOnlyRequestScreenTest ExpiryAndCancelTest MissedInvalidationGapTest
 MultiApproverTest PendingCountTest QueueBlockTest RunControlUsabilityTest
 DeprecatedUserCauseTest
+DecisionAreaTest
 OwnerScenario*Test
 # notifications
 EmailNotification*Test ExpiryNoticeIsolationTest Notification*Test
@@ -118,6 +119,7 @@ PluginInteraction*Test
 ChangeRecord*Test
 ChangeControlWithoutMatrixAuthGapTest ChangesMonthDefaultTest ConfigAuditTest
 DatesClockZoneTest DiffSummaryAndDatesTest RecordHistoryGapTest RunRecordListenerTest
+RunTableColumnsTest
 Csv*Test
 History*Test
 Snapshot*Test
