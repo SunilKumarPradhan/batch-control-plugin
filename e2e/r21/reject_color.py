@@ -28,8 +28,10 @@ APPROVER = "approver-1"
 REASON = "e2e-21 Reject colour"
 
 MEASURE = r"""() => {
+  // Wave D D3 (#18.5): the run request page has one form named "decision" holding both buttons; the permission window
+  // and activation request pages keep a form "approve" and a form "reject"
   const pick = (form, re) => {
-    const f = document.querySelector(`form[name="${form}"]`);
+    const f = document.querySelector(`form[name="${form}"]`) || document.querySelector('form[name="decision"]');
     if (!f) return null;
     return [...f.querySelectorAll('button')].find(b => re.test(b.textContent.trim())) || null;
   };
@@ -50,7 +52,7 @@ MEASURE = r"""() => {
           destructiveVar: getComputedStyle(document.documentElement).getPropertyValue('--destructive-color').trim(),
           theme: document.documentElement.getAttribute('data-theme'),
           reject: info(reject), approve: info(approve),
-          rejectForms: document.querySelectorAll('form[name="reject"]').length};
+          rejectForms: document.querySelectorAll('form[name="reject"], form[name="decision"]').length};
 }"""
 
 CREATED = {}

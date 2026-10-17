@@ -36,3 +36,93 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
+
+/*
+ * #18.2 (tags/status.jelly): a request, grant or activation status or an incident status, shown as
+ * a badge: a compact pill inside its cell, shaped like core's .jenkins-badge in a table (0.75rem,
+ * rounded, a tinted background with a border). It is an inline-block no taller than a line of the
+ * cell's text, so it does not change the row height, and it may wrap where the cell is narrow.
+ *
+ * Readable in the light and in the dark theme without a rule per theme: the label is in the
+ * theme's text colour and the tone only tints the background (20 %) and the border (50 %) over
+ * whatever is behind the badge, so the text keeps nearly the contrast of plain text in the cell.
+ * The border keeps the pill visible where backgrounds are not painted (forced colours, print).
+ * The label is the status; the colour only repeats it.
+ *
+ * The tones take their colour from core's theme variables (--warning-color, --accent-color,
+ * --success-color, --error-color, --text-color-secondary), never from a colour of the plugin's
+ * own. A badge without a known tone is shown as neutral.
+ */
+.batch-control-status {
+  --batch-control-status-color: var(--text-color-secondary);
+  display: inline-block;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--batch-control-status-color) 50%, transparent);
+  border-radius: 0.625rem;
+  background-color: color-mix(in srgb, var(--batch-control-status-color) 20%, transparent);
+  color: var(--text-color);
+  font-size: var(--font-size-xs);
+  line-height: 1.25;
+}
+
+.batch-control-status[data-batch-control-tone="warning"] {
+  --batch-control-status-color: var(--warning-color);
+}
+
+.batch-control-status[data-batch-control-tone="info"] {
+  --batch-control-status-color: var(--accent-color);
+}
+
+.batch-control-status[data-batch-control-tone="success"] {
+  --batch-control-status-color: var(--success-color);
+}
+
+.batch-control-status[data-batch-control-tone="danger"] {
+  --batch-control-status-color: var(--error-color);
+}
+
+.batch-control-status[data-batch-control-tone="neutral"] {
+  --batch-control-status-color: var(--text-color-secondary);
+}
+
+/*
+ * #6, #18.1 (tags/runCell.jelly): the Run cell of the run and incident tables: the status icon,
+ * the job, the #n run and the result label, separated by spaces in the text (no margins, owner
+ * decision 2026-10-15). The label is plain text in the secondary text colour, never a badge. The
+ * icon sits on the text's line.
+ *
+ * Minimum width (owner decision 2026-10-15): an inline-block with a min-width is part of the
+ * cell's min-content width, so it holds the Run column open in the auto-layout table. 16em fits
+ * the icon and a typical line of about 20 characters ("r27-d3-abort #12 Aborted") at the table's
+ * font size; a longer job name wraps inside it at a hyphen or "/" instead of widening the column.
+ */
+.batch-control-run {
+  display: inline-block;
+  min-width: 16em;
+}
+
+.batch-control-run svg {
+  vertical-align: text-bottom;
+}
+
+.batch-control-run__result {
+  color: var(--text-color-secondary);
+}
+
+/*
+ * #6, #18.1 (tags/parameters.jelly): one parameter line of a run table. A value (cut at 120
+ * characters) may break anywhere, so one long value without spaces does not widen the table.
+ */
+.batch-control-param {
+  overflow-wrap: anywhere;
+  min-width: 12rem;
+}
+
+/*
+ * D3 (owner decision 2026-10-15, RequestItem/index.jelly): the Approve and Reject buttons end the
+ * Decision section with the space core puts after a section's table (--section-padding), so the
+ * next heading does not sit on the buttons.
+ */
+.batch-control-decision__buttons {
+  margin-bottom: var(--section-padding);
+}

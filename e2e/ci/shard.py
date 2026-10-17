@@ -153,6 +153,14 @@ UNITS = [
          doc="e2e-25 #43: runs.csv, incidents.csv, changes.csv and requests.csv (REST, filtered, empty, and the History "
              "page's download buttons) start with the UTF-8 BOM and the header row; guards: content type and "
              "attachment name unchanged, the existing columns, Korean values in UTF-8"),
+    # e2e-26 #36 (wave B). r26/activation_write.py deletes and re-creates its own items (r26-aw-hold, r26-aw-act), makes
+    # batch-control/activations/ unwritable with `docker exec -u root` around each approval, restores its exact modes, and
+    # restarts Jenkins (last).
+    Unit("r26-activation-write", 0.6, [("r26-activation-write", py("r26/activation_write.py"))], last=True,
+         group="crawl and ui checks",
+         doc="e2e-26 #36: an approved HOLD/ACTIVATE whose activation state cannot be written is refused (4xx 'could not "
+             "be saved', no Oops), stays PENDING, the job page, state file and records are unchanged; after a restart the "
+             "state is what the page said; once writable, the same approval works"),
     # e2e-16 (hosting review round 6: D-71..D-74). Each unit arranges its own items/accounts (r16/arrange.py is idempotent)
     # so it is self-contained on whatever shard it lands on. Drivers exit non-zero and print FAIL lines. Weights: minutes
     # measured on the 2026-10-06 runs (arrangement included), calibrated against CI (above).
@@ -217,6 +225,28 @@ UNITS = [
     Unit("r24-json-params", 0.4, [("r24-json-params", py("r24/json_params.py"))], group="crawl and ui checks",
          doc="e2e-24 #40: a json submission with all, some or no parameters (url-encoded and multipart) stores every "
              "parameter, the approver's page lists them, and the build runs with them after the defaults changed"),
+    # e2e-27 D2 (Wave D, #18.3 and #18.2, with the colour badges of 2026-10-14). r27/d2_fixture.py arranges the records
+    # of every status on its own items (r27-d2-*): it activates r27-d2-timer once through the request flow, deletes and
+    # re-creates r27-d2-gone and r27-d2-w-del, ages three requests in the store so the periodic work expires them, and for
+    # one deletion adds an administrator with a long user id to the matrix and removes it again. The first step leaves
+    # the records for the second (BC_D2_KEEP_FIXTURE=1), which sweeps the requester's pending r27-d2 requests at its end;
+    # it switches approver-1's theme and the Content-Security-Policy enforcement for its sections and back. In the group
+    # "job ui params and restart" since the badges (its weight did not fit "crawl and ui checks"). The owner decisions of
+    # 2026-10-14 added sections I and L (incident results, result labels, a build held running for about half a minute,
+    # incidentResults changed and put back, the result labels read in three browser languages); T-UI-269j added section N
+    # (the Incidents introduction under five settings saved on the configuration page). Weight: 164 to 170 s in four runs
+    # on a fresh stack through ci/run.sh, both steps, with section N (2026-10-15, local, five stacks at once); r16-params
+    # moved to "job ui other roles" so that this group stays under the heaviest group's 19.5.
+    Unit("r27-labels-filters", 2.8, [("r27-labels-filters", dict(py("r27/labels_filters.py"), env={"BC_D2_KEEP_FIXTURE": "1"})),
+                                     ("r27-status-badges", py("r27/status_badges.py"))], group="job ui params and restart",
+         doc="e2e-27 D2: History's Result/Status filters are jenkins-select dropdowns (every option filters, Any, dates, "
+             "paging, CSV link, keyboard, kept input escaped); every status and cause a readable label with "
+             "data-batch-control-status on every screen and for five accounts; request and incident statuses colour "
+             "badges with the contract's tones (approvals neutral in the Ended tables), causes plain; the Incidents "
+             "Result filter offers Any, Failed, Unstable, Aborted; build results plain-text labels on six screens "
+             "(In progress while running); contrast in the light and dark theme, geometry at 1280/1024/768 (inside "
+             "the cell, no new sideways scroll), no CSP violation under enforcement, forced colours; guards: CSV, "
+             "filters, JSON keep enums"),
     # e2e-19 (gap audit, docs/reports/e2e-19.md): SPEC acceptance lines no CI step checked before. r19/arrange.py is
     # idempotent and self-contained (items r19-*, accounts from JCasC). Each driver exits non-zero and prints FAIL lines,
     # and restores what it changes globally (executors, authorize-project's authenticator). Weights: minutes measured on
@@ -254,6 +284,20 @@ UNITS = [
     Unit("r22-cancelled-notice", 0.5, [("r22-cancelled-notice", py("r22/cancelled_notice.py"))],
          doc="e2e-22 R2-05: an approved run whose queue item was cancelled (from the queue, or by disabling the job) is not "
              "shown as starting shortly; the request page says the queued run was cancelled and will not start"),
+    # e2e-27 D3 (Wave D, #18.5, #6 and #18.1). r27/decision_tables.py arranges its own items (r27-d3-*), runs each once per
+    # pass (one aborted by admin), appends one WEIRD run record (r27-d3-ghost#7) once, disables r27-d3-off and enables it
+    # again, sets every Batch Control setting but the switches to other values and puts them back, reverts to the plain
+    # strategy once and migrates back, and cancels what it leaves pending. Section Z (screenshots in two themes and two
+    # widths for the owner) is not run here: `python r27/decision_tables.py Z` after the others. Weight: 39 to 46 s in
+    # two runs through ci/run.sh with sections S and D and the hover guard (one on a fresh stack, one in its group;
+    # 2026-10-16, local).
+    Unit("r27-decision-tables", 0.8, [("r27-decision-tables", py("r27/decision_tables.py", "AOPJBEXTLICSDQ"))],
+         group="job ui params and restart",
+         doc="e2e-27 D3: the run request page's Decision right after Parameters with one comment box and Approve/Reject "
+             "in one form (approve, reject, refused reject and approval with the form following the refused verb, "
+             "disabled job: Reject only), all in the browser; the 7-column run tables and 4-column incident tables with "
+             "the icon/job/#n/label Run cell, the link rule per viewer, folded and cut parameters, no wrapping; the five "
+             "setting groups on both configuration pages for admin and manager, saved through the real form"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",
@@ -276,6 +320,12 @@ UNITS = [
          doc="e2e-25 #45: paging one list on the Run Requests, Grants or Activations page keeps the other lists' page "
              "parameters and pages; guards: the own list pages, every list honours its parameter, markup in a "
              "parameter is escaped"),
+    # e2e-26 #34 (wave B). r26/store_force.py re-creates its own item (r26-sf) and runs an strace sidecar
+    # (r26/strace.Dockerfile, --pid=container:<jenkins> --cap-add SYS_PTRACE) only for its traced section; the Jenkins
+    # container gets no extra capability. It revokes its window at its end.
+    Unit("r26-store-force", 0.5, [("r26-store-force", py("r26/store_force.py"))], group="job ui windows and disk",
+         doc="e2e-26 #34: fsync/fdatasync (strace) of the temporary file, the directory and the month file of a grant "
+             "approval, a revocation, a run request and its decision and an activation decision; writes behave as before"),
     Unit("role", 6.0, [
         ("role-setup", py("r14/role/setup.py")),
         ("role-manage", py("r14/role/manage_roles.py")),
@@ -290,7 +340,9 @@ UNITS = [
     # e2e-22 R2-04 (bug-hunt batch B). r22/rename_queue.py saves the authorization strategy, applies a Batch Control
     # role-based profile through JCasC for its own items (r22-team-a-*), and restores the strategy, the change-control
     # switch and the built-in node's labels exactly at its end (so it needs no `last`).
-    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))],
+    # Since e2e-27 (2026-10-13) in the group "runs and switches" (it was in "admin and role strategy", which r27-titles-revert
+    # would have taken to 20.1 min, above the heaviest group's 19.5); it restores what it changes, so its place is free.
+    Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
     # e2e-26 #32 (wave B). r26/case_rename.py deletes and re-creates its own items (r26-Nightly, r26-Weekly, folders r26-Team
@@ -300,8 +352,13 @@ UNITS = [
     Unit("r26-case-rename", 1.5, [("r26-case-rename", py("r26/case_rename.py"))], last=True, group="job ui other roles",
          doc="e2e-26 #32: after a case-only rename of a job and of a folder (Item.renameTo) and a restart, the jobs are still "
              "activated and their timer runs; the file system kind of the store is named in every check"),
-    Unit("r16-durable", 2.2, [("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
-                              ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py"))],
+    # e2e-27 D1 (T-UI-236 across a restart): r27/title_restart.py does not restart Jenkins itself; its `before` step
+    # opens a window and renames its item, its `after` step reads the window's page after this unit's two restarts.
+    # They took 4.3 s and 3.1 s (2026-10-13, local): the unit's weight went from 2.2 to 2.3.
+    Unit("r16-durable", 2.3, [("r27-title-restart-before", py("r27/title_restart.py", "before")),
+                              ("r16-arrange", py("r16/arrange.py")), ("r16-durable", py("r16/durable.py")),
+                              ("r19-arrange", py("r19/arrange.py")), ("r19-restart", py("r19/restart.py")),
+                              ("r27-title-restart-after", py("r27/title_restart.py", "after"))],
          last=True, doc="e2e-16: a window's end survives a failed grant write and a restart (6325e85); e2e-19: pending and "
                         "queued approved requests with typed values survive a restart and run once with the exact values; "
                         "restarts Jenkins, after which JCasC has reset the arrangement's permissions (last)"),
@@ -326,10 +383,43 @@ UNITS = [
          doc="e2e-25 #42: every run link on History, the Run Dashboard, Incidents and the incident pages resolves (200) "
              "to the run's own URL for a matrix configuration; guards: a Freestyle job, a job in a folder, the matrix "
              "parent and the request page's executed run"),
+    # e2e-26 #33 (wave B). r26/month_zone.py writes its own items (r26-zone-*-<tag>, a new tag per run) with the plugin
+    # clock fixed for a moment, and re-creates the Jenkins container in another zone and back with `docker compose` from
+    # the container's labels (same JENKINS_HOME volume): two restarts (last).
+    Unit("r26-month-zone", 1.0, [("r26-month-zone", py("r26/month_zone.py"))], last=True, group="crawls and multibranch",
+         doc="e2e-26 #33: records written near a month boundary in one zone are listed for their day on the History runs "
+             "and changes listings and in runs.csv/changes.csv after the controller restarts in another zone (both "
+             "directions); the neighbouring day does not list them"),
     # e2e-21 (71d267b). r21/arrange.py is idempotent (item r21-reject).
     Unit("r21-reject-color", 0.3, [("r21-arrange", py("r21/arrange.py")), ("r21-reject-color", py("r21/reject_color.py", "RGA"))],
          doc="e2e-21: approver-1's Reject button on the run, permission window and activation request pages renders in "
              "var(--destructive-color) (computed colour vs a probe), the Approve button does not"),
+    # e2e-27 D1 (Wave D, #18.4 and #18.7). r27/titles_revert.py arranges its own items (folder r27-d1, r27-d1-top-*, the
+    # vault folder r27-d1-vault only administrators read, the multibranch project r27-d1/mb over repos/r27-d1.git, a
+    # copy of the seed's repository with one more branch), files one window request on the seed's team-mb and cancels it,
+    # cancels the requester's pending r27-d1 requests and revokes their windows, reverts the strategy through the moved
+    # entry on both configuration pages and over REST and restores it through the monitor's migrate endpoint each time;
+    # for its last section it saves the strategy, applies a role profile through JCasC and puts the saved strategy back
+    # (as r22/rename_queue.py, so it needs no `last`). Weight: 190 to 199 s in four
+    # runs on a fresh stack through ci/run.sh, four stacks at a time (2026-10-14, local, 827 checks).
+    Unit("r27-titles-revert", 3.3, [("r27-titles-revert", py("r27/titles_revert.py"))], group="admin and role strategy",
+         doc="e2e-27 D1: run, grant, activation and hold request pages titled 'Run request: <job>' etc. (title, heading, "
+             "breadcrumb and its tooltip; four roles, folder and top-level, Pipeline and multibranch subjects, escaped odd "
+             "names, branch jobs, classic flag, decided, executed and expired requests, refusals at the POST URL) with an "
+             "ID row and core's copy button; a window's title follows its renamed or moved item for a reader and keeps the "
+             "approved name for anyone else, also after the window ended; the revert entry inside the Batch Control section's Advanced control and last, on "
+             "both configuration pages, under the matrix and the role strategy; guards: revert still works and keeps "
+             "every entry, Administer-only (403/405), a Manage holder is told so without Advanced"),
+    # e2e-27 D1 (#18.7 for Overall/Manage and Overall/SystemRead). r27/revert_permissions.py saves the strategy, adds four
+    # accounts (r27-ovm*, r27-sysread*), switches Overall/SystemRead on for its pass when the stack was not started with
+    # compose.permissions.yml, and puts everything back (no `last`). Weight: 12.2 to 14.2 s on a fresh stack
+    # (2026-10-13, local, 34 checks).
+    Unit("r27-revert-permissions", 0.2, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
+         group="job ui other roles",  # other accounts' view of the configuration pages; keeps group 3 under 19.5
+         doc="e2e-27 D1: holders of Overall/Manage and Overall/SystemRead (with and without BatchControl/Manage) get "
+             "nothing of the revert on Manage Jenkins > System and the Batch Control page, no Advanced control, the "
+             "administrator-only sentence where the section is shown, 403 on the endpoint; a save of System by an "
+             "Overall/Manage holder changes neither the strategy nor the Batch Control settings"),
     # e2e-25 #41 (Wave C-UI). r25/breadcrumb_menu.py arranges its own folder, job and accounts (r25-team, r25-folder-*)
     # and cancels the folder requester's pending request at its end.
     Unit("r25-breadcrumb-menu", 0.6, [("r25-breadcrumb-menu", py("r25/breadcrumb_menu.py"))],
@@ -366,14 +456,15 @@ GROUPS = [
     ("crawls and multibranch", [  # the crawls of admin, reqonly, approver-1 and nobc, the multibranch job pages
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
-        "jobui-new-admin", "jobui-classic-admin", "r22-rename-queue", "role"]),
-    ("job ui params and restart", [  # requester's job UI, typed parameters, requests with typed values across a
-        "jobui-new-requester", "jobui-classic-requester", "r16-params", "r16-durable"]),  # restart (last)
+        "jobui-new-admin", "jobui-classic-admin", "role"]),
+    ("job ui params and restart", [  # requester's job UI, requests with typed values across a restart (last)
+        "jobui-new-requester", "jobui-classic-requester", "r16-durable"]),
     ("job ui windows and disk", [  # reqonly's job UI, permission windows on items and renames, item kinds, items
         "jobui-new-reqonly", "jobui-classic-reqonly", "r22-nonascii-reason",  # removed on disk with reload and restart (last)
         "r16-items", "r16-rename", "r16-follow", "r16-names", "r17-s39", "r19-kinds", "r17-disk"]),
-    ("job ui other roles", [  # the job UI of approver-1, manager and nobc
-        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor"]),
+    ("job ui other roles", [  # the job UI of approver-1, manager and nobc; typed parameters (r16-params arranges its
+        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor",  # own items; moved here on 2026-10-14 when the
+        "r16-params"]),  # D2 unit's 2.8 min would have taken "job ui params and restart" to 19.6, above the heaviest 19.5
     ("runs and switches", [  # the run gate, reruns and the prefilled form, triggers, other plugins, the request
         "r16-rerun", "r16-d60",  # lifecycle, then the global switches and the strategy (last)
         "r19-gate", "r22-scripted-build", "r19-plugins", "r19-triggers", "r19-lifecycle", "r18-final"]),
@@ -632,6 +723,12 @@ def observations():
                 # e2e-16: raw enum values shown as text (INFO, the deferred UX-4/UX-5 items), per value with its URL patterns
                 "raw_enum_values": {k: sorted({x.get("pattern") for x in r if x.get("check") == "raw-enum" and x.get("key") == k})[:12]
                                     for k in sorted({x.get("key") for x in r if x.get("check") == "raw-enum"})},
+                # #18.2: result cells read (once per URL pattern and text) and the raw result words found in them
+                "result_cells": {"read": sum(1 for x in r if x.get("check") == "result-cell"),
+                                 "texts": sorted({x.get("key") for x in r if x.get("check") == "result-cell"})[:20],
+                                 "raw": sum(1 for x in r if x.get("check") == "raw-result")},
+                # D1 follow-up: pages whose core Advanced controls the crawl pressed before checking them again
+                "advanced_expanded": sorted({f'{x.get("page")} ({x.get("pressed")})' for x in r if x.get("kind") == "advanced"})[:20],
             }
     a = rows("actions.jsonl")
     if a:

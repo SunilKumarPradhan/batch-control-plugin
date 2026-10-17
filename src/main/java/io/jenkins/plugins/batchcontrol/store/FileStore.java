@@ -20,14 +20,17 @@ import io.jenkins.plugins.batchcontrol.model.RequestStatus;
 import io.jenkins.plugins.batchcontrol.model.RunRecord;
 import io.jenkins.plugins.batchcontrol.model.RunRequest;
 import io.jenkins.plugins.batchcontrol.model.RunRequestValues;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +47,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -123,6 +127,9 @@ public final class FileStore implements Store {
      * (security-10 S-03): about a month at the SPEC section 6 volume.
      */
     private static final long MAX_SKIPPED_BYTES = 128L * 1024 * 1024;
+
+    /** The largest zone offset there is ({@link ZoneOffset#MAX}): how far a bucket's month can lie from UTC's. */
+    private static final Duration MAX_ZONE_OFFSET = Duration.ofSeconds(ZoneOffset.MAX.getTotalSeconds());
 
     /** Tolerance for appends that land slightly out of time order (concurrent writers). */
     private static final long APPEND_ORDER_SLACK_MILLIS = 60_000L;
@@ -1117,6 +1124,59 @@ public final class FileStore implements Store {
         return new ArrayList<>(months);
     }
 
+    @Override
+    public List<YearMonth> listStoredMonths(Period period) {
+        Objects.requireNonNull(period, "period");
+        // A record at t written in a zone with offset o is in the bucket of t + o, and every offset
+        // lies within +/-18 hours (ZoneOffset.MIN .. MAX).
+        Instant from = period.from();
+        Instant to = period.toExclusive();
+        YearMonth first = from == null ? null : earliestBucket(from);
+        YearMonth last = to == null ? null : latestBucket(to);
+        List<YearMonth> months = new ArrayList<>();
+        for (YearMonth month : listStoredMonths()) {
+            if ((first == null || !month.isBefore(first)) && (last == null || !month.isAfter(last))) {
+                months.add(month);
+            }
+        }
+        return months;
+    }
+
+    /** The earliest bucket a record at or after {@code from} can be in, whatever zone wrote it. */
+    private static YearMonth earliestBucket(Instant from) {
+        return YearMonth.from(from.minus(MAX_ZONE_OFFSET).atOffset(ZoneOffset.UTC));
+    }
+
+    /** The latest bucket a record before {@code toExclusive} can be in, whatever zone wrote it. */
+    private static YearMonth latestBucket(Instant toExclusive) {
+        return YearMonth.from(toExclusive.minusMillis(1).plus(MAX_ZONE_OFFSET).atOffset(ZoneOffset.UTC));
+    }
+
+    /**
+     * #33: the buckets next to the months {@code period} covers in the plugin clock's zone that may
+     * still hold records of the period, written while the plugin clock had another zone: at most one
+     * on each side, and only when the period comes within the largest zone offset of that month.
+     */
+    private static Set<YearMonth> zoneNeighbours(Period period) {
+        Set<YearMonth> out = new HashSet<>();
+        Instant from = period.from();
+        if (from != null) {
+            YearMonth own = YearMonth.from(from.atZone(BatchClock.clock().getZone()));
+            for (YearMonth m = earliestBucket(from); m.isBefore(own); m = m.plusMonths(1)) {
+                out.add(m);
+            }
+        }
+        Instant to = period.toExclusive();
+        if (to != null) {
+            YearMonth own = YearMonth.from(to.minusMillis(1).atZone(BatchClock.clock().getZone()));
+            YearMonth latest = latestBucket(to);
+            for (YearMonth m = own.plusMonths(1); !m.isAfter(latest); m = m.plusMonths(1)) {
+                out.add(m);
+            }
+        }
+        return out;
+    }
+
     private Path[] monthDirs() {
         return new Path[] {runsDir(), changesDir(), incidentIndexDir()};
     }
@@ -1393,7 +1453,11 @@ public final class FileStore implements Store {
             Path tmp = Files.createTempFile(dir, tmpPrefix, ".tmp");
             boolean moved = false;
             try {
-                try (Writer writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
+                // #34: the content is forced to disk before the rename (as Files.newBufferedWriter
+                // does, an unmappable character is refused rather than replaced).
+                try (FileChannel channel = FileChannel.open(tmp, StandardOpenOption.WRITE);
+                     Writer writer = new BufferedWriter(new OutputStreamWriter(Channels.newOutputStream(channel),
+                             StandardCharsets.UTF_8.newEncoder()))) {
                     // What xstream.toXML(entity, writer) does, with the check around the writer.
                     HierarchicalStreamWriter xml = new StorableTextWriter(
                             XStream2.getDefaultDriver().createWriter(writer));
@@ -1402,9 +1466,12 @@ public final class FileStore implements Store {
                     } finally {
                         xml.flush();
                     }
+                    writer.flush();
+                    channel.force(true);
                 }
                 moveAtomically(tmp, target);
                 moved = true;
+                DurableFiles.forceDirectory(dir);
             } finally {
                 if (!moved) {
                     // S-35-03: the partly written temporary file of a failed save is removed.
@@ -1643,9 +1710,10 @@ public final class FileStore implements Store {
             Path tmp = Files.createTempFile(dir, "write", ".tmp");
             boolean moved = false;
             try {
-                Files.write(tmp, text.getBytes(StandardCharsets.UTF_8));
+                DurableFiles.writeForced(tmp, text.getBytes(StandardCharsets.UTF_8));
                 moveAtomically(tmp, target);
                 moved = true;
+                DurableFiles.forceDirectory(dir);
             } finally {
                 if (!moved) {
                     deleteQuietly(tmp);
@@ -1726,6 +1794,7 @@ public final class FileStore implements Store {
         lock.lock();
         try {
             Files.createDirectories(dir);
+            boolean created = !Files.exists(file);
             try (FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
                 long end = channel.size();
                 if (end > 0 && !lastLineEnded(file, end)) {
@@ -1735,6 +1804,12 @@ public final class FileStore implements Store {
                 while (bytes.hasRemaining()) {
                     end += channel.write(bytes, end);
                 }
+                // #34: the record is on disk before the operation that wrote it reports success.
+                channel.force(true);
+            }
+            if (created) {
+                // A new month file's directory entry, once a month.
+                DurableFiles.forceDirectory(dir);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to append record to " + file, e);
@@ -1920,13 +1995,21 @@ public final class FileStore implements Store {
         long skippedBytes = 0;
         boolean truncated = false;
         JsonLineScanner scanner = new JsonLineScanner();
-        List<YearMonth> ordered = new ArrayList<>(new TreeSet<>(months).descendingSet());
+        // #33: a record of the period can sit in a neighbouring bucket when it was written while the
+        // plugin clock had another zone; those buckets are read too, and only the period's records
+        // in them count. A line skipped there (unreadable, oversized) is most likely of the
+        // neighbour's own month, so it is not reported as skipped from this period.
+        Set<YearMonth> neighbours = zoneNeighbours(period);
+        TreeSet<YearMonth> toRead = new TreeSet<>(months);
+        toRead.addAll(neighbours);
+        List<YearMonth> ordered = new ArrayList<>(toRead.descendingSet());
         scan:
         for (YearMonth month : ordered) {
             Path file = PathCodec.resolveUnder(dir, monthFileName(month));
             if (!Files.isRegularFile(file)) {
                 continue;
             }
+            boolean ownMonth = !neighbours.contains(month);
             try (ReverseLineReader reader = new ReverseLineReader(file)) {
                 try {
                     while (reader.next()) {
@@ -1965,7 +2048,7 @@ public final class FileStore implements Store {
                                         StandardCharsets.UTF_8);
                                 value = fullParser.apply(JSONObject.fromObject(text));
                             } catch (RuntimeException e) {
-                                if (unreadable++ == 0) {
+                                if (ownMonth && unreadable++ == 0) {
                                     LOGGER.log(Level.WARNING, "Skipping unparseable line(s) of {0}: {1}",
                                             new Object[] {file, e.getClass().getName()});
                                 }
@@ -1998,7 +2081,9 @@ public final class FileStore implements Store {
                         }
                     }
                 } finally {
-                    oversized += reader.oversized();
+                    if (ownMonth) {
+                        oversized += reader.oversized();
+                    }
                 }
             } catch (NoSuchFileException e) {
                 // Deleted by retention between the check and the read.

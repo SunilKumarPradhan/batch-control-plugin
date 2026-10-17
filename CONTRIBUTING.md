@@ -17,7 +17,7 @@ are what makes the rest of the repository readable.
 
 | | |
 |---|---|
-| JDK | **21 or 25** (Temurin). JDK 17 cannot build against Jenkins 2.568.x, whose core needs Java 21. The `Jenkinsfile` builds Linux on 21 and 25 and Windows on 21, and the GitHub Actions build runs on 21 and 25. |
+| JDK | **21 or 25** (Temurin). JDK 17 cannot build against Jenkins 2.568.x, whose core needs Java 21. ci.jenkins.io (`Jenkinsfile`) builds Linux on 25 and Windows on 21 with the core tests only; GitHub Actions runs the whole suite on Linux with 21 and 25 and on Windows with 21. |
 | Maven | **3.9.6** or newer (the parent POM enforces it). |
 | Docker | Only for the end-to-end environment (§5). Not needed for `mvn verify`. |
 
@@ -379,30 +379,56 @@ behind any of them.
   (`.github/workflows/build.yml`, Linux). Each JDK the hosting checker accepts
   has its own checks — `build (jdk 21)`, `build (jdk 25)` and one test job per
   feature group of test classes, such as `test (jdk 21, run approval and mail)`
-  or `test (jdk 25, parameters and ui)` — and the aggregating job `build`
+  or `test (jdk 25, pages forms and config)` — and the aggregating job `build`
   succeeds only when all of them do. The groups are listed, by class-name prefix
   or class name, in `.github/test-shards.txt`, and the `shard safeguard` job
   fails when a test class matches no group or two, or a listed name matches no
   class. A new class whose prefix a group already lists (`Grant*Test`,
   `Window*Test`) needs nothing; otherwise add its prefix or its name to the
   group of the feature it tests, and take a renamed or deleted class's name out.
-  ci.jenkins.io also builds Linux on JDK 21 and 25 and Windows on JDK 21 from
-  the `Jenkinsfile` and reports the check `Jenkins`. It uses the same groups:
-  each platform runs one agent per group, named like
-  `linux-21 (run approval and mail)` or `windows-21 (parameters and ui)`, and
-  one `<platform> (checks)` agent for `verify` with the tests skipped. A first
-  `Plan` stage fails when a test class matches no group or two, and each group's
-  agent fails unless Surefire reported exactly that group's classes, so every
-  class runs once per platform. A failing test fails its agent and the build;
-  the other agents still finish. Every agent is non-spot (`maven-21-nonspot`,
-  `maven-25-nonspot`, `maven-21-windows-nonspot`), is retried once on a new
-  agent if it is lost, and has a 60-minute limit (30 for `checks`); the
-  whole suite on one agent took 2 to 3 hours and hit buildPlugin's 180-minute
-  cap. Coverage (`linux-21`), static analysis and the Incrementals artifacts
-  are recorded as buildPlugin records them. For the
-  full list of Windows test failures, which the `Jenkins` check text cuts short,
-  run the manual, not required `Windows tests` workflow
-  (`gh workflow run windows-tests.yml --ref <branch>`) and read its summary.
+  The whole suite also runs on Windows with JDK 21, in the `Windows tests`
+  workflow (`.github/workflows/windows-tests.yml`), on every pull request and
+  every push to `main` that touches `src/`, `pom.xml`, `.mvn/`, the test groups
+  or their scripts: one job per group, such as
+  `windows test (jdk 21, run approval and mail)`, and a `windows test summary`
+  job that lists every failing test and every class without a report and is
+  red when there is any. It is not a required check, but a red run needs a
+  look before merging.
+  ci.jenkins.io builds the `Jenkinsfile`, a plain `buildPlugin` call, on Linux
+  with JDK 25 and on Windows with JDK 21, and reports the check `Jenkins`. It
+  runs only the tests tagged `@Tag("core")` and the generated `InjectedTest`:
+  a Jenkins build sets `BUILD_URL`, which activates the
+  `core-tests-on-jenkins` profile in `pom.xml` (local and GitHub Actions builds
+  do not set it, and run everything). The profile fails the build when no test
+  carries the tag, so a lost tag shows up as a red `Jenkins` check. The whole suite takes about 103 minutes
+  on four forks there, longer than buildPlugin's default timeout, and spot
+  agents get reclaimed during so long a run. ci.jenkins.io runs on spot agents
+  only, and buildPlugin retries an agent that is reclaimed. Never add
+  `nonspot` labels or turn the `Jenkinsfile` into a custom pipeline; the
+  ci.jenkins.io administrators asked for that in
+  jenkinsci/batch-control-plugin#80. buildPlugin also records coverage, static
+  analysis and the Incrementals artifacts.
+- **`@Tag("core")`** marks the tests ci.jenkins.io runs, about a quarter of the
+  suite. The criteria for what belongs there are in `docs/TEST-MATRIX.md`,
+  note 330; tag a new test only when it meets them. An untagged test still
+  runs in `build` and in `Windows tests`.
+- **Verify on your fork before you open the pull request.** ci.jenkins.io is
+  shared by every Jenkins project and runs on sponsored capacity, and it builds
+  every pull request again on every push. So:
+  1. Fork the repository, enable Actions on the fork, and push your topic
+     branch there, never to `jenkinsci/batch-control-plugin`.
+  2. Run the `build` workflow on that branch from the fork's Actions tab
+     ("Run workflow"), or with
+     `gh workflow run build.yml --ref <branch> -R <you>/batch-control-plugin`.
+     For a change to the UI or to behaviour, run the `e2e` workflow the same
+     way (`e2e.yml`). A run started by hand has no base commit, so it reports
+     no changed-line coverage; the pull request's own e2e run does. Run
+     `windows-tests.yml` the same way if you want the Windows result before
+     the pull request starts it.
+  3. Open the pull request from that branch when they are green.
+  4. Batch your commits: push the answers to a review round together, not one
+     commit at a time, because every push to a pull request rebuilds it on
+     ci.jenkins.io.
 - **Merging into `main`** needs two required status checks, `build` and
   ci.jenkins.io's `Jenkins`, green on a branch that is up to date with `main`
   (update it when GitHub says it is behind), and one approving review, from the
@@ -427,23 +453,32 @@ behind any of them.
 
 Releases are made by continuous delivery (JEP-229). The maintainer runs the CD
 workflow (`.github/workflows/cd.yaml`) by hand on `main`, and it publishes a
-version of the form `<revision>.<commit count>.v<commit hash>`, for example
-`1.0.1130.vabcdef456789`: the "manually controlled prefix" of the
+version of the form `<commit count>.v<commit hash>`, for example
+`1300.vabcdef456789`: the default format of the
 [CD documentation](https://www.jenkins.io/doc/developer/publishing/releasing-cd/).
-`revision` is a property in `pom.xml` (now `1.0`); the rest is set by the
-changelist extension (`.mvn/maven.config`, `-Dchangelist.format=%d.v%s`). A
-local build is `1.0.999999-SNAPSHOT`.
+`pom.xml` has `<version>${changelist}</version>`, and the changelist extension
+(`.mvn/extensions.xml`, and `.mvn/maven.config` with
+`-Dchangelist.format=%d.v%s`) fills it in at release time. A local build is
+`999999-SNAPSHOT`. The commit count only grows on `main`, so each release
+compares higher than the one before, as long as the history of `main` is never
+rewritten.
 
-- **Bump `revision` only for a new line**: `1.1` when a release adds features
-  worth marking, `2.0` when it breaks compatibility (settings, stored data or
-  behaviour). Do it in its own pull request, labelled like the change it marks.
-  The commit count keeps growing, so versions within a line and across lines
-  stay ordered (`1.0.1130.v…` < `1.0.1131.v…` < `1.1.1140.v…`).
-- **Never lower it.** Every new version must compare higher than every version
-  on the update center. The first release, `1124.vfe83a_6d946c3`, compares higher
-  than any `1.x` version, so it has to be removed from the update center once
-  `1.0.x` is out, and anyone who installed it reinstalls the plugin (see the
-  release notes of the first `1.0.x` release).
+- **No `${revision}` prefix.** The CD documentation also offers a "manually
+  controlled prefix", `${revision}.${changelist}`, which gives versions such as
+  `1.0.1300.v…`. It is not used: the first release, `1124.vfe83a_6d946c3`, is
+  already out in the default format, and Jenkins and the update center compare
+  `1.0.1300.v…` as **lower** than `1124.v…`, so the plugin manager would never
+  offer a later release as an update. A version must never go down.
+- **Before any change of the format** (`<version>` in `pom.xml` or
+  `changelist.format` in `.mvn/maven.config`), evaluate the version the next
+  release would get, on a clean checkout of the branch:
+  `mvn -q -Dset.changelist help:evaluate -Dexpression=project.version -DforceStdout`.
+  Compare it with the latest released version using `hudson.util.VersionNumber`
+  (`org.jenkins-ci:version-number`, the class Jenkins core and the update center
+  use), for example in `jshell` with that jar on the class path:
+  `new VersionNumber("<next>").isNewerThan(new VersionNumber("<latest>"))`.
+  Merge only if it is `true`, and put both versions and the result in the pull
+  request.
 
 The release notes are drafted by release-drafter from the
 titles and labels of the pull requests merged since the previous release, so:

@@ -6,13 +6,16 @@
      (tags/scopeItem.jelly); D-74: once approved, its window's item, which follows the item when
      it is renamed or moved. D-75 (1), S-39-04: the followed name only to a viewer who may read the
      item, otherwise the approved name with a fixed note (GrantRequestItem#getShownScope).
+     #18.4: the title and the heading (it.pageTitle, "Grant request: <item>") and the last
+     breadcrumb (it.displayName, the item alone: D3) name that same item for the same viewer,
+     without the note.
      LIMITATIONS 29: with change control off this page is shown only as the refusal of an
      approval (GrantsSection#getTarget), with the message above the details and no forms. -->
 <j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form"
          xmlns:bc="/io/jenkins/plugins/batchcontrol/tags">
-  <l:layout title="Grant Request ${it.id}" type="one-column" permissions="${it.viewPermissions}">
+  <l:layout title="${it.pageTitle}" type="one-column" permissions="${it.viewPermissions}">
     <l:main-panel>
-      <l:app-bar title="Grant Request ${it.id}"/>
+      <l:app-bar title="${it.pageTitle}"/>
       <bc:tabs active="grants"/>
 
       <!-- DEF-09: a refusal whose form is no longer shown (the request was decided or cancelled
@@ -49,7 +52,7 @@
             </tr>
           </j:if>
           <tr><th style="text-align: left;">Duration</th><td>${it.request.durationMinutes} ${it.request.durationMinutes == 1 ? 'minute' : 'minutes'}</td></tr>
-          <tr><th style="text-align: left;">Status</th><td>${it.request.status}</td></tr>
+          <tr><th style="text-align: left;">Status</th><td><bc:status value="${it.request.status}"/></td></tr>
           <tr><th style="text-align: left;">Requester</th><td>${it.request.requester}</td></tr>
           <tr><th style="text-align: left;">Approvers</th><td>${it.join(it.request.approvers)}</td></tr>
           <tr><th style="text-align: left;">Created</th><td>${it.format(it.request.createdAt)}</td></tr>
@@ -69,6 +72,7 @@
               <td style="white-space: pre-wrap;">${it.request.decisionComment}</td>
             </tr>
           </j:if>
+          <bc:idRow value="${it.id}"/>
         </tbody>
       </table>
 

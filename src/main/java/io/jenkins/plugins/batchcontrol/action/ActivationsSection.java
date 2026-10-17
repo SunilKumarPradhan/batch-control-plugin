@@ -15,6 +15,7 @@ import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.RecordLookup;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -172,9 +173,9 @@ public class ActivationsSection implements ModelObject, StaplerProxy {
         return allSorted().size();
     }
 
-    /** How an ended request ended, in words: a superseded approval says so. */
+    /** How an ended request ended, in words (#18.2, {@link StatusLabels}): a superseded approval says so. */
     public String endedLabel(ActivationRequest request) {
-        return request.getStatus() == RequestStatus.APPROVED ? "APPROVED (superseded)" : String.valueOf(request.getStatus());
+        return request.getStatus() == RequestStatus.APPROVED ? "Approved (superseded)" : StatusLabels.of(request.getStatus());
     }
 
     /**

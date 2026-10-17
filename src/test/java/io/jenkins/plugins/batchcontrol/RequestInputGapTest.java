@@ -23,7 +23,6 @@ import java.util.regex.Pattern;
 import jenkins.model.Jenkins;
 import org.htmlunit.Page;
 import org.htmlunit.WebResponse;
-import org.htmlunit.html.HtmlForm;
 import org.htmlunit.html.HtmlPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -128,11 +127,10 @@ public class RequestInputGapTest {
         String id = create(List.of(new StringParameterValue("DAY", "2026-09-30")));
         JenkinsRule.WebClient approver = UsabilityFixtures.client(j, "a1");
         HtmlPage detail = (HtmlPage) approver.getPage(new URL(j.getURL(), "batch-control/requests/" + id + "/"));
-        HtmlForm reject = UsabilityFixtures.formsEndingWith(detail, "batch-control/requests/" + id + "/reject").stream()
-                .findFirst().orElse(null);
-        assertNotNull(reject, "fixture: the designated approver is offered a reject form; forms: " + UsabilityFixtures.formActions(detail));
-        UsabilityFixtures.setField(reject, "comment", "bad" + CONTROL + "comment");
-        Page answer = j.submit(reject);
+        // Wave D D3 (#18.5): one comment box with Approve and Reject (DecisionAreaFixtures)
+        assertNotNull(DecisionAreaFixtures.button(detail, "Reject"), "fixture: the designated approver is offered Reject; forms: "
+                + UsabilityFixtures.formActions(detail));
+        Page answer = DecisionAreaFixtures.decide(detail, "Reject", "bad" + CONTROL + "comment");
         assertTrue(answer instanceof HtmlPage, "the refusal is an HTML page");
         HtmlPage refused = (HtmlPage) answer;
         UsabilityFixtures.assertNotBareErrorPage("a reject comment with U+0001", refused);

@@ -13,83 +13,119 @@
       <j:set var="bcSectionKey" value="${descriptor.jsonSafeClassName}"/>
       <j:set var="bcTyped" value="${bcSubmittedForm.has(bcSectionKey) ? bcSubmittedForm.getJSONObject(bcSectionKey) : bcSubmittedForm}"/>
     </j:if>
-    <!-- No <f:description> here: inside a title-less <f:entry> it is laid out on the checkbox
-         caption's line and renders as one run-together string (E2E-D4). The wording lives in
-         help-runControlEnabled.html, like every other field on this screen. -->
-    <f:entry field="runControlEnabled">
-      <f:checkbox title="Enable run control"/>
-    </f:entry>
-    <f:entry field="changeControlEnabled">
-      <f:checkbox title="Enable change control"/>
-    </f:entry>
-    <f:entry title="Approvers" field="approversText">
-      <f:textarea/>
-    </f:entry>
-    <f:entry field="allowAdminSelfApproval">
-      <f:checkbox title="Allow administrators to approve their own requests"/>
-    </f:entry>
-    <f:entry title="Pending request timeout (hours)" field="pendingTimeoutHours">
-      <f:number min="1"
-                value="${bcTyped != null and bcTyped.has('pendingTimeoutHours') ? bcTyped.getString('pendingTimeoutHours') : null}"/>
-    </f:entry>
-    <f:entry title="Approved-but-not-run timeout (minutes)" field="approvedRunTimeoutMinutes">
-      <f:number min="1"
-                value="${bcTyped != null and bcTyped.has('approvedRunTimeoutMinutes') ? bcTyped.getString('approvedRunTimeoutMinutes') : null}"/>
-    </f:entry>
-    <f:entry title="Grant duration options (minutes, comma-separated)" field="grantDurationOptions">
-      <!-- The SPEC key names the field (T-CFG-04); the value is the comma-separated text, which
-           BatchControlGlobalConfiguration binds through its text setter. -->
-      <f:textbox value="${instance.grantDurationOptionsText}"/>
-    </f:entry>
-    <f:entry title="Maximum grant duration (minutes)" field="maxGrantMinutes">
-      <f:number min="1"
-                value="${bcTyped != null and bcTyped.has('maxGrantMinutes') ? bcTyped.getString('maxGrantMinutes') : null}"/>
-    </f:entry>
-    <f:entry title="Results that open an incident (comma-separated)" field="incidentResults">
-      <f:textbox value="${instance.incidentResultsText}"/>
-    </f:entry>
-    <f:entry title="Retention period (months)" field="retentionMonths">
-      <f:number min="1"
-                value="${bcTyped != null and bcTyped.has('retentionMonths') ? bcTyped.getString('retentionMonths') : null}"/>
-    </f:entry>
-    <!-- D-36: notifications. The e-mail option exists only while the Mailer plugin is active, so
-         an instance without Mailer never sees a switch that could do nothing. -->
-    <f:entry title="Notify before expiry (minutes)" field="notifyBeforeExpiryMinutes">
-      <f:number min="1"
-                value="${bcTyped != null and bcTyped.has('notifyBeforeExpiryMinutes') ? bcTyped.getString('notifyBeforeExpiryMinutes') : null}"/>
-    </f:entry>
-    <j:if test="${instance.mailerAvailable}">
-      <f:entry field="emailNotifications">
-        <f:checkbox title="Send e-mail notifications"/>
+    <!-- #18 (Wave D, D3, owner decision 2026-10-14, grouping 2026-10-15): the settings in five
+         groups, each a nested core f:section whose title is the group heading (core's
+         section-to-sidebar script lists only top-level sections, so the groups add no sidebar
+         entries). Without a "name", f:section creates no JSON object: the field names, the stored
+         values and the save are unchanged. -->
+    <f:section title="Switches">
+      <!-- No <f:description> here: inside a title-less <f:entry> it is laid out on the checkbox
+           caption's line and renders as one run-together string (E2E-D4). The wording lives in
+           help-runControlEnabled.html, like every other field on this screen. -->
+      <f:entry field="runControlEnabled">
+        <f:checkbox title="Enable run control"/>
       </f:entry>
-    </j:if>
-    <!-- Not a form field: a Batch Control strategy is installed/reverted through the
-         batch-control-strategy administrative monitor, never through this form's own submit
-         (D-35a). Shown only while that strategy is actually installed. -->
+      <f:entry field="changeControlEnabled">
+        <f:checkbox title="Enable change control"/>
+      </f:entry>
+    </f:section>
+    <f:section title="Approval">
+      <f:entry title="Approvers" field="approversText">
+        <f:textarea/>
+      </f:entry>
+      <f:entry field="allowAdminSelfApproval">
+        <f:checkbox title="Allow administrators to approve their own requests"/>
+      </f:entry>
+      <f:entry title="Pending request timeout (hours)" field="pendingTimeoutHours">
+        <f:number min="1"
+                  value="${bcTyped != null and bcTyped.has('pendingTimeoutHours') ? bcTyped.getString('pendingTimeoutHours') : null}"/>
+      </f:entry>
+      <f:entry title="Approved-but-not-run timeout (minutes)" field="approvedRunTimeoutMinutes">
+        <f:number min="1"
+                  value="${bcTyped != null and bcTyped.has('approvedRunTimeoutMinutes') ? bcTyped.getString('approvedRunTimeoutMinutes') : null}"/>
+      </f:entry>
+    </f:section>
+    <f:section title="Permission windows">
+      <f:entry title="Grant duration options (minutes, comma-separated)" field="grantDurationOptions">
+        <!-- The SPEC key names the field (T-CFG-04); the value is the comma-separated text, which
+             BatchControlGlobalConfiguration binds through its text setter. -->
+        <f:textbox value="${instance.grantDurationOptionsText}"/>
+      </f:entry>
+      <f:entry title="Maximum grant duration (minutes)" field="maxGrantMinutes">
+        <f:number min="1"
+                  value="${bcTyped != null and bcTyped.has('maxGrantMinutes') ? bcTyped.getString('maxGrantMinutes') : null}"/>
+      </f:entry>
+      <!-- D-36: the reminder before a permission window expires. -->
+      <f:entry title="Notify before expiry (minutes)" field="notifyBeforeExpiryMinutes">
+        <f:number min="1"
+                  value="${bcTyped != null and bcTyped.has('notifyBeforeExpiryMinutes') ? bcTyped.getString('notifyBeforeExpiryMinutes') : null}"/>
+      </f:entry>
+    </f:section>
+    <f:section title="Incidents and retention">
+      <f:entry title="Results that open an incident (comma-separated)" field="incidentResults">
+        <f:textbox value="${instance.incidentResultsText}"/>
+      </f:entry>
+      <f:entry title="Retention period (months)" field="retentionMonths">
+        <f:number min="1"
+                  value="${bcTyped != null and bcTyped.has('retentionMonths') ? bcTyped.getString('retentionMonths') : null}"/>
+      </f:entry>
+    </f:section>
+    <!-- Rendered only when it holds something: without the Mailer plugin and without an
+         installed Batch Control strategy the fifth group would be an empty heading. -->
     <j:set var="strategyMonitor" value="${app.getAdministrativeMonitor('batch-control-strategy')}"/>
-    <j:if test="${strategyMonitor != null and strategyMonitor.revertable}">
-      <f:entry title="Batch Control strategy">
-        <div>
-          A Batch Control authorization strategy is installed. Reverting stops active grants
-          from conferring any permission immediately.
-        </div>
-        <!-- e2e-04 FD-01: the revert endpoint needs Overall/Administer, so only its holders get
-             the control; a BatchControl/Manage holder who may open this page is told whom to ask. -->
-        <j:choose>
-          <j:when test="${app.hasPermission(app.ADMINISTER)}">
-            <l:confirmationLink class="jenkins-button jenkins-!-destructive-color" destructive="true" href="${rootURL}/manage/administrativeMonitor/batch-control-strategy/revert"
-                                 post="true" title="Revert to the plain strategy?" okText="Revert to plain strategy"
-                                 message="Active grants stop conferring any permission immediately. This cannot be undone from here.">
-              Revert to the plain strategy
-            </l:confirmationLink>
-          </j:when>
-          <j:otherwise>
-            <div class="jenkins-description">
-              Only a Jenkins administrator can change the authorization strategy.
-            </div>
-          </j:otherwise>
-        </j:choose>
-      </f:entry>
+    <j:set var="bcStrategyShown" value="${strategyMonitor != null and strategyMonitor.revertable}"/>
+    <j:if test="${instance.mailerAvailable or bcStrategyShown}">
+      <f:section title="Notifications and strategy">
+        <!-- D-36: notifications. The e-mail option exists only while the Mailer plugin is active, so
+             an instance without Mailer never sees a switch that could do nothing. -->
+        <j:if test="${instance.mailerAvailable}">
+          <f:entry field="emailNotifications">
+            <f:checkbox title="Send e-mail notifications"/>
+          </f:entry>
+        </j:if>
+        <!-- Not a form field: a Batch Control strategy is installed/reverted through the
+             batch-control-strategy administrative monitor, never through this form's own submit
+             (D-35a). Shown only while that strategy is actually installed.
+             #18.7 (Wave D, D1): the last entry of the section. For an administrator it sits inside
+             core's Advanced control, so the destructive revert is not among the routine settings.
+             Keep it last: nothing may follow it in this section.
+             e2e-04 FD-01: the revert endpoint needs Overall/Administer, so only its holders get the
+             control. A BatchControl/Manage holder who may open this page gets no Advanced control
+             (there would be nothing behind it for that user) and is told whom to ask in a plain
+             entry, readable as the page loads; nothing of the revert is rendered for that user.
+             D3 (owner decision 2026-10-14): what reverting does is said to administrators only,
+             next to the revert; the BatchControl/Manage holder reads that the strategy is installed
+             and whom to ask. -->
+        <j:if test="${bcStrategyShown}">
+          <j:choose>
+            <j:when test="${app.hasPermission(app.ADMINISTER)}">
+              <f:advanced>
+                <f:entry title="Batch Control strategy">
+                  <div>
+                    A Batch Control authorization strategy is installed. Reverting stops active grants
+                    from conferring any permission immediately.
+                  </div>
+                  <l:confirmationLink class="jenkins-button jenkins-!-destructive-color" destructive="true" href="${rootURL}/manage/administrativeMonitor/batch-control-strategy/revert"
+                                       post="true" title="Revert to the plain strategy?" okText="Revert to plain strategy"
+                                       message="Active grants stop conferring any permission immediately. This cannot be undone from here.">
+                    Revert to the plain strategy
+                  </l:confirmationLink>
+                </f:entry>
+              </f:advanced>
+            </j:when>
+            <j:otherwise>
+              <f:entry title="Batch Control strategy">
+                <div>
+                  A Batch Control authorization strategy is installed.
+                </div>
+                <div class="jenkins-description">
+                  Only a Jenkins administrator can change the authorization strategy.
+                </div>
+              </f:entry>
+            </j:otherwise>
+          </j:choose>
+        </j:if>
+      </f:section>
     </j:if>
   </f:section>
 </j:jelly>

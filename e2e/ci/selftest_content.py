@@ -50,6 +50,10 @@ DEFECTS = """<div id="main-panel"><h2>Requests</h2>
 <p>Grant g-1 for user 'u' (ITEM:a/b) ended; type GRANT_REVOKE, status PENDING</p>
 <table><tbody><tr><th>Scope</th><td>FOLDER_ONLY: team</td></tr></tbody></table>
 <p><a href="/jenkins/job/batch-daily/">/jenkins/job/batch-daily/</a></p>
+<table><thead><tr><th>Run</th><th>Result</th></tr></thead>
+<tbody><tr><td>#1</td><td>FAILURE</td></tr><tr><td>#2</td><td><span class="batch-control-status" data-batch-control-tone="danger">Failed</span></td></tr></tbody></table>
+<table><tbody><tr><th>Result</th><td>IN PROGRESS</td></tr></tbody></table>
+<table><thead><tr><th>Run</th><th>Cause</th></tr></thead><tbody><tr><td><a href="/jenkins/job/x/">x</a> <a href="/jenkins/job/x/3/">#3</a> <span>UNSTABLE</span></td><td>User</td></tr></tbody></table>
 </div>"""
 CLEAN = f"""<div id="main-panel"><h2>Requests</h2>
 <table><thead><tr><th>ID</th><th>Job</th><th>Comment</th></tr></thead>
@@ -57,16 +61,28 @@ CLEAN = f"""<div id="main-panel"><h2>Requests</h2>
 <p>Reason: {PROBE_HTML}</p><p>Comment: {html.escape(PROBE[:30], quote=False)}…</p>
 <p>Jobs under /jenkins/job/ops/ and the folder ops/sub; 3 &lt; 5 &amp; 7 &gt; 2</p>
 <code>/tmp/in-code-is-fine GRANT_REVOKE ITEM:a/b</code>
-<p>Status: Approved; Folder: team; JOB_NAME is not shown as code here but MIXED_case and lower_snake are not constants</p></div>"""
+<p>Status: Approved; Folder: team; JOB_NAME is not shown as code here but MIXED_case and lower_snake are not constants</p>
+<table><thead><tr><th>Run</th><th>Result</th><th>Note</th></tr></thead>
+<tbody><tr><td>#1</td><td>Failed</td><td>FAILURE outside a result cell is not judged here</td></tr><tr><td>#2</td><td>Not built</td><td>x</td></tr></tbody></table>
+<table><tbody><tr><th>Result</th><td>In progress</td></tr></tbody></table>
+<table><thead><tr><th>Run</th><th>Cause</th></tr></thead><tbody>
+<tr><td><span class="batch-control-run"><svg width="16" height="16"><title>Aborted</title></svg> <a href="/jenkins/job/x/">x</a> <a href="/jenkins/job/x/4/">#4</a> <span>Aborted</span></span><div>Aborted by u1</div></td><td>User</td></tr>
+<tr><td><span>ghost</span> <span>#7</span> <span>WEIRD</span></td><td>Other</td></tr></tbody></table></div>"""
 EXPECTED_DEFECTS = {("empty-cell", "Requests / Job"), ("empty-cell", "Requests / Requester"),
                     ("server-path", "/var/jenkins_home/batch-control/requests"), ("server-path", "StoreLocation="),
                     ("double-escaped", "&lt;"), ("markup-text", "<script"),
                     ("markup-live", "probe <img onerror> rendered as markup"), ("markup-live", "probe text not as typed"),
-                    ("legacy-scope", "FOLDER_ONLY:")}
+                    ("legacy-scope", "FOLDER_ONLY:"), ("raw-result", "FAILURE"), ("raw-result", "IN PROGRESS"),
+                    ("result-badge", "Failed"), ("raw-result", "UNSTABLE")}
 EXPECTED_INFO = {"Comment", "Decided by"}
 # raw-enum INFO rows (e2e-16): planted on the defects page; the clean page has look-alikes that must stay silent except
 # JOB_NAME, a real UPPER_SNAKE token in visible text (the check cannot tell a parameter name from an enum: INFO only).
 EXPECTED_ENUM = {"defects": {"ITEM:", "GRANT_REVOKE", "PENDING", "FOLDER_ONLY"}, "clean": {"JOB_NAME"}}
+
+
+# result-cell INFO rows (#18.2): every result cell read, by its text
+EXPECTED_RESULT_CELLS = {"defects": {"FAILURE", "Failed", "IN PROGRESS", "UNSTABLE"},
+                         "clean": {"Failed", "Not built", "In progress", "Aborted", "WEIRD"}}
 
 
 PAGES = {"defects": (DEFECTS, EXPECTED_DEFECTS, EXPECTED_INFO), "clean": (CLEAN, set(), {"Comment"})}
@@ -85,9 +101,11 @@ def check_page(page, name):
     info = {r["key"] for r in rows if r["check"] == "empty-optional"}
     enums = {r["key"] for r in rows if r["check"] == "raw-enum"}
     errors = [r for r in rows if r["result"] == "ERROR"]
-    good = got == want and info == want_info and enums == EXPECTED_ENUM[name] and not errors
+    results = {r["key"] for r in rows if r["check"] == "result-cell"}
+    good = got == want and info == want_info and enums == EXPECTED_ENUM[name] and not errors and results == EXPECTED_RESULT_CELLS[name]
     lines = [f"{'PASS' if good else 'FAIL'} selftest {name}: {len(got)} defect finding(s), empty-optional {sorted(info)}, "
-             f"raw-enum {sorted(enums)}"]
+             f"raw-enum {sorted(enums)}, result cells {sorted(results)}"]
+    lines += [f"   result-cell mismatch: {x}" for x in sorted(EXPECTED_RESULT_CELLS[name] ^ results)]
     lines += [f"   raw-enum mismatch: {x}" for x in sorted(EXPECTED_ENUM[name] ^ enums)]
     lines += [f"   missed:     {x}" for x in sorted(want - got)]
     lines += [f"   unexpected: {x}" for x in sorted(got - want)]

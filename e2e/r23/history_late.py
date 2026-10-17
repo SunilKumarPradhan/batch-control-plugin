@@ -90,8 +90,9 @@ return hit""")
 
 
 def listed(text, job, number):
-    """Whether a CSV line ("<job>#<n>,...") or a listing row ("#<n> <job> ...") names job #number."""
-    return re.search(rf"(?:\b{job}#{number}\b|#{number}\s+{job}(?![\w-]))", text) is not None
+    """Whether a CSV line ("<job>#<n>,...") or a listing row ("#<n> <job> ...", since Wave D D3 the Run cell's
+    "<job> #<n> <label>", which a page's text may run together as "<job>#<n><label>") names job #number."""
+    return re.search(rf"(?:\b{job}#{number}\b|#{number}\s+{job}(?![\w-])|(?<![\w-]){job}\s*#{number}(?!\d))", text) is not None
 
 
 def build(job):
