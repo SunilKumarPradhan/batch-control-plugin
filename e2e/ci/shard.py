@@ -346,8 +346,9 @@ UNITS = [
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
     # e2e-28 #44. r28/grant_blocked.py deletes and re-creates its own item (r28-gb), switches change control off for its
-    # sections and puts it back, and cancels the window request it files with change control on.
-    Unit("r28-grant-blocked", 0.3, [("r28-grant-blocked", py("r28/grant_blocked.py"))], group="job ui params and restart",
+    # sections and puts it back, and cancels the window request it files with change control on. Weight: 5.5 to 6.6 s in
+    # three runs through ci/run.sh (two on a fresh stack, one in its group; 2026-10-17, local).
+    Unit("r28-grant-blocked", 0.1, [("r28-grant-blocked", py("r28/grant_blocked.py"))], group="job ui params and restart",
          doc="e2e-28 #44: with change control off an Approve-only user's POST to grants/create is refused (403) and writes "
              "no GRANT_REQUEST_BLOCKED record; RequestGrant and Manage holders still get the refusal and one record each; "
              "anonymous, no-crumb and GET write nothing; with change control on the normal flow is unchanged"),
