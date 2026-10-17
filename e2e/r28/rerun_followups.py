@@ -1,14 +1,14 @@
 """e2e-28 #1 follow-ups (security-31/32 LOW items, usability; TEST-MATRIX T-02-188/189/192, T-03-94, T-05-204..206,
 notes 352..359) on a real Jenkins. A check named "#1.x" fails without the fix; one named "guard" holds with and without.
 
-usage: python rerun_followups.py [AMNUDI]   rows: r27/out/rerun_followups.jsonl, shots: screenshots/run-27/R28-1-*.png
+usage: python rerun_followups.py [PMNUDI]   (CI: PMNU in one unit, DI in another)   rows: r27/out/rerun_followups.jsonl, shots: screenshots/run-27/R28-1-*.png
 Items (created again by A): r28-rp (Pipeline, `echo 'hello'`, free: no approval, timer and upstream not blocked), r28-rq
 (approval-required, DATE), r28-act (not activated), r28-dup (approval-required, DATE defaulting to 2026-10-31). Accounts:
 requester (RequestGrant: replays r28-rp #1 under an approved CONFIGURE window, so #2 is the marked run), r28-alice (added
 for this unit: Overall/Read, Job/Read, Job/Build, Run/Replay natively), approver-1 and approver-2, admin; anonymous gets
 Overall/Read, Job/Read and Run/Replay for section U. The matrix strategy is saved first and put back at the end.
 
-A  arrangement: the items; the strategy saved; r28-alice and anonymous's permissions; r28-rp #1 (admin); the requester's
+P  arrangement of M, N, U: r28-rp; the strategy saved; r28-alice and anonymous's permissions; r28-rp #1 (admin); the requester's
    CONFIGURE window on r28-rp approved; the requester's Replay of #1 runs as #2 and is recorded as REPLAY_UNDER_GRANT.
 M  #1.1 (T-02-188): change control off: r28-alice's Pipeline Rebuild of #2 and Replay of #2 build (guard); change control
    on: r28-alice's Rebuild of each of those two runs is refused (nothing queued, no build number used) and recorded as
@@ -77,19 +77,18 @@ def set_change_control(on):
     return lib.gv(lib.L25.CFG + f"cfg.setChangeControlEnabled({str(on).lower()}); cfg.save(); return String.valueOf(cfg.changeControlEnabled)")
 
 
-def sec_A():
+def fresh(job, xml):
+    if api("admin", lib.jpath(job) + "/api/json").status_code == 200:
+        api("admin", lib.jpath(job) + "/doDelete", "POST")
+    return lib.ensure_item(job, xml)
+
+
+def sec_P():
     S["change"] = lib.gv(lib.L25.CFG + "return String.valueOf(cfg.changeControlEnabled)") == "true"
     S["saved"] = gv("""import jenkins.model.Jenkins
 def j = Jenkins.get(); System.getProperties().put('r28.1.strategy', Jenkins.XSTREAM2.toXML(j.authorizationStrategy)); return 'saved'""")
-    for j in (RP, RQ, ACT, DUP):
-        if api("admin", lib.jpath(j) + "/api/json").status_code == 200:
-            api("admin", lib.jpath(j) + "/doDelete", "POST")
-    made = {RP: lib.ensure_item(RP, lib.job_xml("wf", script="echo 'hello'")),
-            RQ: lib.ensure_item(RQ, lib.job_xml("fs", shell="echo r28", params=lib.string_p("DATE", "2026-10-01"))),
-            ACT: lib.ensure_item(ACT, lib.job_xml("fs", shell="echo r28")),
-            DUP: lib.ensure_item(DUP, lib.job_xml("fs", shell="echo r28", params=lib.string_p("DATE", "2026-10-31")))}
-    props = {RP: lib.set_property(RP, approval=False, timer=False, upstream=False),
-             RQ: lib.set_property(RQ, approval=True), DUP: lib.set_property(DUP, approval=True)}
+    made = {RP: fresh(RP, lib.job_xml("wf", script="echo 'hello'"))}
+    props = {RP: lib.set_property(RP, approval=False, timer=False, upstream=False)}
     perms = lib.L25.ensure_account(ALICE, ["hudson.model.Hudson.Read", "hudson.model.Item.Read", "hudson.model.Item.Build", REPLAY])
     anon = gv(f"""import hudson.security.*; import org.jenkinsci.plugins.matrixauth.*
 def j = jenkins.model.Jenkins.get(); def s = j.authorizationStrategy
@@ -107,7 +106,7 @@ j.save(); return 'anonymous added'""")
     n2 = lib.next_build(RP) - 1
     marks = [r for r in records(["REPLAY_UNDER_GRANT"], mark) if r["target"] == RP]
     S.update(n1=n1, n2=n2)
-    check("A", "arrangement: the items; r28-alice holds Run/Replay natively; anonymous Overall/Read, Job/Read, Run/Replay; "
+    check("P", "arrangement: r28-rp; r28-alice holds Run/Replay natively; anonymous Overall/Read, Job/Read, Run/Replay; "
           "change control on; r28-rp #1 built; the requester's CONFIGURE window approved; her Replay of #1 ran as #2 and is "
           "recorded as REPLAY_UNDER_GRANT naming her", all(v is not None for v in made.values()) and REPLAY in perms
           and on == "true" and r1 == "SUCCESS" and dec in (200, 302) and n2 == n1 + 1 and len(marks) == 1
@@ -203,6 +202,9 @@ return f.exists() ? new XmlSlurper().parse(f).approvers.'*'*.text().join(',') : 
 
 
 def sec_D():
+    fresh(RQ, lib.job_xml("fs", shell="echo r28", params=lib.string_p("DATE", "2026-10-01")))
+    fresh(ACT, lib.job_xml("fs", shell="echo r28"))
+    lib.set_property(RQ, approval=True)
     st, run_id = lib.submit_run("requester", RQ, "e2e-28 #1.7 run", params={"DATE": "2026-10-02"})
     lib.decide("approver-1", "requests", run_id, "reject", "e2e-28 #1.7 no")
     st, grant_id = lib.submit_grant("requester", RQ, ["CONFIGURE"], reason="e2e-28 #1.7 window")
@@ -250,11 +252,13 @@ return (d.listFiles() ?: []).findAll {{ it.name ==~ /[0-9a-f-]{{36}}\\.xml/ }}.c
 
 def mails_for(rid, to):
     lib.wait_until(lambda: lib.L25.L19.mails(to=to, contains=rid), 20, 2)
-    time.sleep(5)  # the quiet period: a second notification would arrive in it
+    time.sleep(3)  # the quiet period: a second notification would arrive in it (it is sent at once)
     return len(lib.L25.L19.mails(to=to, contains=rid))
 
 
 def sec_I():
+    fresh(DUP, lib.job_xml("fs", shell="echo r28", params=lib.string_p("DATE", "2026-10-31")))
+    lib.set_property(DUP, approval=True)
     lib.sweep("requester", DUP)
     url1, _ = form_submit("e2e-28 #1.9 the same request")
     first = (re.search(UUIDS, url1) or [None])[0]
@@ -300,4 +304,4 @@ return j.authorizationStrategy.getClass().simpleName""")
 
 
 if __name__ == "__main__":
-    lib.run(sys.argv, {"A": sec_A, "M": sec_M, "N": sec_N, "U": sec_U, "D": sec_D, "I": sec_I}, cleanup)
+    lib.run(sys.argv, {"P": sec_P, "M": sec_M, "N": sec_N, "U": sec_U, "D": sec_D, "I": sec_I}, cleanup)

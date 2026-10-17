@@ -298,6 +298,18 @@ UNITS = [
              "disabled job: Reject only), all in the browser; the 7-column run tables and 4-column incident tables with "
              "the icon/job/#n/label Run cell, the link rule per viewer, folded and cut parameters, no wrapping; the five "
              "setting groups on both configuration pages for admin and manager, saved through the real form"),
+    # e2e-28 #1 follow-ups, one driver (r28/rerun_followups.py) in two units of different groups. The first re-creates
+    # r28-rp, saves the matrix strategy and puts it back (it adds r28-alice and gives anonymous Overall/Read, Job/Read and
+    # Run/Replay), switches change control off and on and puts it back, and revokes the window it opens.
+    Unit("r28-rerun-markers", 0.5, [("r28-rerun-markers", py("r28/rerun_followups.py", "PMNU"))], group="crawls and multibranch",
+         doc="e2e-28 #1: re-runs of a marked run made while change control is off are marked (#1.1); a carried marker's "
+             "record names the re-runner and the original replayer (#1.2); an anonymous re-run with an unresolvable "
+             "source is recorded as unresolved (#1.5)"),
+    # The second re-creates r28-rq, r28-act and r28-dup and cancels the requests it leaves pending.
+    Unit("r28-request-followups", 0.4, [("r28-request-followups", py("r28/rerun_followups.py", "DI"))],
+         group="job ui params and restart",
+         doc="e2e-28 #1: a stale approver change on a decided request names its status (#1.7); an identical pending run "
+             "request is not created twice, from the browser and from a script (#1.9)"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",
@@ -345,15 +357,6 @@ UNITS = [
     Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
-    # e2e-28 #1 follow-ups. r28/rerun_followups.py deletes and re-creates its own items (r28-rp, r28-rq, r28-act,
-    # r28-dup), saves the matrix strategy and puts it back (it adds r28-alice and gives anonymous Overall/Read, Job/Read
-    # and Run/Replay for one section), switches change control off and on and puts it back, revokes the window it opens
-    # and cancels what it leaves pending.
-    Unit("r28-rerun-followups", 0.5, [("r28-rerun-followups", py("r28/rerun_followups.py"))], group="crawls and multibranch",
-         doc="e2e-28 #1: re-runs of a marked run made while change control is off are marked (#1.1); a carried marker's "
-             "record names the re-runner and the original replayer (#1.2); an anonymous re-run with an unresolvable "
-             "source is recorded as unresolved (#1.5); a stale approver change on a decided request names its status "
-             "(#1.7); an identical pending run request is not created twice, from the browser and from a script (#1.9)"),
     # e2e-26 #32 (wave B). r26/case_rename.py deletes and re-creates its own items (r26-Nightly, r26-Weekly, folders r26-Team
     # and r26-Ops), renames them through the script console, restarts Jenkins (last) and disables its timer jobs at its
     # end. On the Linux CI volume (case-sensitive) it is the guard of the scenario; with compose.ci-fs.yml on a macOS host
