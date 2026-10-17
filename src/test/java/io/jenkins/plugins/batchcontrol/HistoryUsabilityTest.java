@@ -121,7 +121,13 @@ public class HistoryUsabilityTest {
         assertTrue(first.matches("(?s).*\\bu1\\b.*"), "u1's approved run must still name u1: " + first);
         assertTrue(second.matches("(?s).*\\bu2\\b.*") && !second.matches("(?s).*\\bu1\\b.*"),
                 "u2's Rebuild must be recorded as u2's run, not u1's: " + second);
-        assertTrue(!second.contains("APPROVED_REQUEST"), "the Rebuild must not be classed as an approved-request run: " + second);
+        // Wave D D2 (#18.2): the cause is shown as a readable label carrying the enum in
+        // data-batch-control-status, so the raw name, the label and the hook are all checked
+        assertTrue(!second.contains("APPROVED_REQUEST") && !second.contains("Approved request")
+                && !statusHooks(runs, job, 2).contains("APPROVED_REQUEST"),
+                "the Rebuild must not be classed as an approved-request run: " + second + " " + statusHooks(runs, job, 2));
+        assertTrue(statusHooks(runs, job, 1).isEmpty() || statusHooks(runs, job, 1).contains("APPROVED_REQUEST"),
+                "guard: the approved run's cause hook names APPROVED_REQUEST: " + statusHooks(runs, job, 1));
         assertTrue(!second.contains(requestId), "the Rebuild must carry no link to u1's request " + requestId + ": " + second);
 
         String csv = ApproverFormFixtures.get(j, "admin", "batch-control/history/runs.csv").getContentAsString();
@@ -142,11 +148,17 @@ public class HistoryUsabilityTest {
 
     // ---------------------------------------------------------------- helpers
 
+    /**
+     * The text of the row whose run link reads {@code prefix} ("#1"). Since Wave D D3 (#6) the Run
+     * cell starts with the status icon and the job link, so the row no longer starts with "#n";
+     * the run link's own text is the same before and after.
+     */
     private static String rowStarting(HtmlPage page, String prefix) {
         for (DomElement tr : page.getElementsByTagName("tr")) {
-            String text = tr.asNormalizedText().trim();
-            if (text.startsWith(prefix + "\t") || text.startsWith(prefix + " ")) {
-                return text;
+            for (DomElement a : tr.getElementsByTagName("a")) {
+                if (a.asNormalizedText().trim().equals(prefix)) {
+                    return tr.asNormalizedText().trim();
+                }
             }
         }
         return null;
@@ -193,5 +205,27 @@ public class HistoryUsabilityTest {
             }
         }
         return null;
+    }
+
+    /**
+     * The {@code data-batch-control-status} values (Wave D D2: the enum behind a readable label) in
+     * the table row that links run {@code number} of {@code job}; the row is found by its run link,
+     * which does not depend on the column layout.
+     */
+    private static List<String> statusHooks(HtmlPage page, FreeStyleProject job, int number) {
+        List<String> out = new ArrayList<>();
+        String run = "/" + job.getUrl() + number + "/";
+        for (DomElement tr : page.getElementsByTagName("tr")) {
+            boolean linksRun = false;
+            for (DomElement a : tr.getElementsByTagName("a")) {
+                linksRun |= a.getAttribute("href").endsWith(run);
+            }
+            if (linksRun) {
+                for (DomNode n : tr.querySelectorAll("[data-batch-control-status]")) {
+                    out.add(((DomElement) n).getAttribute("data-batch-control-status"));
+                }
+            }
+        }
+        return out;
     }
 }

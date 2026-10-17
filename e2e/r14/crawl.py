@@ -20,7 +20,21 @@ Content checks (CI, 2026-10-05), on every page reached with status < 400, all ro
   * double-escaped: an HTML entity shown as text (&lt; &gt; &amp; &quot; &apos; &#..;);
   * markup-text: "<script" shown as text;
   * markup-live: the seeded probe's <img onerror> canary ran, or the probe (ci/seed_markup.py) does not read as typed;
-  * legacy-scope: a scope written with a scope type that D-71 removed ("JOB:", "FOLDER:", "FOLDER_ONLY") (e2e-16).
+  * legacy-scope: a scope written with a scope type that D-71 removed ("JOB:", "FOLDER:", "FOLDER_ONLY") (e2e-16);
+  * raw-result: on a Batch Control page, a result cell (the cell under a table's "Result" heading, or the td of a row
+    headed "Result") that shows a raw build result word (SUCCESS, FAILURE, UNSTABLE, NOT_BUILT, ABORTED) or the former
+    "IN PROGRESS" / "UNKNOWN" instead of its label (#18.2, owner decision 2026-10-14: Success, Unstable, Failed, Not built,
+    Aborted, In progress, Unknown); result-badge: a result cell holding a badge (class batch-control-status or a
+    data-batch-control-tone): a result is plain text. Every result cell read is logged as check "result-cell" with
+    result INFO, once per URL pattern and text, so the summary can say how many were checked. Since Wave D D3 (#6) the
+    run and incident tables have no Result column: there the Run cell is read (its text after "#n" is the label; a raw
+    word anywhere in the cell is a raw-result, a badge in it a result-badge).
+Advanced (D1 follow-up, owner decision 2026-10-14): on every page reached, core's Advanced controls of the main panel
+are pressed after the page has been checked as loaded, and the content checks run again, so what sits behind Advanced
+(the administrator's revert entry and its sentence on the Batch Control configuration page) is checked too; the controls
+are then listed and clicked in that expanded state (classify_click expands again on its fresh load). A row with kind
+"advanced" says how many were pressed; who gets an Advanced control differs by role (the BatchControl/Manage holder has
+none on that page).
 Raw enum values (e2e-16): an UPPER_SNAKE_CASE constant (GRANT_REVOKE, APPROVED_REQUEST, ...), the scope prefix "ITEM:",
 or a state/action constant of the plugin's vocabulary (PENDING, APPROVED, ..., CONFIGURE, CREATE, DELETE) shown as
 text is logged as check "raw-enum" with result INFO, once per URL pattern and value, without a FAIL: showing these
@@ -124,7 +138,19 @@ CONTENT_JS = r"""
   const PATH = /(?:^|[\s"'(=,;:])(\/(?:var|tmp|home|opt|usr|etc|root|srv|private|Users)\/[^\s"'<>)]*)|(jenkins_home|JENKINS_HOME|StoreLocation=|WEB-INF\/|\b[A-Za-z]:\\[A-Za-z])/;
   const ENT = /&(?:lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/;
   const desc = el => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
-  const out = {paths: [], entities: [], script_text: [], empty_cells: [], probe: [], enums: []};
+  const out = {paths: [], entities: [], script_text: [], empty_cells: [], probe: [], enums: [], results: []};
+  const RAW_RESULT = /\b(SUCCESS|FAILURE|UNSTABLE|NOT_BUILT|ABORTED|IN PROGRESS|UNKNOWN)\b/;
+  const resultCell = (c, how, caption) => { const t = (c.innerText || '').replace(/\s+/g, ' ').trim(); const m = RAW_RESULT.exec(t);
+    out.results.push({text: t.slice(0, 60), raw: m ? m[1] : null, how, caption: caption.trim().slice(0, 40),
+      badge: !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'))}); };
+  // Wave D D3 (#6): a run or incident table without a Result column shows the result in its Run cell: the icon, the job,
+  // the "#n" run, then the label as text (and "Aborted by ..." on its own line). The text right after "#n" is the label.
+  const runCell = (c, caption) => { const texts = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = x.data.replace(/\s+/g, ' ').trim(); if (v && !x.parentElement.closest('svg')) texts.push(v); }
+    const i = texts.findIndex(v => /^#\d+$/.test(v)); const label = i >= 0 && texts[i + 1] && !/^Aborted by\b/.test(texts[i + 1]) ? texts[i + 1] : null;
+    const m = RAW_RESULT.exec(texts.join(' '));
+    out.results.push({text: label ? label.slice(0, 60) : '(no result label)', raw: m ? m[1] : null, how: 'run', caption: caption.trim().slice(0, 40),
+      badge: !!c.querySelector('.batch-control-status, [data-batch-control-tone]')}); };
   const SNAKE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
   const SCOPE = /\b(ITEM|JOB|FOLDER_ONLY|FOLDER): ?(?=\S)/g;
   const WORDS = /\b(PENDING|APPROVED|REJECTED|CANCELLED|EXPIRED|EXECUTED|INVALIDATED|CONSUMED|SUPERSEDED|OPEN|ACKNOWLEDGED|RESOLVED|ACTIVATE|HOLD|CONFIGURE|CREATE|DELETE)\b/g;
@@ -149,11 +175,14 @@ CONTENT_JS = r"""
     [...tb.tBodies].forEach(b => [...b.rows].forEach(r => {
       const cells = [...r.cells];
       if (cells.length === 2 && cells[0].tagName === 'TH' && cells[1].tagName === 'TD') {
+        if (cells[0].innerText.trim() === 'Result') resultCell(cells[1], 'row', caption);
         if (empty(cells[1])) out.empty_cells.push({table: ti, caption: caption.trim().slice(0, 40), column: cells[0].innerText.trim(), row: ''});
         return;
       }
       if (!heads.length || cells.length !== heads.length) return;
       cells.forEach((c, ci) => {
+        if (c.tagName === 'TD' && heads[ci] === 'Result') resultCell(c, 'column', caption);
+        if (c.tagName === 'TD' && heads[ci] === 'Run' && !heads.includes('Result')) runCell(c, caption);
         if (c.tagName === 'TD' && heads[ci] && empty(c))
           out.empty_cells.push({table: ti, caption: caption.trim().slice(0, 40), column: heads[ci], row: (cells[0].innerText || '').trim().slice(0, 40)});
       });
@@ -188,6 +217,15 @@ def content_checks(s, path, pt):
             elif ("empty-optional", pt, x["column"]) not in _content_seen:  # optional value: once per pattern, UX review only
                 _content_seen.add(("empty-optional", pt, x["column"]))
                 emit({"page": path, "pattern": pt, "kind": "content", "check": "empty-optional", "key": x["column"], "result": "INFO", "detail": x})
+        for x in c.get("results", []):  # #18.2: a build result reads as its label, plain text
+            if x["raw"]:
+                found.append(("raw-result", x["raw"], x))
+            if x["badge"]:
+                found.append(("result-badge", x["text"], x))
+            if ("result-cell", pt, x["text"]) not in _content_seen:
+                _content_seen.add(("result-cell", pt, x["text"]))
+                emit({"page": path, "pattern": pt, "kind": "content", "check": "result-cell", "key": x["text"], "result": "INFO",
+                      "detail": x})
     found += [("server-path", x["match"], x) for x in c["paths"]]
     found += [("double-escaped", x["match"], x) for x in c["entities"]]
     found += [("markup-text", "<script", x) for x in c["script_text"]]
@@ -222,10 +260,29 @@ def check_url(s, url, cache):
     return cache[url]
 
 
+ADVANCED_JS = """() => { const bs = [...document.querySelectorAll('#main-panel button.advanced-button, #main-panel button.advancedButton')]
+  .filter(b => !!(b.offsetWidth || b.offsetHeight || b.getClientRects().length) && b.dataset.expanded !== 'true');
+  bs.forEach(b => b.click()); return bs.length; }"""
+
+
+def expand_advanced(s):
+    """Presses every core Advanced control of the main panel that is shown and not yet expanded (core moves the rows of
+    its div.advancedBody out and keeps the button as a toggle). Returns how many were pressed."""
+    try:
+        pressed = s.page.evaluate(ADVANCED_JS)
+    except Exception:  # noqa: a page that navigated away
+        return 0
+    if pressed:
+        lib.until(s.page, lambda: not s.page.locator("#main-panel .advancedBody *").filter(visible=False).count(), 2000)
+    return pressed
+
+
 def classify_click(s, path, el):
-    """Fresh load, click element el (by index among the same selector), observe."""
+    """Fresh load, Advanced expanded as when the controls were listed, click element el (by index among the same
+    selector), observe."""
     p = s.page
     s.go(path)
+    expand_advanced(s)
     loc = p.locator("a, button, input[type=submit], input[type=button], [role=button], select").nth(el["i"])
     if not loc.count() or not loc.is_visible():
         return "not-visible-on-reload", {}
@@ -313,6 +370,11 @@ def main():
         if status and status >= 400:
             continue
         content_checks(s, path, pt)
+        adv = expand_advanced(s)
+        if adv:  # D1 follow-up: what sits behind Advanced is checked too
+            emit({"page": path, "pattern": pt, "kind": "advanced", "result": "expanded", "pressed": adv,
+                  "revealed": re.sub(r"\s+", " ", s.page.locator("#main-panel").inner_text())[-300:]})
+            content_checks(s, path, pt)
         els = s.page.evaluate(ELEMENTS_JS)
         is_bc = "/batch-control" in path
         for el in els:

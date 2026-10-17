@@ -1,6 +1,5 @@
 package io.jenkins.plugins.batchcontrol.action;
 
-import edu.umd.cs.findbugs.annotations.CheckForNull;
 import hudson.model.ModelObject;
 import hudson.security.Permission;
 import io.jenkins.plugins.batchcontrol.model.RunRecord;
@@ -13,12 +12,10 @@ import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
-import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import jenkins.model.Jenkins;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
@@ -104,17 +101,6 @@ public class DashboardSection implements ModelObject, StaplerProxy {
     /** Human-readable duration. */
     public String duration(long durationMs) {
         return RunLinks.formatDuration(durationMs);
-    }
-
-    /** Root-relative build URL ({@code job/a/job/b/12/}), or null for plain text (D-44). */
-    @CheckForNull
-    public String runUrl(RunRecord record) {
-        return Visibility.runUrl(record.getJobFullName(), record.getNumber());
-    }
-
-    /** One-line parameter rendering; values come from the record already masked. */
-    public String parameters(Map<String, String> parameters) {
-        return RunLinks.formatParameters(parameters);
     }
 
     // ---------------------------------------------------------------- data

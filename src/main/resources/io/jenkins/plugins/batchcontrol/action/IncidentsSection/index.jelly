@@ -4,8 +4,12 @@
     <l:main-panel>
       <l:app-bar title="Incidents"/>
       <bc:tabs active="incidents"/>
+      <!-- #18.2 (owner decision 2026-10-14): the opening names the configured incidentResults
+           as result labels, in the order FAILURE, UNSTABLE, ABORTED ("Failed and unstable builds"
+           under the default). Escaped by default. -->
+      <j:set var="incidentResultsOpening" value="${it.incidentResultsOpening}"/>
       <p class="jenkins-description">
-        Failed and unstable builds are registered automatically as incidents.
+        <j:if test="${!empty(incidentResultsOpening)}">${incidentResultsOpening} are registered automatically as incidents.</j:if>
         Open an incident to acknowledge, comment or resolve it; a user who may submit run requests for its job can also request a rerun there.
       </p>
 
@@ -44,11 +48,11 @@
         <j:otherwise>
           <table class="jenkins-table jenkins-table--small jenkins-!-margin-bottom-0">
             <thead>
+              <!-- #6 (Wave D, D3): the Run cell of the run tables (tags/runCell.jelly: icon, job, #n
+                   and the result label), first as there; no separate Job or Result column. -->
               <tr>
-                <th>Incident</th>
                 <th>Run</th>
-                <th>Job</th>
-                <th>Result</th>
+                <th>Incident</th>
                 <th>Status</th>
                 <th>Created</th>
               </tr>
@@ -56,19 +60,10 @@
             <tbody>
               <j:forEach var="i" items="${it.pageItems}">
                 <tr>
+                  <td><bc:runCell incident="${i}"/></td>
                   <td><a href="${i.id}/">${i.id}</a></td>
-                  <td>
-                    <j:choose>
-                      <j:when test="${it.runUrl(i) != null}">
-                        <a class="model-link" href="${rootURL}/${it.runUrl(i)}">${i.runId}</a>
-                      </j:when>
-                      <j:otherwise>${i.runId}</j:otherwise>
-                    </j:choose>
-                  </td>
-                  <td>${i.jobFullName}</td>
-                  <td>${i.result}</td>
-                  <td>${i.status}</td>
-                  <td>${it.format(it.createdAt(i))}</td>
+                  <td class="batch-control-nowrap"><bc:status value="${i.status}"/></td>
+                  <td class="batch-control-nowrap">${it.format(it.createdAt(i))}</td>
                 </tr>
               </j:forEach>
             </tbody>

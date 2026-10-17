@@ -61,9 +61,22 @@ public class ActivationItem implements ModelObject {
         return request.getId();
     }
 
+    /**
+     * #18.4, D3 (owner decision 2026-10-14): the last breadcrumb shows only the job (or computed
+     * folder) the request is about; core's breadcrumb bar reads it from here. Not the id, which is
+     * in the summary table's ID row. The title and heading say the kind ({@link #getPageTitle()}).
+     */
     @Override
     public String getDisplayName() {
-        return (isHold() ? "Hold Request " : "Activation Request ") + request.getId();
+        return request.getJobFullName();
+    }
+
+    /**
+     * #18.4: the {@code <title>} and the app bar heading, titled with the job; a HOLD request keeps
+     * its own word so the two cannot be mistaken for each other (S-13-08).
+     */
+    public String getPageTitle() {
+        return (isHold() ? "Hold request: " : "Activation request: ") + getDisplayName();
     }
 
     /** S-13-08: ACTIVATE and HOLD worded so they cannot be mistaken for each other. */

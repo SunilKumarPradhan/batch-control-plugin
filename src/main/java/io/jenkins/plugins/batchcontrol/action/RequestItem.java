@@ -23,6 +23,7 @@ import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import io.jenkins.plugins.batchcontrol.ui.RequestScope;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Instant;
@@ -89,9 +90,21 @@ public class RequestItem implements ModelObject {
         return request.getId();
     }
 
+    /**
+     * #18.4, D3 (owner decision 2026-10-14): the last breadcrumb shows only what the request is
+     * about, the job's full name; core's breadcrumb bar reads it from here. The page title and the
+     * app bar heading say the kind as well ({@link #getPageTitle()}). Not the id, which is in the
+     * summary table's ID row. Escaped where it is shown (Jelly escape-by-default, core's
+     * breadcrumb tag).
+     */
     @Override
     public String getDisplayName() {
-        return "Run Request " + request.getId();
+        return request.getJobFullName();
+    }
+
+    /** #18.4: the {@code <title>} and the app bar heading, {@code Run request: <job>}. */
+    public String getPageTitle() {
+        return "Run request: " + getDisplayName();
     }
 
     /** Jelly helper: human-readable timestamp. */
@@ -273,6 +286,15 @@ public class RequestItem implements ModelObject {
     public boolean isQueueCancelled() {
         return request.getStatus() == RequestStatus.APPROVED && request.getExecutedRunId() == null
                 && request.getQueueCancelledAt() != null;
+    }
+
+    /**
+     * #18.2: the Status row's label ({@link StatusLabels#ofRunRequest}): an approved request reads
+     * "Approved, waiting to run", except once its queued run was cancelled, when it will not run
+     * and reads "Approved" (the row then says why).
+     */
+    public String getStatusLabel() {
+        return isQueueCancelled() ? StatusLabels.of(request.getStatus()) : StatusLabels.ofRunRequest(request.getStatus());
     }
 
     /**
@@ -499,9 +521,10 @@ public class RequestItem implements ModelObject {
             this.url = run.getUrl();
             // One read: getResult() is @CheckForNull and is null while the build is running.
             Result runResult = run.getResult();
+            // The readable label (StatusLabels#ofResult), plain text; "In progress" while running.
             this.result = run.isBuilding()
-                    ? "IN PROGRESS"
-                    : runResult == null ? "UNKNOWN" : runResult.toString();
+                    ? StatusLabels.IN_PROGRESS
+                    : runResult == null ? "Unknown" : StatusLabels.ofResult(runResult.toString());
             this.started = Dates.format(Instant.ofEpochMilli(run.getStartTimeInMillis()));
             this.duration = run.isBuilding() ? "" : RunLinks.formatDuration(run.getDuration());
         }
@@ -515,6 +538,7 @@ public class RequestItem implements ModelObject {
             return url;
         }
 
+        /** The result's readable label ({@code Failed}), or {@code In progress} while the build runs. */
         public String getResult() {
             return result;
         }

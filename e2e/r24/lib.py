@@ -197,7 +197,11 @@ def browser_decide(user, rid, verb, comment, shot=None, kind="requests"):
     s = Session(user, fresh=True)
     s.go(f"/batch-control/{kind}/{rid}/")
     form = s.page.locator(f"form[name={verb}]")
-    if form.count() == 0:
+    btn = form.locator("button[name=Submit], button[type=submit], input[type=submit]").first
+    if form.count() == 0:  # Wave D D3 (#18.5): the run request page's one form "decision", a button per verb
+        form = s.page.locator("form[name=decision]")
+        btn = form.locator(f"button[formaction$='/{verb}']").first
+    if form.count() == 0 or btn.count() == 0:
         t = s.text()
         if shot:
             s.shot("#main-panel", shot)
@@ -206,7 +210,6 @@ def browser_decide(user, rid, verb, comment, shot=None, kind="requests"):
     box = form.locator("textarea[name=comment]")
     if box.count():
         box.fill(comment)
-    btn = form.locator("button[name=Submit], button[type=submit], input[type=submit]").first
     with s.page.expect_navigation(timeout=30000) as nav:
         btn.click()
     s.page.wait_for_load_state("load")
