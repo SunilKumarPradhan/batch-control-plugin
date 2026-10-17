@@ -85,6 +85,7 @@ Trigger*Test
 
 [permission windows]
 ActiveGrantsRealJenkinsTest ComputedItemWindowTest
+BlockedGrantRequestPermissionTest
 FolderSelfGrantRefusalTextTest
 Grant*Test
 Window*Test
@@ -122,6 +123,7 @@ PluginInteraction*Test
 
 [audit history and storage]
 ChangeRecord*Test
+DiffAllocationTest
 ChangeControlWithoutMatrixAuthGapTest ChangesMonthDefaultTest ConfigAuditTest
 DatesClockZoneTest DiffSummaryAndDatesTest RecordHistoryGapTest RunRecordListenerTest
 Csv*Test

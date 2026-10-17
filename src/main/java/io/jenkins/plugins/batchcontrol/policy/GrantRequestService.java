@@ -693,10 +693,17 @@ public final class GrantRequestService {
      * the refused request exactly as {@link #create} would and throws the same
      * {@link IllegalStateException}; returns normally while change control is on.
      *
+     * <p>#44: only a caller who may request a window at all gets the refusal and its record.
+     * The screen's gate lets in Approve and Manage holders too, so RequestGrant (Manage implies
+     * it, P-02) is checked here first: anyone else is denied before anything is written, exactly
+     * as {@code doCreate} would deny them while the switch is on.
+     *
      * @param scopeFullName the scope the request named, or {@code null} when none was given
+     * @throws AccessDeniedException if the caller lacks RequestGrant (nothing is recorded)
      * @throws IllegalStateException if change control is off
      */
     public void refuseRequestWhileChangeControlOff(String scopeFullName) {
+        Jenkins.get().checkPermission(BatchControlPermissions.REQUEST_GRANT);
         checkChangeControlEnabled("requested", scopeFullName);
     }
 
