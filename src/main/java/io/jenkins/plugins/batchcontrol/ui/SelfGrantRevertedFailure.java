@@ -36,21 +36,39 @@ public class SelfGrantRevertedFailure extends Failure {
 
     private final String itemFullName;
 
+    /** Whether the item is a job: only a job has a Batch Control page offering Mark as reviewed. */
+    private final boolean job;
+
     /** @param item the item whose authorization entries the guard restored */
     public SelfGrantRevertedFailure(Item item) {
-        super(message(item.getFullName()));
+        super(message(item.getFullName(), item instanceof Job));
         this.itemFullName = item.getFullName();
+        this.job = item instanceof Job;
     }
 
-    private static String message(String itemFullName) {
-        return "Some authorization entries of '" + itemFullName + "' were not kept: the item is"
+    /**
+     * The plain-text message. #1.6 (security-32 S-32-03): a folder (any item that is not a job) has
+     * no Batch Control page, so its text names only the monitor and says that marking it as
+     * reviewed needs Configure held directly on it, not given by a permission window (D-58b).
+     */
+    private static String message(String itemFullName, boolean job) {
+        String head = "Some authorization entries of '" + itemFullName + "' were not kept: the item is"
                 + " guarded because it is covered by a temporary permission window, or was changed"
                 + " under one and has not been reviewed. Changes that widen its authorization are"
                 + " undone, whoever saves it, until someone uses Mark as reviewed on the Batch"
-                + " Control monitor under Manage Jenkins (an administrator) or on the job's Batch"
-                + " Control page (a user with Configure permission on it and Batch Control/Request)."
-                + " Your other changes were saved. While a window still covers it, ask an"
+                + " Control monitor under Manage Jenkins (an administrator)";
+        String where = job
+                ? " or on the job's Batch Control page (a user with Configure permission on it and"
+                        + " Batch Control/Request)."
+                : ". Marking it as reviewed needs Configure permission held directly on it, not given"
+                        + " by a permission window.";
+        return head + where + " Your other changes were saved. While a window still covers it, ask an"
                 + " administrator.";
+    }
+
+    /** #1.6: whether the item is a job (the view then mentions the job's Batch Control page). */
+    public boolean isJob() {
+        return job;
     }
 
     /**

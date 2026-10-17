@@ -18,13 +18,23 @@
         <!-- DEF-39: what to do next. The job's Batch Control page is linked only for a viewer who
              may open it (SelfGrantRevertedFailure#getReviewPageUrl). -->
         <j:set var="reviewUrl" value="${it.reviewPageUrl}"/>
+        <!-- #1.6: a folder has no Batch Control page; its text names only the monitor and says
+             that Configure must be held directly (D-58b). -->
         <div class="jenkins-!-margin-top-2">
           An administrator can use <strong>Mark as reviewed</strong> on the Batch Control monitor
-          under Manage Jenkins. A user with Configure permission on it and Batch Control/Request
-          can use it on
+          under Manage Jenkins.
           <j:choose>
-            <j:when test="${reviewUrl != null}"><a href="${rootURL}/${reviewUrl}">its Batch Control page</a>.</j:when>
-            <j:otherwise>its Batch Control page.</j:otherwise>
+            <j:when test="${it.job}">
+              A user with Configure permission on it and Batch Control/Request can use it on
+              <j:choose>
+                <j:when test="${reviewUrl != null}"><a href="${rootURL}/${reviewUrl}">its Batch Control page</a>.</j:when>
+                <j:otherwise>its Batch Control page.</j:otherwise>
+              </j:choose>
+            </j:when>
+            <j:otherwise>
+              Marking it as reviewed needs Configure permission held directly on it, not given by a
+              permission window.
+            </j:otherwise>
           </j:choose>
           While a permission window still covers it, ask an administrator.
         </div>

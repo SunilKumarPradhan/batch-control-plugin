@@ -151,7 +151,18 @@
                                     message="It is no longer listed here. Changes that widen its authorization are no longer undone, unless a folder above it or an active permission window still guards it."
                                     okText="Mark as reviewed">Mark as reviewed</l:confirmationLink>
               </j:when>
-              <j:otherwise><code>${name}</code></j:otherwise>
+              <j:otherwise>
+                <!-- #1.4 (security-30 S-30-06): a listed name that no longer resolves (the item
+                     was deleted, or renamed or moved while Jenkins was down) can still be marked
+                     reviewed from here; doMarkReviewed clears such a listed name (S-29-04). -->
+                <code>${name}</code>
+                <span class="jenkins-!-margin-left-1">(no item has this name now)</span>
+                <l:confirmationLink href="${rootURL}/${it.url}/markReviewed?item=${h.urlEncode(name)}" post="true"
+                                    class="jenkins-button jenkins-!-margin-left-1"
+                                    title="Mark ${name} as reviewed?"
+                                    message="No item has this name now. It is no longer listed here."
+                                    okText="Mark as reviewed">Mark as reviewed</l:confirmationLink>
+              </j:otherwise>
             </j:choose>
           </li>
         </j:forEach>
