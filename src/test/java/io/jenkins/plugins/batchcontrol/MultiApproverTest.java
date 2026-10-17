@@ -709,7 +709,8 @@ public class MultiApproverTest {
         allowNonAsciiApprover("a1", "a2", "a3", "admin", YAMADA);
         HtmlForm secondForm = TypedParameterFixtures.requestRunForm(j, wc, job);
         List<String> secondExpected = inPageOrder(secondForm, YAMADA, "a2");
-        String second = submit(wc, secondForm, YAMADA, "a2");
+        // amended for D-88 (note 359): another reason, so the second request is not identical to the pending first
+        String second = submitWithReason(wc, secondForm, "month-end batch through the Request Run form, second run", YAMADA, "a2");
 
         List<String> firstStored = RunRequestService.get().load(first).getApprovers();
         List<String> secondStored = RunRequestService.get().load(second).getApprovers();
@@ -813,8 +814,12 @@ public class MultiApproverTest {
      * does (core's form script, redirects followed); returns the id of the one request it created.
      */
     private String submit(JenkinsRule.WebClient wc, HtmlForm form, String... approvers) throws Exception {
+        return submitWithReason(wc, form, "month-end batch through the Request Run form", approvers);
+    }
+
+    private String submitWithReason(JenkinsRule.WebClient wc, HtmlForm form, String reason, String... approvers) throws Exception {
         Set<String> before = runRequestIds();
-        UsabilityFixtures.setField(form, "reason", "month-end batch through the Request Run form");
+        UsabilityFixtures.setField(form, "reason", reason);
         UsabilityFixtures.tickApprovers(form, approvers);
         Page answer = HtmlFormUtil.submit(form);
         wc.waitForBackgroundJavaScript(5000);
