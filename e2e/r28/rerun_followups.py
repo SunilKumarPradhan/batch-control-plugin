@@ -1,7 +1,7 @@
 """e2e-28 #1 follow-ups (security-31/32 LOW items, usability; TEST-MATRIX T-02-188/189/192, T-03-94, T-05-204..206,
 notes 352..359) on a real Jenkins. A check named "#1.x" fails without the fix; one named "guard" holds with and without.
 
-usage: python rerun_followups.py [PMNUDI]   (CI: PMNU in one unit, DI in another)   rows: r27/out/rerun_followups.jsonl, shots: screenshots/run-27/R28-1-*.png
+usage: python rerun_followups.py [PMNUSFDI]   (CI: PMNUSF in one unit, DI in another)   rows: r27/out/rerun_followups.jsonl, shots: screenshots/run-27/R28-1-*.png
 Items (created again by A): r28-rp (Pipeline, `echo 'hello'`, free: no approval, timer and upstream not blocked), r28-rq
 (approval-required, DATE), r28-act (not activated), r28-dup (approval-required, DATE defaulting to 2026-10-31). Accounts:
 requester (RequestGrant: replays r28-rp #1 under an approved CONFIGURE window, so #2 is the marked run), r28-alice (added
@@ -20,6 +20,17 @@ U  #1.5 (T-02-192): a Replay cause of an unmarked run of r28-rp, the run then de
    Queue#schedule2 under ACL.as2) by r28-alice and by anonymous: both refused, nothing queued; r28-alice's TRIGGER_BLOCKED
    says switch=unresolvedSource and "could not be identified" (guard); anonymous's single record says the same and not
    switch=replayedUnderGrant (#1.5).
+S  #1.4 (T-02-191): r28-stale, saved by the requester under her CONFIGURE window, is listed on the Manage Jenkins
+   monitor; its entry is then taken out of Jenkins' item map without any listener (as when its directory went missing
+   while Jenkins was down), so the listed name resolves to nothing. The monitor still lists it and offers Mark as
+   reviewed for it (#1.4); manager's POST to that target is refused and the name stays (guard); the administrator's
+   Mark as reviewed (core's confirmation, OK) writes one GUARD_REVIEWED record and the name is gone (#1.4). The entry is
+   put back and the item deleted.
+F  #1.6 (T-02-193): job r28-jobj and folder r28-team, each with its own matrix property (approver-1 Configure,
+   requester Read), and the requester's CONFIGURE window on each: her config.xml POST adding Configure for herself is
+   refused (403) with one GRANT_VIOLATION each (premise). The folder's text, as plain text and as the page, names
+   r28-team, mentions no Batch Control page and says Configure must be held directly (#1.6); the job's text names
+   r28-jobj and still points to the job's Batch Control page (guard).
 D  #1.7 (T-03-94): the requester posts the stale Change Approvers form (approver-2) to her rejected run request, her
    approved window request and her approved activation request: each answer is a 4xx plain refusal, not "Correct the
    fields marked below", naming the request's status (#1.7); the approvers stay [approver-1] (guard).
@@ -195,6 +206,136 @@ def sec_U():
           anonymous=others, users=sorted({r["user"] for r in recs}), anon_named=anon[:1])
 
 
+# ---------------------------------------------------------------- S: a stale listed name (#1.4)
+STALE = "r28-stale"
+MONITOR = f"/administrativeMonitor/{lib.STRATEGY_MONITOR}/markReviewed"  # the monitor's own URL, as its rows link it
+ENTRY_JS = """(name) => { const code = [...document.querySelectorAll('.jenkins-alert li > code, .jenkins-alert li > a > code')].find(c => c.textContent.trim() === name);
+  if (!code) return null; const li = code.closest('li');
+  return {text: li.textContent.replace(/\\s+/g, ' ').trim(), linked: !!code.closest('a'),
+          review: [...li.querySelectorAll('[data-url*="markReviewed"]')].map(a => a.getAttribute('data-url'))}; }"""
+
+
+def entry(s):
+    s.go("/manage/")
+    return s.page.evaluate(ENTRY_JS, STALE)
+
+
+def sec_S():
+    fresh(STALE, lib.job_xml("fs", shell="echo r28 stale"))
+    st, gid = lib.submit_grant("requester", STALE, ["CONFIGURE"], minutes=30, reason="e2e-28 #1.4 window")
+    dec = lib.decide("approver-1", "grants", gid, "approve", "e2e-28 #1.4") if gid else None
+    saved = api("requester", lib.jpath(STALE) + "/config.xml", "POST",
+                data=lib.job_xml("fs", shell="echo r28 stale saved under the window").encode("utf-8"),
+                headers={"Content-Type": "application/xml"}).status_code
+    s = Session("admin")
+    listed = entry(s)
+    s.done()
+    gone = gv(f"""def j = jenkins.model.Jenkins.get(); def f = jenkins.model.Jenkins.getDeclaredField('items'); f.accessible = true
+def i = f.get(j).remove('{STALE}'); if (i != null) System.getProperties().put('r28.stale.item', i)
+return String.valueOf(i != null && j.getItemByFullName('{STALE}') == null)""")
+    check("S", "arrangement: r28-stale, saved by the requester under her window, is listed on the monitor; its entry is then "
+          "taken out of the item map, so the listed name resolves to nothing", dec in (200, 302) and saved < 400
+          and bool(listed) and gone == "true", window=(st, gid, dec), saved=saved, listed=listed, removed=gone)
+    s = Session("admin")
+    stale = entry(s)
+    lib.page_shot(s, "R28-1-S-stale-name")
+    s.done()
+    want = f"{lib.PREFIX}{MONITOR}?item={STALE}"
+    check("S", "#1.4 (T-02-191): the monitor still lists the stale name and offers Mark as reviewed for it (a POST to "
+          "markReviewed for that item)", bool(stale) and stale["review"] == [want], entry=stale)
+    note("S", "the stale entry's wording", text=(stale or {}).get("text"))
+    mark = now_ms()
+    r = api("manager", MONITOR + f"?item={STALE}", "POST")
+    s = Session("admin")
+    still = entry(s)
+    s.done()
+    check("S", "guard: manager (BatchControl/Manage, not an administrator) cannot mark it reviewed: refused, nothing "
+          "recorded, the name stays", r.status_code >= 400 and bool(still)
+          and not records(["GUARD_REVIEWED"], mark), status=r.status_code)
+    s = Session("admin")
+    s.go("/manage/")
+    link = s.page.locator(f".jenkins-alert [data-url*='markReviewed?item={STALE}']").first
+    pressed = False
+    if link.count():
+        link.click()
+        lib._r6.opened(s.page)
+        s.page.locator("dialog[open] button[data-id=ok]").click()  # core's confirmationLink posts, then reloads
+        pressed = True
+        lib.wait_until(lambda: records(["GUARD_REVIEWED"], mark), 20, 1)
+        s.page.wait_for_load_state("load")
+    after = entry(s)
+    s.done()
+    recs = [x for x in records(["GUARD_REVIEWED"], mark) if x["target"] == STALE]
+    check("S", "#1.4: the administrator's Mark as reviewed (core's confirmation, OK) writes one GUARD_REVIEWED record for "
+          "the stale name and the name is no longer listed", pressed
+          and len(recs) == 1 and after is None, pressed=pressed, records=recs, after=after)
+    S["stale_back"] = gv(f"""def j = jenkins.model.Jenkins.get(); def i = System.getProperties().remove('r28.stale.item')
+if (i == null) return 'nothing'; def f = jenkins.model.Jenkins.getDeclaredField('items'); f.accessible = true; f.get(j).put('{STALE}', i)
+return 'restored'""")
+    S["revoke_stale"] = gid
+
+
+# ---------------------------------------------------------------- F: the folder self-grant text (#1.6)
+TEAM, JOBJ = "r28-team", "r28-jobj"
+DIRECT = "Marking it as reviewed needs Configure permission held directly on it, not given by a permission window."
+
+
+def matrix(item, folder):
+    cls = ("com.cloudbees.hudson.plugins.folder.properties.AuthorizationMatrixProperty" if folder
+           else "hudson.security.AuthorizationMatrixProperty")
+    return gv(f"""import hudson.security.*; import org.jenkinsci.plugins.matrixauth.*; import hudson.model.Item
+def i = jenkins.model.Jenkins.get().getItemByFullName('{item}')
+def p = {"new " + cls + "([:])" if folder else "new " + cls + "([:], new org.jenkinsci.plugins.matrixauth.inheritance.InheritParentStrategy())"}
+p.add(Item.CONFIGURE, new PermissionEntry(AuthorizationType.USER, 'approver-1'))
+p.add(Item.READ, new PermissionEntry(AuthorizationType.USER, 'requester'))
+i.addProperty(p); return 'ok'""")
+
+
+def self_grant(item):
+    xml = api("admin", lib.jpath(item) + "/config.xml").text
+    m = re.search(r"\n(\s*)<(permission|entry)>USER:hudson\.model\.Item\.Read:requester</\2>", xml)
+    if not m:
+        return None, xml[:300], ""
+    line = m.group(0)
+    xml2 = xml.replace(line, line + line.replace("Item.Read", "Item.Configure"), 1)
+    plain = api("requester", lib.jpath(item) + "/config.xml", "POST", data=xml2.encode("utf-8"),
+                headers={"Content-Type": "application/xml", "Accept": "text/plain"})
+    page = api("requester", lib.jpath(item) + "/config.xml", "POST", data=xml2.encode("utf-8"),
+               headers={"Content-Type": "application/xml", "Accept": "text/html"})
+    return plain.status_code, plain.text, lib.text_of(page.text) if page.status_code == 403 else f"HTTP {page.status_code}"
+
+
+def sec_F():
+    for j in (JOBJ, TEAM):
+        if api("admin", lib.jpath(j) + "/api/json").status_code == 200:
+            api("admin", lib.jpath(j) + "/doDelete", "POST")
+    lib.ensure_item(JOBJ, lib.job_xml("fs", shell="echo r28 jobj"))
+    lib.ensure_folder(TEAM)
+    props = {JOBJ: matrix(JOBJ, False), TEAM: matrix(TEAM, True)}
+    wins = {}
+    for item in (JOBJ, TEAM):
+        st, gid = lib.submit_grant("requester", item, ["CONFIGURE"], minutes=30, reason=f"e2e-28 #1.6 window on {item}")
+        wins[item] = (st, gid, lib.decide("approver-1", "grants", gid, "approve", "e2e-28 #1.6") if gid else None)
+    S["windows_f"] = [v[1] for v in wins.values()]
+    out = {}
+    for item in (JOBJ, TEAM):
+        mark = now_ms()
+        status, plain, page = self_grant(item)
+        viol = [x for x in records(["GRANT_VIOLATION"], mark) if x["target"] == item]
+        out[item] = {"status": status, "plain": re.sub(r"\s+", " ", plain or "")[:600], "page": page, "violations": len(viol)}
+    check("F", "premise: the requester's config.xml POST adding Configure for herself is refused (403) on the job and on the "
+          "folder, with one GRANT_VIOLATION each (two posts, plain and page, so two records each)",
+          all(v["status"] == 403 and v["violations"] >= 1 for v in out.values()), props=props, windows=wins,
+          results={k: {"status": v["status"], "violations": v["violations"]} for k, v in out.items()})
+    f = out[TEAM]
+    check("F", "#1.6 (T-02-193): the folder's refusal text names r28-team, mentions no Batch Control page and says Configure "
+          "must be held directly, as plain text and on the page", f["status"] == 403
+          and all(f"'{TEAM}'" in x and "Batch Control page" not in x and DIRECT in x for x in (f["plain"], f["page"])),
+          plain=f["plain"], page=f["page"][-500:])
+    j = out[JOBJ]
+    check("F", "guard: the job's refusal text names r28-jobj and still points to the job's Batch Control page",
+          j["status"] == 403 and f"'{JOBJ}'" in j["plain"] and "job's Batch Control page" in j["plain"], plain=j["plain"])
+
 def approvers(kind, rid):
     d = {"run": "requests/run", "grant": "requests/grant", "activation": "activation-requests"}[kind]
     return gv(f"""def f = new File(jenkins.model.Jenkins.get().rootDir, 'batch-control/{d}/{rid}.xml')
@@ -298,10 +439,13 @@ if (snap != null) { j.setAuthorizationStrategy(Jenkins.XSTREAM2.fromXML(snap)); 
 def u = hudson.model.User.getById('""" + ALICE + """', false); if (u != null) u.delete()
 return j.authorizationStrategy.getClass().simpleName""")
     cc = set_change_control(S.get("change", True))
+    if S.get("stale_back") is None:  # S stopped before putting the entry back
+        gv("""def j = jenkins.model.Jenkins.get(); def i = System.getProperties().remove('r28.stale.item')
+if (i != null) { def f = jenkins.model.Jenkins.getDeclaredField('items'); f.accessible = true; f.get(j).put('r28-stale', i) }; return 'ok'""")
     note("cleanup", "restore", strategy=back, change_control=cc, swept=lib.sweep("requester", "r28-"),
          revoked=api("admin", f"/batch-control/grants/{S['revoke']}/revoke", "POST").status_code if S.get("revoke") else None,
-         deleted={j: api("admin", lib.jpath(j) + "/doDelete", "POST").status_code for j in (RP, RQ, ACT, DUP)})
+         deleted={j: api("admin", lib.jpath(j) + "/doDelete", "POST").status_code for j in (RP, RQ, ACT, DUP, STALE, JOBJ, TEAM)})
 
 
 if __name__ == "__main__":
-    lib.run(sys.argv, {"P": sec_P, "M": sec_M, "N": sec_N, "U": sec_U, "D": sec_D, "I": sec_I}, cleanup)
+    lib.run(sys.argv, {"P": sec_P, "M": sec_M, "S": sec_S, "F": sec_F, "N": sec_N, "U": sec_U, "D": sec_D, "I": sec_I}, cleanup)

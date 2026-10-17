@@ -300,12 +300,14 @@ UNITS = [
              "setting groups on both configuration pages for admin and manager, saved through the real form"),
     # e2e-28 #1 follow-ups, one driver (r28/rerun_followups.py) in two units of different groups. The first re-creates
     # r28-rp, saves the matrix strategy and puts it back (it adds r28-alice and gives anonymous Overall/Read, Job/Read and
-    # Run/Replay), switches change control off and on and puts it back, and revokes the window it opens. Weight: 12 to
-    # 13 s (a fresh stack and its group, 2026-10-17, local).
-    Unit("r28-rerun-markers", 0.3, [("r28-rerun-markers", py("r28/rerun_followups.py", "PMNU"))], group="crawls and multibranch",
+    # Run/Replay), switches change control off and on and puts it back, and revokes the windows it opens; r28-stale's
+    # entry is taken out of Jenkins' item map for section S and put back, and r28-stale, r28-jobj and the folder
+    # r28-team are deleted at the end. Weight: 23 s on a fresh stack with sections S and F (2026-10-18, local).
+    Unit("r28-rerun-markers", 0.4, [("r28-rerun-markers", py("r28/rerun_followups.py", "PMNUSF"))], group="crawls and multibranch",
          doc="e2e-28 #1: re-runs of a marked run made while change control is off are marked (#1.1); a carried marker's "
              "record names the re-runner and the original replayer (#1.2); an anonymous re-run with an unresolvable "
-             "source is recorded as unresolved (#1.5)"),
+             "source is recorded as unresolved (#1.5); a stale listed name can be marked reviewed by an administrator "
+             "only (#1.4); the folder self-grant refusal names no Batch Control page and asks for direct Configure (#1.6)"),
     # The second re-creates r28-rq, r28-act and r28-dup and cancels the requests it leaves pending. Weight: 25 to 27 s
     # (a fresh stack and its group, 2026-10-17, local), counted as 0.4 so the group stays at 19.5 once r28-grant-blocked
     # (#44, 0.1) joins it.
