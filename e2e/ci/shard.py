@@ -315,6 +315,12 @@ UNITS = [
          group="job ui params and restart",
          doc="e2e-28 #1: a stale approver change on a decided request names its status (#1.7); an identical pending run "
              "request is not created twice, from the browser and from a script (#1.9)"),
+    # e2e-28 #91. r28/incident_results.py saves both configuration pages as admin and manager (refused and accepted
+    # values) and puts the settings back as they were. Weight: 9 to 20 s on a fresh stack (2026-10-18, local).
+    Unit("r28-incident-results", 0.3, [("r28-incident-results", py("r28/incident_results.py"))], group="admin and role strategy",
+         doc="e2e-28 #91: 'Results that open an incident' accepts only FAILURE, UNSTABLE and ABORTED: the live field check "
+             "and the saves of Manage Jenkins > System (admin) and the Batch Control page (manager) refuse SUCCESS and "
+             "NOT_BUILT, store nothing and record nothing; FAILURE, ABORTED and UNSTABLE, ABORTED are saved and recorded"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",

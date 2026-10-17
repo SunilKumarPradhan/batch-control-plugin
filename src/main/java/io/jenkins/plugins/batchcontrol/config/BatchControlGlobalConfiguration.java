@@ -53,6 +53,12 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
 
     private static final Logger LOGGER = Logger.getLogger(BatchControlGlobalConfiguration.class.getName());
 
+    /** SPEC 11: the default results that open an incident. */
+    static final List<String> DEFAULT_INCIDENT_RESULTS = List.of("FAILURE", "UNSTABLE");
+
+    /** SPEC 11 / issue #91: the only results that may open an incident (ABORTED may be added). */
+    static final List<String> INCIDENT_RESULT_NAMES = List.of("FAILURE", "UNSTABLE", "ABORTED");
+
     // volatile: read lock-free by the queue gate and the ACL on other threads; written under
     // this instance's monitor.
     private volatile boolean runControlEnabled;
@@ -63,7 +69,7 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
     private int approvedRunTimeoutMinutes = 60;
     private List<Integer> grantDurationOptions = new ArrayList<>(Arrays.asList(15, 30, 60));
     private int maxGrantMinutes = 240;
-    private List<String> incidentResults = new ArrayList<>(Arrays.asList("FAILURE", "UNSTABLE"));
+    private List<String> incidentResults = new ArrayList<>(DEFAULT_INCIDENT_RESULTS);
     private int retentionMonths = 24;
     /** D-36: send notification e-mail through Mailer (off by default, so an upgrade changes nothing). */
     private boolean emailNotifications;
@@ -103,6 +109,41 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
             LOGGER.log(Level.FINE, "Could not bind the refused configuration form for re-display", e);
             return null;
         }
+    }
+
+    /**
+     * Issue #91: a value stored before the upgrade may hold SUCCESS or NOT_BUILT, which cannot open
+     * an incident (SPEC 11). They are dropped once, here on read, with one warning naming them; the
+     * allowed names keep their order, and with none left the default [FAILURE, UNSTABLE] applies.
+     * The next save stores the cleaned value.
+     */
+    @Override
+    public synchronized void load() {
+        super.load();
+        List<String> stored = incidentResults == null ? List.of() : incidentResults;
+        List<String> kept = new ArrayList<>();
+        List<String> dropped = new ArrayList<>();
+        for (String name : stored) {
+            if (name == null) {
+                continue;
+            }
+            String upper = name.trim().toUpperCase(Locale.ROOT);
+            if (INCIDENT_RESULT_NAMES.contains(upper)) {
+                kept.add(upper);
+            } else {
+                dropped.add(name);
+            }
+        }
+        if (kept.isEmpty()) {
+            kept.addAll(DEFAULT_INCIDENT_RESULTS);
+        }
+        if (!dropped.isEmpty()) {
+            LOGGER.log(Level.WARNING, "The stored setting ''Results that open an incident'' held {0}, which cannot"
+                    + " open an incident; they were dropped and the setting now reads {1}. Only FAILURE, UNSTABLE"
+                    + " and ABORTED are allowed; the next save stores the cleaned value.",
+                    new Object[] {dropped, kept});
+        }
+        incidentResults = kept;
     }
 
     /** S-25-06: a detached draft or candidate is never written to {@code config.xml}. */
@@ -518,7 +559,14 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
         List<String> sanitized = new ArrayList<>();
         for (String result : sanitizeStrings(incidentResults)) {
             // Build results are upper case (hudson.model.Result); "failure" means FAILURE.
-            sanitized.add(result.toUpperCase(Locale.ROOT));
+            String upper = result.toUpperCase(Locale.ROOT);
+            // Issue #91: SUCCESS, NOT_BUILT and unknown names never open an incident (JCasC, scripts).
+            if (INCIDENT_RESULT_NAMES.contains(upper)) {
+                sanitized.add(upper);
+            } else {
+                LOGGER.log(Level.WARNING, "Ignoring ''{0}'' for ''Results that open an incident''; only FAILURE,"
+                        + " UNSTABLE and ABORTED are allowed", result);
+            }
         }
         if (!sanitized.isEmpty()) {
             this.incidentResults = sanitized;
@@ -589,7 +637,7 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
     static final String LABEL_RETENTION = "Retention period (months)";
     static final String LABEL_NOTIFY = "Notify before expiry (minutes)";
 
-    /** The build results an incident can be opened for ({@code hudson.model.Result} names). */
+    /** Every {@code hudson.model.Result} name (an incident opens only for {@link #INCIDENT_RESULT_NAMES}). */
     static final List<String> RESULT_NAMES =
             List.of("FAILURE", "UNSTABLE", "ABORTED", "NOT_BUILT", "SUCCESS");
 
@@ -695,9 +743,14 @@ public class BatchControlGlobalConfiguration extends GlobalConfiguration {
             return LABEL_INCIDENT_RESULTS + ": at least one result is required, for example FAILURE, UNSTABLE.";
         }
         for (String token : tokens) {
-            if (!RESULT_NAMES.contains(token.toUpperCase(Locale.ROOT))) {
+            String upper = token.toUpperCase(Locale.ROOT);
+            if (!RESULT_NAMES.contains(upper)) {
                 return LABEL_INCIDENT_RESULTS + ": '" + token + "' is not a build result. Use "
-                        + String.join(", ", RESULT_NAMES) + ".";
+                        + String.join(", ", INCIDENT_RESULT_NAMES) + ".";
+            }
+            if (!INCIDENT_RESULT_NAMES.contains(upper)) {
+                return LABEL_INCIDENT_RESULTS + ": '" + token + "' cannot open an incident. Use "
+                        + String.join(", ", INCIDENT_RESULT_NAMES) + ".";
             }
         }
         return null;
