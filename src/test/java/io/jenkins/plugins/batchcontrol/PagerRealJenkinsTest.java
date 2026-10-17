@@ -76,7 +76,8 @@ public class PagerRealJenkinsTest {
         BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
 
         for (int i = 0; i < ROWS; i++) {
-            as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "pending run", "a1"));
+            int n = i; // amended for D-88 (note 359): each pending request has its own reason
+            as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "pending run " + n, "a1"));
             String id = as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "cancelled run", "a1").getId());
             as("u1", () -> {
                 RunRequestService.get().cancel(id);

@@ -234,6 +234,7 @@ public class RerunFallbackLinkTest {
             assertTrue(request.getIncidentId() == null || request.getIncidentId().isEmpty(),
                     "reference '" + reference + "' must leave the request unlinked, got " + request.getIncidentId());
             assertFalse(rerunIds(incident.getId()).contains(id), "the incident must not list the request of '" + reference + "'");
+            ApproverFormFixtures.cancelRunRequest("u1", id); // amended for D-88 (note 359): the next submission is identical
         }
         Path store = TypedParameterFixtures.storeDir(j);
         assertFalse(Files.exists(store.resolve("x.xml")) || Files.exists(store.resolve("x")),
@@ -398,6 +399,7 @@ public class RerunFallbackLinkTest {
                     "reference '" + reference + "' in the action query must leave the request unlinked, got " + request.getIncidentId());
             assertFalse(rerunIds(own.getId()).contains(id), "the job's incident must not list it");
             assertFalse(rerunIds(other.getId()).contains(id), "the other job's incident must not list it");
+            ApproverFormFixtures.cancelRunRequest("u1", id); // amended for D-88 (note 359): the next submission is identical
         }
 
         HtmlForm valid = openForm(wc, a, formUrl(j, a, Map.of("DATE", DATE), null));

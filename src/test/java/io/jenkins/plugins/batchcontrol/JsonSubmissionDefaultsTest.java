@@ -145,6 +145,7 @@ public class JsonSubmissionDefaultsTest {
         String scripted = urlencoded(null);
         assertEquals(map("DATE", "2000-01-01", "MODE", "full"), stored(scripted),
                 "guard (T-SEC-45): an urlencoded submission without json stores both defaults explicitly");
+        ApproverFormFixtures.cancelRunRequest("u1", scripted); // amended for D-88 (note 359): the next one stores the same values
 
         JSONObject json = new JSONObject();
         json.put("reason", "month-end batch run");

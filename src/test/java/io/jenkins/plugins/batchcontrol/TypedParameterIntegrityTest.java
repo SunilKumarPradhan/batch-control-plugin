@@ -475,7 +475,8 @@ public class TypedParameterIntegrityTest {
 
         String id = acceptedOne("the name without U+0001", postJson("u1", twin, form(REASON, value("BAD_NAME", "fine"))), ids);
         assertEquals("fine", RunRequestService.get().load(id).getParameters().get("BAD_NAME"), "guard: the plain name is accepted with its value");
-        RunRequest viaService = createTyped(twin, List.of(new StringParameterValue("BAD_NAME", "fine")));
+        // amended for D-88 (note 359): another value, so the service request is not identical to the pending form one
+        RunRequest viaService = createTyped(twin, List.of(new StringParameterValue("BAD_NAME", "fine, via the service")));
         assertEquals(RequestStatus.PENDING, viaService.getStatus(), "guard: the service accepts the plain name");
     }
 

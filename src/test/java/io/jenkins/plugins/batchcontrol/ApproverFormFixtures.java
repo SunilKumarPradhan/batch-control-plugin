@@ -299,4 +299,20 @@ final class ApproverFormFixtures {
         String flat = text.replaceAll("\\s+", " ");
         return flat.length() > 600 ? flat.substring(0, 600) + "..." : flat;
     }
+
+    /**
+     * {@code user} cancels the PENDING run request {@code id}, which must then be CANCELLED. For tests
+     * amended for D-88 (an identical pending run request is not created twice, note 359): an earlier
+     * request identical to the next submission is cancelled first, so the next submission sends the
+     * same content and still creates a request.
+     */
+    static void cancelRunRequest(String user, String id) {
+        try (hudson.security.ACLContext ignored = hudson.security.ACL.as2(
+                hudson.model.User.getById(user, true).impersonate2())) {
+            io.jenkins.plugins.batchcontrol.policy.RunRequestService.get().cancel(id);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(io.jenkins.plugins.batchcontrol.model.RequestStatus.CANCELLED,
+                io.jenkins.plugins.batchcontrol.policy.RunRequestService.get().load(id).getStatus(),
+                "fixture (D-88): the earlier identical request is cancelled before the next submission");
+    }
 }
