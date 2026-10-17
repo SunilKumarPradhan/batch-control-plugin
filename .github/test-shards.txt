@@ -1,6 +1,7 @@
-# Surefire groups for the Build workflow and for the Jenkinsfile (ci.jenkins.io), whose
-# planGroups() reads this format and applies the rules of .github/scripts/test-shards.py: change
-# both if either changes.
+# Surefire groups for the GitHub Actions Build workflow (build.yml, Linux) and the Windows tests
+# workflow (windows-tests.yml), both read through .github/scripts/test-shards.py; the two run
+# the whole suite. ci.jenkins.io does not use the groups: its Jenkinsfile is a plain
+# buildPlugin call that runs only the @Tag("core") tests (pom.xml, core-tests-on-jenkins).
 #
 # Format: a group starts with a line "[<label>]"; the lines after it, up to the next
 # "[<label>]" line, hold its Surefire -Dtest patterns, separated by commas, spaces or line
@@ -13,28 +14,32 @@
 #            allowed. Either a prefix ("Grant*Test") or one class name.
 #
 # Groups are features, by test class name. Estimates per group, from the per-class times of
-# Build runs 37885983908, 37883660962 and 37883230719 (six jobs per class: three runs, JDK
-# 21 and 25; ~22,400 s of class time per JDK). "s" is the group's mean class time; "min" is
-# the job time, mean and slowest of the six samples, from a model that hands the group's
-# classes, in the order Surefire runs them (alphabetical by class file), to four forks
-# (forkCount 1C on the runner's four cores) and adds ~50 s of compilation and job setup.
-# On these runs the model came within 25 s of every measured Maven run of the six earlier
-# groups.
-#   run requests               31 classes  ~2,420 s  12.1 / 12.7 min
-#   run approval and mail      25 classes  ~2,120 s  10.8 / 11.4 min
-#   activation and new jobs    24 classes  ~2,220 s  10.8 / 12.2 min
-#   incidents refusals reruns  19 classes  ~1,910 s  10.2 / 11.2 min
-#   permission windows         29 classes  ~2,430 s  11.7 / 12.7 min
-#   items and moves            18 classes  ~2,280 s  10.9 / 11.5 min
-#   authorization and links    23 classes  ~2,180 s  11.1 / 12.5 min
-#   permissions and plugins    39 classes  ~2,030 s  10.3 / 11.2 min
-#   audit history and storage  45 classes  ~2,540 s  12.2 / 13.1 min
-#   parameters and ui          27 classes  ~2,340 s  12.2 / 13.6 min
-# ItemIdentityBindingTest (~540 s, items and moves) and AuthorizationEntryGuardTest (~530 s,
+# Build runs 38508937576 (main) and 38499172942 (four jobs per class: two runs, JDK 21 and
+# 25; ~25,500 s of class time per JDK). The four classes Wave D D2 added (FilterDropdownTest,
+# ResultLabelPageTest, StatusLabelPageTest, ui.StatusLabelsTest) had no CI run yet: their
+# times are local times scaled by 1.36, the mean ratio of CI to local time of two classes
+# timed in the same local run (PageTitleIdRowTest 1.60, DashboardLimitTest 1.12). "s" is the
+# group's mean class time; "min" is the job time, mean and slowest of the four samples, from
+# a model that hands the group's classes, in the order Surefire runs them (alphabetical by
+# class file), to four forks (forkCount 1C on the runner's four cores) and adds ~50 s of
+# compilation and job setup. On these runs the model came within 25 s of every measured
+# Surefire run of the ten earlier groups.
+#   run requests               33 classes  ~2,360 s  11.4 / 12.8 min
+#   run approval and mail      28 classes  ~2,310 s  11.5 / 12.9 min
+#   activation and new jobs    28 classes  ~2,580 s  12.0 / 13.3 min
+#   incidents refusals reruns  21 classes  ~2,300 s  11.6 / 11.8 min
+#   permission windows         33 classes  ~2,650 s  12.3 / 13.2 min
+#   items and moves            19 classes  ~2,290 s  10.6 / 11.4 min
+#   authorization and links    27 classes  ~2,600 s  13.1 / 13.3 min
+#   permissions and plugins    40 classes  ~2,160 s  10.7 / 12.0 min
+#   audit history and storage  50 classes  ~2,740 s  12.7 / 14.1 min
+#   build parameters           19 classes  ~1,800 s   9.8 / 10.6 min
+#   pages forms and config     19 classes  ~1,700 s  10.0 / 10.3 min
+# ItemIdentityBindingTest (~545 s, items and moves) and AuthorizationEntryGuardTest (~535 s,
 # authorization and links) are the two slowest classes; each sorts among the first four
-# classes of its group, so it starts at once. The six groups these replaced came out, in
-# the same model, at 14.5 to 20.6 min (mean) and 21.9 min (slowest sample, run approval and
-# mail), against 21.7 min measured.
+# classes of its group, so it starts at once. The last two groups were one, "parameters and
+# ui", until D2: with D2's classes it came out at 16.7 / 17.9 min in the same model, against
+# 14.2 min (mean of the four jobs) measured without them.
 #
 # .github/scripts/test-shards.py check fails the workflow when a test class matches no
 # group or more than one group, when a group matches no class and when a pattern matches
@@ -53,6 +58,8 @@ JobRunSidebarEntryTest UnsavedExecutionRecoveryTest
 Approv*Test
 DiscoverOnlyRequestScreenTest ExpiryAndCancelTest MissedInvalidationGapTest
 MultiApproverTest PendingCountTest QueueBlockTest RunControlUsabilityTest
+DeprecatedUserCauseTest
+DecisionAreaTest
 OwnerScenario*Test
 # notifications
 EmailNotification*Test ExpiryNoticeIsolationTest Notification*Test
@@ -93,6 +100,8 @@ PermissionBoundaryGapTest
 # what a viewer is shown: actions, links, job URLs, section tabs
 ActionVisibilityTest JobUrlRoutingRealJenkinsTest ModelLinkTest RunLinkRuleTest
 UnlinkedIdTextTest
+RunLinkResolutionTest
+ContextMenuItemLevelRequesterTest
 Link*Test
 SectionTabs*Test
 
@@ -116,20 +125,30 @@ History*Test
 Snapshot*Test
 # the file store
 BoundedReadTest FileStoreFailSoftTest LegacySnapshotPlantTest MonthFileGapTest
+MonthBucketZoneTest
 OversizedLineTest RecordIsolationGapTest RecordLookupPathTest RestartRecoveryTest
 SharingRetryTest UnreadableOpenRequestGapTest
 PathCodec*Test
 Retention*Test
 Store*Test
 
-[parameters and ui]
+[build parameters]
 CredentialsParameterTest DialogTypedParameterTest ParameterValuePageTest RunParameterTest
 RunRecordFileValueTest ScriptedSubmissionParametersTest SecretParameterMaskingTest
 StashedFileBodyCapTest
+JsonSubmissionDefaultsTest
+PagerParameterTest
+PagerRealJenkinsTest
 Typed*Test
 ValuesFile*Test
+
+[pages forms and config]
+# status and result labels, History filter dropdowns
+FilterDropdownTest ResultLabelPageTest RunTableColumnsTest StatusLabelPageTest StatusLabelsTest
 # pages, forms and the global configuration
 ConfigPagePolishTest ConfigUsabilityTest ConfigurationValidationGapTest DashboardLimitTest
 FilterFormCrumbTest FormRefusalUsabilityTest PolishMarkupTest SwitchSaveFailureTest
 XssEscapingTest
 Global*Test
+PageTitleIdRowTest
+RevertPlacementTest

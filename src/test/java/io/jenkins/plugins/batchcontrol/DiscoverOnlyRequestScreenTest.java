@@ -34,6 +34,7 @@ import org.htmlunit.HttpMethod;
 import org.htmlunit.Page;
 import org.htmlunit.WebRequest;
 import org.htmlunit.html.DomElement;
+import org.htmlunit.html.DomNode;
 import org.htmlunit.html.HtmlAnchor;
 import org.htmlunit.html.HtmlPage;
 import org.htmlunit.html.HtmlSelect;
@@ -414,8 +415,16 @@ public class DiscoverOnlyRequestScreenTest {
         assertTrue(text.contains(incident.getId()), "the incident id must be rendered; the page was: " + excerpt(text));
         assertTrue(text.contains("secret-j#1"), "the run id must be rendered as text even though it cannot be linked");
         assertTrue(text.contains("secret-j"), "the job full name must be rendered");
-        assertTrue(text.contains("FAILURE"), "the result must be rendered");
-        assertTrue(text.contains("OPEN"), "the status must be rendered");
+        // Wave D D2 follow-up (owner decision 2026-10-14, T-UI-269e): the result is its readable label
+        List<DomElement> result = page.getByXPath("//tr[th[normalize-space()='Result']]/td");
+        assertEquals(1, result.size(), "the result must be rendered in the row headed Result: " + excerpt(text));
+        assertEquals("Failed", result.get(0).getTextContent().replaceAll("\\s+", " ").trim(),
+                "the result must be rendered as its readable label (FAILURE reads 'Failed')");
+        // Wave D D2 (#18.2): the status is a readable label carrying the enum in data-batch-control-status
+        DomNode status = page.querySelector("[data-batch-control-status='OPEN']");
+        assertNotNull(status, "the status must be rendered, with OPEN in data-batch-control-status: " + excerpt(text));
+        assertTrue(!status.asNormalizedText().isBlank() && !status.asNormalizedText().contains("OPEN"),
+                "the status must be rendered as a readable label: '" + status.asNormalizedText() + "'");
         assertEquals(1, page.getByXPath("//h2[contains(text(),'History')]"
                 + "/following-sibling::table[1]/tbody/tr").size(), "the transition history must hold the opening transition");
 

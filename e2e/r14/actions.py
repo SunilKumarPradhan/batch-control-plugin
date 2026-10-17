@@ -104,8 +104,11 @@ CONTROLS_JS = r"""
   const out = [];
   document.querySelectorAll('#main-panel form').forEach(f => {
     if ((f.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
-    const b = f.querySelector('button[type=submit], input[type=submit], button:not([type])');
-    if (b && vis(b)) out.push({type: 'form', label: (b.innerText || b.value).trim(), name: f.getAttribute('name'), action: f.action});
+    // one control per visible submit button (Wave D D3: the run request page's one form "decision" holds Approve and
+    // Reject, each with its formaction; every other form has one button)
+    [...f.querySelectorAll('button[type=submit], input[type=submit], button:not([type])')].forEach((b, i) => {
+      if (vis(b)) out.push({type: 'form', label: (b.innerText || b.value).trim(), name: f.getAttribute('name'), index: i,
+                            action: b.getAttribute('formaction') ? b.formAction : f.action}); });
   });
   document.querySelectorAll('#main-panel a[data-url][data-post]').forEach(a => {
     if (vis(a)) out.push({type: 'confirm', label: a.innerText.trim(), url: a.dataset.url});
@@ -166,7 +169,7 @@ def exercise(role, kindkey, control):
                     r_ta.fill("e2e-12 rerun")
                 for b in f.locator("input[name=approvers]").all()[:1]:
                     b.locator("xpath=following-sibling::label").first.click()
-            btn = f.locator("button[type=submit], input[type=submit], button:not([type])").first
+            btn = f.locator("button[type=submit], input[type=submit], button:not([type])").nth(control.get("index", 0))
             with p.expect_navigation(timeout=15000) as nav:
                 btn.click()
             row["status"] = nav.value.status if nav.value else None

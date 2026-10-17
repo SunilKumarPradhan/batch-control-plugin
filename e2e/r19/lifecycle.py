@@ -43,7 +43,19 @@ JOB = "r19-life"
 
 def row(t, label):
     m = re.search(rf"^{re.escape(label)}\s+(.*)$", t, re.M)
-    return m.group(1).strip() if m else None
+    value = m.group(1).strip() if m else None
+    if label == "Status" and value:  # Wave D D2: the row shows a readable label; written back as the enum name
+        for text, enum in STATUS_WORDS:
+            if value == text or value.startswith(text + " "):
+                return enum + value[len(text):]
+    return value
+
+
+# The labels of the request statuses (Wave D D2, ui.StatusLabels), longest first: "Approved, waiting to run" before
+# "Approved".
+STATUS_WORDS = [("Approved, waiting to run", "APPROVED"), ("Invalidated", "INVALIDATED"), ("Cancelled", "CANCELLED"),
+                ("Executed", "EXECUTED"), ("Approved", "APPROVED"), ("Rejected", "REJECTED"), ("Pending", "PENDING"),
+                ("Expired", "EXPIRED")]
 
 
 def submit_form(user, job, reason, approvers=("approver-1",), shot=None):
@@ -96,7 +108,9 @@ def sec_D():
     assert rid, st
     s = Session("approver-2")
     s.go(f"/batch-control/requests/{rid}/")
-    forms = s.page.locator("form[name=approve], form[name=reject]").count()
+    # Wave D D3 (#18.5): the run request page's decision is one form named "decision" under the heading Decision
+    forms = (s.page.locator("form[name=approve], form[name=reject], form[name=decision]").count()
+             + s.page.locator("#main-panel h2", has_text="Decision").count())
     s.shot("#main-panel", "R19-LIFE-D-01-not-designated")
     s.done()
     r = api("approver-2", f"/batch-control/requests/{rid}/approve", "POST", data={"comment": "not mine"})
@@ -262,7 +276,7 @@ def sec_X():
         s = Session("approver-1")
         s.go(f"/batch-control/requests/{rid}/")
         t = s.text()
-        approve = s.page.locator("form[name=approve]").count()
+        approve = s.page.locator("form[name=approve], #main-panel button[formaction$='/approve']").count()  # D3: one form
         s.shot("#main-panel", "R19-LIFE-X-01-disabled")
         s.done()
         r = api("approver-1", f"/batch-control/requests/{rid}/approve", "POST", data={"comment": "try"})

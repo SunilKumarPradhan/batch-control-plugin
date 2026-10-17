@@ -1,0 +1,11 @@
+# Overall/Manage and Overall/SystemRead switched on by their system properties, as an operator switches them on.
+# Extra overlay for r27/revert_permissions.py (unit r27-revert-permissions), which otherwise switches on what is off
+# through the script console for the length of its pass:
+#   BC_COMPOSE_EXTRA=$PWD/e2e/compose.permissions.yml BC_UNITS=r27-revert-permissions e2e/ci/run.sh 3/7
+# JENKINS_JAVA_OPTS is appended to JAVA_OPTS by the image's jenkins.sh, so the other overlays' JAVA_OPTS stay as they are.
+services:
+  jenkins:
+    environment:
+      JENKINS_JAVA_OPTS: >-
+        -Djenkins.security.ManagePermission=true
+        -Djenkins.security.SystemReadPermission=true
