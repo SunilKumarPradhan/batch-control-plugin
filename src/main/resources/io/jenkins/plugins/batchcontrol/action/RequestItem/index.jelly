@@ -3,11 +3,11 @@
      (RequestItem#call, ui.FormErrors): the message is next to the field or above the form it
      concerns and the comment or approver set the user entered is kept. Links on this page are
      absolute because a refusal is rendered at the POST URL (.../reject), not at .../<id>/. -->
-<j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form"
+<j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form" xmlns:st="jelly:stapler"
          xmlns:bc="/io/jenkins/plugins/batchcontrol/tags">
-  <l:layout title="${it.displayName}" type="one-column" permissions="${it.viewPermissions}">
+  <l:layout title="${it.pageTitle}" type="one-column" permissions="${it.viewPermissions}">
     <l:main-panel>
-      <l:app-bar title="${it.displayName}"/>
+      <l:app-bar title="${it.pageTitle}"/>
       <bc:tabs active="requests"/>
 
       <!-- DEF-09: a refusal whose form is no longer shown (the request was decided or cancelled
@@ -135,6 +135,48 @@
         </j:otherwise>
       </j:choose>
 
+      <!-- #18.5 (Wave D, D3): the decision right after the parameters it is about, before the
+           recent runs and the approver changes. ONE comment box and two buttons in one form:
+           each button names its endpoint in formaction (Approve /approve, Reject /reject), and
+           both send the same "comment" field with core's crumb. The form's own action is the
+           endpoint a refusal came back from (else /approve, or /reject while the job is
+           disabled), so a re-rendered refusal shows the form of what was attempted. The endpoints and
+           their @RequirePOST and permission checks are unchanged. A refused decision comes back
+           here (DEF-09) with its message next to the box and the typed text kept, whichever
+           button was pressed.
+           D-55: no Approve while the job is disabled; Reject stays (the form then posts to
+           /reject). The service refuses an approval of a disabled job on its own, whatever this
+           page shows. -->
+      <j:if test="${it.canDecide}">
+        <st:adjunct includes="io.jenkins.plugins.batchcontrol.ui.batch-control"/>
+        <h2>Decision</h2>
+        <j:set var="approveErrors" value="${it.formErrors('approve')}"/>
+        <j:set var="rejectErrors" value="${it.formErrors('reject')}"/>
+        <bc:formError errors="${approveErrors}"/>
+        <bc:formError errors="${rejectErrors}"/>
+        <j:if test="${it.jobDisabled}">
+          <div class="jenkins-alert jenkins-alert-warning" role="status">
+            This job is disabled. Enable it first, then approve. You can still reject the request.
+          </div>
+        </j:if>
+        <j:set var="decisionUrl" value="${rootURL}/batch-control/requests/${it.id}/"/>
+        <f:form method="post" action="${decisionUrl}${it.jobDisabled or rejectErrors.present ? 'reject' : 'approve'}" name="decision">
+          <f:entry title="Comment"
+                   description="Optional when approving. Required when rejecting: the requester sees it as the reason. Rejection is final for this request; a rejected request cannot be reopened.">
+            <f:textarea name="comment" value="${rejectErrors.present ? rejectErrors.value('comment') : approveErrors.value('comment')}"/>
+            <bc:fieldError errors="${approveErrors}" field="comment"/>
+            <bc:fieldError errors="${rejectErrors}" field="comment"/>
+          </f:entry>
+          <div class="jenkins-buttons-row batch-control-decision__buttons">
+            <j:if test="${!it.jobDisabled}">
+              <button type="submit" formaction="${decisionUrl}approve" class="jenkins-button jenkins-button--primary">Approve</button>
+            </j:if>
+            <button type="submit" formaction="${decisionUrl}reject"
+                    class="jenkins-button jenkins-!-destructive-color">Reject</button>
+          </div>
+        </f:form>
+      </j:if>
+
       <!-- T-E2E-05: the approver decides on one screen. The rows come from the permission-aware
            job lookup (P-09), so a job that is deleted or invisible to this user shows no runs. -->
       <h2>Recent Runs of This Job</h2>
@@ -222,43 +264,6 @@
             </j:forEach>
           </tbody>
         </table>
-      </j:if>
-
-      <j:if test="${it.canDecide}">
-        <h2>Decision</h2>
-        <j:set var="approveErrors" value="${it.formErrors('approve')}"/>
-        <j:set var="rejectErrors" value="${it.formErrors('reject')}"/>
-        <bc:formError errors="${approveErrors}"/>
-        <!-- D-55: no Approve while the job is disabled; Reject stays. The service refuses an
-             approval of a disabled job on its own, whatever this page shows. -->
-        <j:choose>
-          <j:when test="${it.jobDisabled}">
-            <div class="jenkins-alert jenkins-alert-warning" role="status">
-              This job is disabled. Enable it first, then approve.
-            </div>
-          </j:when>
-          <j:otherwise>
-            <f:form method="post" action="${rootURL}/batch-control/requests/${it.id}/approve" name="approve">
-              <f:entry title="Comment (optional)">
-                <f:textarea name="comment" value="${approveErrors.value('comment')}"/>
-                <bc:fieldError errors="${approveErrors}" field="comment"/>
-              </f:entry>
-              <f:bottomButtonBar>
-                <f:submit value="Approve"/>
-              </f:bottomButtonBar>
-            </f:form>
-          </j:otherwise>
-        </j:choose>
-        <bc:formError errors="${rejectErrors}"/>
-        <f:form method="post" action="${rootURL}/batch-control/requests/${it.id}/reject" name="reject">
-          <f:entry title="Rejection comment (required)" description="Rejection is final for this request; a rejected request cannot be reopened.">
-            <f:textarea name="comment" value="${rejectErrors.value('comment')}"/>
-            <bc:fieldError errors="${rejectErrors}" field="comment"/>
-          </f:entry>
-          <f:bottomButtonBar>
-            <button type="submit" class="jenkins-button jenkins-!-destructive-color">Reject</button>
-          </f:bottomButtonBar>
-        </f:form>
       </j:if>
 
       <!-- UX-10: approving redirects here, but the APPROVED -> EXECUTED transition and the build

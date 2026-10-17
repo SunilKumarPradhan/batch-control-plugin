@@ -153,10 +153,15 @@ def browser_decide(user, rid, verb, comment="", shot_name=None, kind="requests")
     s = Session(user)
     s.go(f"/batch-control/{kind}/{rid}/")
     form = s.page.locator(f"form[name={verb}]")
-    if form.count() == 0:
-        return s, None
-    form.locator("textarea[name=comment]").fill(comment)
+    # Wave D D3 (#18.5): the run request page has one form "decision" with one comment box and a button per verb whose
+    # formaction names the endpoint; the permission window and activation pages keep a form per verb
     btn = form.locator("button[name=Submit], button[type=submit], input[type=submit]").first
+    if form.count() == 0:
+        form = s.page.locator("form[name=decision]")
+        btn = form.locator(f"button[formaction$='/{verb}']").first
+        if form.count() == 0 or btn.count() == 0:
+            return s, None
+    form.locator("textarea[name=comment]").fill(comment)
     with s.page.expect_navigation(timeout=20000):
         btn.click()
     s.page.wait_for_load_state("load")

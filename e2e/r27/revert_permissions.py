@@ -106,6 +106,9 @@ def sec_V():
                       h["advancedButtons"] == 0 and h["advancedBodies"] == 0 and one.get("text") == D.ASK_ADMIN
                       and one.get("displayed") is True and one.get("inSection") is True
                       and one.get("inAdvancedBody") is False, page=h)
+                check("V", f"D3 #18 revert sentence (T-UI-286): {who} is not told what reverting does on {path}: "
+                      f"'{D.REVERTING} ...' is nowhere in the HTML (administrators only)",
+                      D.REVERTING not in D.norm(html), found=D.REVERTING in D.norm(html))
     S["shown"] = shown
     note("V", "who is shown what (status, Batch Control section, its named fields, the sentence, Advanced buttons, "
          "Save/Apply buttons)", shown=shown)

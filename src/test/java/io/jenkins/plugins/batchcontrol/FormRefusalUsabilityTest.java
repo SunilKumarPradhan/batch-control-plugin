@@ -20,10 +20,10 @@ import org.htmlunit.HttpMethod;
 import org.htmlunit.Page;
 import org.htmlunit.WebRequest;
 import org.htmlunit.html.DomElement;
+import org.htmlunit.html.HtmlElement;
 import org.htmlunit.html.HtmlForm;
 import org.htmlunit.html.HtmlInput;
 import org.htmlunit.html.HtmlPage;
-import org.htmlunit.html.HtmlTextArea;
 import org.htmlunit.util.NameValuePair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -116,19 +116,22 @@ public class FormRefusalUsabilityTest {
         String id = ApproverFormFixtures.submitRunOk(j, "u1", job, "month-end close", "a1");
         JenkinsRule.WebClient approver = UsabilityFixtures.client(j, "a1");
         HtmlPage detail = (HtmlPage) approver.getPage(new URL(j.getURL(), "batch-control/requests/" + id + "/"));
-        HtmlForm reject = UsabilityFixtures.formsEndingWith(detail, "batch-control/requests/" + id + "/reject").stream()
-                .findFirst().orElse(null);
-        assertNotNull(reject, "fixture: the request screen must offer the designated approver a reject form; forms: "
+        // Wave D D3 (#18.5): the Decision section has one comment box and Approve/Reject buttons;
+        // Reject is pressed with the box empty (DecisionAreaFixtures does not assume one form or two)
+        String rejectPath = new URL(j.getURL(), "batch-control/requests/" + id + "/reject").getPath();
+        HtmlElement reject = DecisionAreaFixtures.button(detail, "Reject");
+        assertNotNull(reject, "fixture: the request screen must offer the designated approver Reject; forms: "
                 + UsabilityFixtures.formActions(detail));
-        clearTextFields(reject);
-        Page rejected = j.submit(reject);
+        assertEquals(rejectPath, DecisionAreaFixtures.target(detail, reject), "fixture: Reject posts to the reject endpoint");
+        Page rejected = DecisionAreaFixtures.decide(detail, "Reject", "");
         assertEquals(RequestStatus.PENDING, RunRequestService.get().load(id).getStatus(), "a rejection without a comment must be refused (SPEC 5)");
         assertTrue(rejected instanceof HtmlPage, "the refusal must be an HTML page");
         UsabilityFixtures.assertNotBareErrorPage("rejection without a comment", (HtmlPage) rejected);
         UsabilityFixtures.assertPlainRefusal("rejection without a comment", ((HtmlPage) rejected).asNormalizedText(),
                 Pattern.compile("(?i)comment"));
-        assertFalse(UsabilityFixtures.formsEndingWith((HtmlPage) rejected, "batch-control/requests/" + id + "/reject").isEmpty(),
-                "the refusal must show the reject form again; forms: " + UsabilityFixtures.formActions((HtmlPage) rejected));
+        HtmlElement again = DecisionAreaFixtures.button((HtmlPage) rejected, "Reject");
+        assertTrue(again != null && rejectPath.equals(DecisionAreaFixtures.target((HtmlPage) rejected, again)),
+                "the refusal must offer Reject again; forms: " + UsabilityFixtures.formActions((HtmlPage) rejected));
 
         // (c) grant request over maxGrantMinutes (20)
         Set<String> grantsBefore = ApproverFormFixtures.grantRequestIds();
@@ -164,18 +167,5 @@ public class FormRefusalUsabilityTest {
         }
         throw new AssertionError("fixture: the request form must offer the parameter P pre-filled with its default; form was: "
                 + excerpt(form.asXml()));
-    }
-
-    private static void clearTextFields(HtmlForm form) {
-        for (DomElement element : form.getElementsByTagName("textarea")) {
-            if (element instanceof HtmlTextArea) {
-                ((HtmlTextArea) element).setText("");
-            }
-        }
-        for (DomElement element : form.getElementsByTagName("input")) {
-            if (element instanceof HtmlInput && "text".equalsIgnoreCase(((HtmlInput) element).getTypeAttribute())) {
-                ((HtmlInput) element).setValue("");
-            }
-        }
     }
 }

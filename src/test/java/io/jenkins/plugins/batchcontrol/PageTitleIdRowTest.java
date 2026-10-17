@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import jenkins.model.Jenkins;
@@ -88,6 +89,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Written from the Wave D contract (D1, frozen 2026-10-10), issue #18, docs/SPEC.md item 8 and
  * pages rendered on origin/main (d80e5fe); no src/main knowledge.
+ *
+ * <p><b>D3 owner decisions</b> (note 362 point 9; decided 2026-10-14, grouped 2026-10-15). (1) The
+ * last breadcrumb shows only the subject, the job, item or scope name as the title shows it for
+ * that viewer (D-74/D-75 as in T-UI-236/237); the {@code <title>} and the app bar heading keep
+ * {@code Run request: <job>} and the like. Rows T-UI-230..238 now compare the breadcrumb with the
+ * subject; T-UI-285 pins the rule on the four kinds of request page. Because the breadcrumb of
+ * T-UI-233 is now only the item's full name, its job sits in {@code ops/quoted-item-names}, so that
+ * the name is long enough (30 characters) for core to render the breadcrumb's {@code tooltip}, the
+ * one attribute in which that row sees the name escaped. (2) The ID row's copy button carries no
+ * {@code message} attribute, which core's copy button ignores (T-UI-287).
  */
 @WithJenkins
 public class PageTitleIdRowTest {
@@ -105,6 +116,8 @@ public class PageTitleIdRowTest {
     private static final String ODD_NAME = oddName();
     /** As in the D-75 rows: a folder that blocks inheritance and gives Item/Read to admin only. */
     private static final String VAULT = "vault-q9";
+    /** T-UI-233's folder: makes the odd item's full name 30 characters, so its breadcrumb carries a tooltip. */
+    private static final String QUOTED_FOLDER = "quoted-item-names";
 
     private JenkinsRule j;
     private Folder folder;
@@ -190,24 +203,27 @@ public class PageTitleIdRowTest {
             assertTitledPage(viewer, activatePath, "Activation request: " + ACTIVATE_JOB, activate.getId());
 
             HtmlPage page = page(viewer, holdPath);
-            for (String shown : titles(page)) {
-                assertFalse(shown.contains(held.getId()), viewer + ": the HOLD request's title must not be its id: " + shown);
-                String lower = shown.toLowerCase(Locale.ROOT);
+            List<String> shown = titles(page);
+            for (String title : shown.subList(0, 2)) {
+                assertFalse(title.contains(held.getId()), viewer + ": the HOLD request's title must not be its id: " + title);
+                String lower = title.toLowerCase(Locale.ROOT);
                 assertTrue((lower.startsWith("activation request: ") || lower.startsWith("hold request: "))
-                        && shown.endsWith(": " + HOLD_JOB), viewer + ": the HOLD request page must be titled"
-                        + " 'Activation request: " + HOLD_JOB + "' (or 'Hold request: ...'), was '" + shown + "'");
+                        && title.endsWith(": " + HOLD_JOB), viewer + ": the HOLD request page must be titled"
+                        + " 'Activation request: " + HOLD_JOB + "' (or 'Hold request: ...'), was '" + title + "'");
             }
+            assertEquals(HOLD_JOB, shown.get(2), viewer + ": the HOLD request page's last breadcrumb shows only the subject"
+                    + " (D3, note 362 point 9)");
             assertIdRow(viewer, page, held.getId());
         }
     }
 
     /**
-     * T-UI-233 (#18.4, escaping): with a job and a window scope named {@code ops/q"x'y{z}} the
-     * title, heading and last breadcrumb read the name exactly, so it was escaped in text; the
-     * grant page's breadcrumb carries a {@code tooltip} attribute (its title is longer than 26
-     * characters) that reads the same text, so the name was escaped in that attribute; no attribute
-     * of either page is cut or split by the name's quotes; the ID row still carries the id. The run
-     * page's breadcrumb is shorter and has no tooltip to compare (note 360 (10)).
+     * T-UI-233 (#18.4, escaping): with a job and a window scope named
+     * {@code ops/quoted-item-names/q"x'y{z}} the title and heading read {@code Run request: } and
+     * {@code Grant request: } with the name, the last breadcrumb the name alone (D3), exactly, so it
+     * was escaped in text; each breadcrumb carries a {@code tooltip} attribute (30 characters, longer
+     * than core's 26) that reads the name, so it was escaped in that attribute; no attribute of
+     * either page is cut or split by the name's quotes; the ID row still carries the id.
      *
      * <p>On NTFS (Windows) the job cannot be named with a double quote, so the row runs every
      * assertion with {@code ops/q'x'y{z}}: the same title lengths, the same tooltip premise, and
@@ -223,10 +239,11 @@ public class PageTitleIdRowTest {
         assertEquals(PlatformFixtures.itemNamesCanHoldADoubleQuote(), ODD_NAME.indexOf('"') >= 0,
                 "fixture: the name keeps the double quote wherever an item can be named with one");
         assertTrue(ODD_NAME.indexOf('\'') >= 0, "fixture: the name holds a single quote on every platform");
-        FreeStyleProject job = folder.createProject(FreeStyleProject.class, ODD_NAME);
-        assertEquals(FOLDER + "/" + ODD_NAME, job.getFullName(), "fixture: core accepts the name");
-        assertEquals(27, ("Grant request: " + job.getFullName()).length(), "fixture: the grant page's title has the"
-                + " 27 characters the tooltip premise below rests on, whichever quote the platform allows");
+        Folder quoted = folder.createProject(Folder.class, QUOTED_FOLDER);
+        FreeStyleProject job = quoted.createProject(FreeStyleProject.class, ODD_NAME);
+        assertEquals(FOLDER + "/" + QUOTED_FOLDER + "/" + ODD_NAME, job.getFullName(), "fixture: core accepts the name");
+        assertEquals(30, job.getFullName().length(), "fixture: the breadcrumb (the item's full name, D3) has the 30"
+                + " characters the tooltip premise below rests on, whichever quote the platform allows");
         BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
         RunRequest run = as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(),
                 "odd name", "a1"));
@@ -238,9 +255,11 @@ public class PageTitleIdRowTest {
         String grantPath = "batch-control/grants/" + grant.getId() + "/";
         assertTitledPage("a1", runPath, "Run request: " + job.getFullName(), run.getId());
         assertTitledPage("a1", grantPath, "Grant request: " + job.getFullName(), grant.getId());
-        assertEquals(1, assertTooltipIfAny("a1", grantPath, page("a1", grantPath), "Grant request: " + job.getFullName()),
-                "premise (core 2.568.3 renders a tooltip on a last breadcrumb longer than 26 characters): the grant"
-                        + " page's breadcrumb carries one tooltip; without it this row compares no title attribute");
+        for (String path : List.of(runPath, grantPath)) {
+            assertEquals(1, assertTooltipIfAny("a1", path, page("a1", path), job.getFullName()),
+                    "premise (core 2.568.3 renders a tooltip on a last breadcrumb longer than 26 characters): the"
+                            + " breadcrumb of " + path + " carries one tooltip; without it this row compares no attribute");
+        }
         assertNoAttributeBrokenByTheOddName("a1", runPath, page("a1", runPath));
         assertNoAttributeBrokenByTheOddName("a1", grantPath, page("a1", grantPath));
     }
@@ -346,6 +365,78 @@ public class PageTitleIdRowTest {
         }
     }
 
+    /**
+     * T-UI-285 (D3 owner decision of 2026-10-14, note 362 point 9): on a run, grant, activation
+     * (ACTIVATE) and hold request page the last breadcrumb shows only the subject, the job or scope
+     * full name, for the requester u1 and the approver a1; the {@code <title>} and the app bar
+     * heading keep {@code Run request: ops/batch-x}, {@code Grant request: ops/batch-x},
+     * {@code Activation request: ops/act-x} and, for the hold, {@code Activation request: ops/hold-x}
+     * or {@code Hold request: ops/hold-x} (T-UI-232). For a renamed or moved item the breadcrumb
+     * follows the title (T-UI-236/237).
+     */
+    @Test
+    public void t_ui_285_lastBreadcrumbShowsOnlyTheSubject() throws Exception {
+        FreeStyleProject job = folder.createProject(FreeStyleProject.class, "batch-x");
+        BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
+        FreeStyleProject act = folder.createProject(FreeStyleProject.class, "act-x");
+        FreeStyleProject hold = (FreeStyleProject) j.jenkins.getItemByFullName(HOLD_JOB);
+        Map<String, String> pages = new LinkedHashMap<>(); // path -> subject
+        pages.put("batch-control/requests/" + as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(),
+                "month-end close", "a1")).getId() + "/", RUN_JOB);
+        pages.put("batch-control/grants/" + as("u1", () -> GrantRequestService.get().create(
+                new GrantScope(GrantScope.Type.ITEM, RUN_JOB), List.of(GrantAction.CONFIGURE), 30, "fix the schedule",
+                "a1")).getId() + "/", RUN_JOB);
+        pages.put("batch-control/activations/" + as("u1", () -> ActivationService.get().create(act,
+                ActivationRequest.Action.ACTIVATE, "bring it into service", List.of("a1"))).getId() + "/", ACTIVATE_JOB);
+        pages.put("batch-control/activations/" + as("u1", () -> ActivationService.get().create(hold,
+                ActivationRequest.Action.HOLD, "take it out of service", List.of("a1"))).getId() + "/", HOLD_JOB);
+        for (String viewer : List.of("u1", "a1")) {
+            for (Map.Entry<String, String> e : pages.entrySet()) {
+                List<String> shown = titles(page(viewer, e.getKey()));
+                String where = viewer + " " + e.getKey();
+                for (String title : shown.subList(0, 2)) {
+                    assertTrue(title.matches("(?i)(run|grant|activation|hold) request: .*") && title.endsWith(": " + e.getValue()),
+                            where + ": the <title> and the heading keep '<Kind> request: " + e.getValue() + "', was '" + title + "'");
+                }
+                assertEquals(e.getValue(), shown.get(2), where + ": the last breadcrumb shows only the subject");
+            }
+        }
+    }
+
+    /**
+     * T-UI-287 (D3 owner decision of 2026-10-14, note 362 point 9): the copy button of the ID row on
+     * a run, grant and activation request page carries no attribute named {@code message} (core's
+     * copy button ignores it). Guard first: the button still copies the id as in T-UI-230 (class
+     * {@code jenkins-copy-button}, {@code text} = the id).
+     */
+    @Test
+    public void t_ui_287_idCopyButtonCarriesNoMessageAttribute() throws Exception {
+        FreeStyleProject job = folder.createProject(FreeStyleProject.class, "batch-x");
+        BatchControlFixtures.setBatchControl(job, new BatchControlJobProperty(true));
+        FreeStyleProject act = folder.createProject(FreeStyleProject.class, "act-x");
+        Map<String, String> pages = new LinkedHashMap<>(); // path -> id
+        String run = as("u1", () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "month-end close", "a1")).getId();
+        pages.put("batch-control/requests/" + run + "/", run);
+        String grant = as("u1", () -> GrantRequestService.get().create(new GrantScope(GrantScope.Type.ITEM, RUN_JOB),
+                List.of(GrantAction.CONFIGURE), 30, "fix the schedule", "a1")).getId();
+        pages.put("batch-control/grants/" + grant + "/", grant);
+        String activation = as("u1", () -> ActivationService.get().create(act, ActivationRequest.Action.ACTIVATE,
+                "bring it into service", List.of("a1"))).getId();
+        pages.put("batch-control/activations/" + activation + "/", activation);
+        for (Map.Entry<String, String> e : pages.entrySet()) {
+            HtmlPage page = page("a1", e.getKey());
+            assertIdRow("a1", page, e.getValue()); // guard: the copy button still copies the id
+            for (DomNode b : page.querySelectorAll("#main-panel button")) {
+                DomElement button = (DomElement) b;
+                if ((" " + button.getAttribute("class") + " ").contains(" jenkins-copy-button ")
+                        && e.getValue().equals(button.getAttribute("text"))) {
+                    assertFalse(button.hasAttribute("message"), e.getKey() + ": the ID row's copy button must carry no"
+                            + " 'message' attribute (core's copy button ignores it): " + button.asXml());
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** The page title (without core's " - Jenkins" suffix), the app bar heading and the last breadcrumb. */
@@ -367,16 +458,24 @@ public class PageTitleIdRowTest {
         List<String> shown = titles(page);
         assertEquals(expected, shown.get(0), viewer + " " + path + ": the <title> must read the request's subject");
         assertEquals(expected, shown.get(1), viewer + " " + path + ": the app bar heading must read the request's subject");
-        assertEquals(expected, shown.get(2), viewer + " " + path + ": the last breadcrumb must read the request's subject");
+        assertEquals(subject(expected), shown.get(2), viewer + " " + path + ": the last breadcrumb must show only the"
+                + " request's subject (D3, note 362 point 9)");
         for (String s : shown) {
             assertFalse(s.contains(id), viewer + " " + path + ": the title must not be the id: " + s);
         }
-        assertTooltipIfAny(viewer, path, page, expected);
+        assertTooltipIfAny(viewer, path, page, subject(expected));
         assertIdRow(viewer, page, id);
     }
 
+    /** The subject of a title: what follows {@code "<Kind> request: "} (D3: the last breadcrumb shows only this). */
+    static String subject(String title) {
+        int at = title.indexOf(": ");
+        assertTrue(at > 0, "fixture: a request title reads '<Kind> request: <subject>': " + title);
+        return title.substring(at + 2);
+    }
+
     /**
-     * Compares the last breadcrumb's {@code tooltip} with the title, where there is one, and
+     * Compares the last breadcrumb's {@code tooltip} with its text (the subject), where there is one, and
      * returns how many were compared. This bites only when a tooltip is present: in a page fetched
      * with JavaScript off, core 2.568.3 renders one only on a last breadcrumb longer than 26
      * characters, so for a shorter title the loop compares nothing (note 360 (10)).
@@ -386,7 +485,7 @@ public class PageTitleIdRowTest {
         int compared = 0;
         for (DomNode n : crumbs.get(crumbs.size() - 1).querySelectorAll("[tooltip]")) {
             assertEquals(expected, ((DomElement) n).getAttribute("tooltip"),
-                    viewer + " " + path + ": the breadcrumb tooltip must carry the subject unchanged");
+                    viewer + " " + path + ": the breadcrumb tooltip must carry the breadcrumb's text unchanged");
             compared++;
         }
         return compared;
@@ -402,13 +501,14 @@ public class PageTitleIdRowTest {
         List<String> shown = titles(page);
         String[] part = {"<title>", "app bar heading", "last breadcrumb"};
         for (int i = 0; i < part.length; i++) {
-            assertEquals(expected, shown.get(i), what + ": " + viewer + "'s " + part[i] + " of " + path);
+            String want = i == 2 ? subject(expected) : expected; // D3: the breadcrumb shows only the subject
+            assertEquals(want, shown.get(i), what + ": " + viewer + "'s " + part[i] + " of " + path);
             for (String name : absent) {
                 assertFalse(shown.get(i).contains(name), what + ": " + viewer + "'s " + part[i] + " of " + path
                         + " must not name " + name + ": " + shown.get(i));
             }
         }
-        assertTooltipIfAny(viewer, path, page, expected);
+        assertTooltipIfAny(viewer, path, page, subject(expected));
     }
 
     /** The answer to {@code viewer}'s GET of {@code path} holds {@code name} nowhere (text, links, attributes). */

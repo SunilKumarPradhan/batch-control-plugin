@@ -348,10 +348,18 @@ FORM_JS = """() => { const from = document.querySelector('#main-panel input[name
 ROWS_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim();
   const t = [...document.querySelectorAll('#main-panel table')].find(x => x.querySelector('thead th'));  // not the Monthly Summary
   const headers = t ? [...t.querySelectorAll('thead th')].map(h => n(h.textContent)) : [];
-  const ri = headers.indexOf('Result');
+  const ri = headers.indexOf('Result'), runi = headers.indexOf('Run');
+  // Wave D D3 (#6): the run and incident tables have no Result (or Job) column; the Run cell shows the icon, the job,
+  // the "#n" run and the result label as visible text, in that order, then "Aborted by ..." on its own line.
+  const parts = c => { const texts = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = n(x.data); if (v && !x.parentElement.closest('svg')) texts.push(v); }
+    const ri = texts.findIndex(v => /^#\\d+$/.test(v)); const after = ri >= 0 ? texts[ri + 1] : null;
+    return {job: texts.find(v => !/^#\\d+$/.test(v)) || null, run: ri >= 0 ? texts[ri] : null,
+            label: after && !/^Aborted by\\b/.test(after) ? after : null}; };
   return {headers, rows: [...(t ? t.querySelectorAll('tbody tr') : [])].map(tr => { const tds = [...tr.children];
       const h = tr.querySelector('[data-batch-control-status]');
-      return {status: h ? h.getAttribute('data-batch-control-status') : null, result: ri >= 0 && tds[ri] ? n(tds[ri].textContent) : null,
+      return {status: h ? h.getAttribute('data-batch-control-status') : null,
+              result: ri >= 0 && tds[ri] ? n(tds[ri].textContent) : (runi >= 0 && tds[runi] ? parts(tds[runi]).label : null),
               text: n(tr.innerText).slice(0, 140)}; }),
     summary: n(([...document.querySelectorAll('#main-panel *')].find(e => e.children.length === 0 && /matching record/.test(e.textContent)) || {}).textContent),
     empty: t ? null : n(document.querySelector('#main-panel').innerText).replace(/.*Filter /, '').replace(/ Download.*/, '').slice(0, 200),
@@ -805,12 +813,22 @@ def sec_N():
 # ---------------------------------------------------------------- L: build results read as labels (decision 4)
 RESULT_JS = """() => { const n = t => (t || '').replace(/\\s+/g, ' ').trim(); const out = [];
   const flag = c => !!(c.matches('.batch-control-status, [data-batch-control-tone]') || c.querySelector('.batch-control-status, [data-batch-control-tone]'));
+  // Wave D D3 (#6): the run and incident tables have no Result (or Job) column; the Run cell shows the icon, the job,
+  // the "#n" run and the result label as visible text, in that order, then "Aborted by ..." on its own line.
+  const parts = c => { const texts = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = n(x.data); if (v && !x.parentElement.closest('svg')) texts.push(v); }
+    const ri = texts.findIndex(v => /^#\\d+$/.test(v)); const after = ri >= 0 ? texts[ri + 1] : null;
+    return {job: texts.find(v => !/^#\\d+$/.test(v)) || null, run: ri >= 0 ? texts[ri] : null,
+            label: after && !/^Aborted by\\b/.test(after) ? after : null}; };
   document.querySelectorAll('#main-panel table').forEach((t, ti) => {
     const heads = [...t.querySelectorAll('thead th')].map(h => n(h.textContent));
-    const ri = heads.indexOf('Result'), ji = heads.indexOf('Job'), di = heads.indexOf('Duration');
+    const ri = heads.indexOf('Result'), ji = heads.indexOf('Job'), di = heads.indexOf('Duration'), runi = heads.indexOf('Run');
     [...t.querySelectorAll('tbody tr')].forEach(tr => { const c = [...tr.children];
       if (ri >= 0 && c.length === heads.length) out.push({how: 'column', heads: heads.join('/'), job: ji >= 0 ? n(c[ji].textContent) : null,
         first: n(c[0].textContent), text: n(c[ri].textContent), badge: flag(c[ri]), duration: di >= 0 ? n(c[di].textContent) : null});
+      else if (ri < 0 && runi >= 0 && c.length === heads.length) { const p = parts(c[runi]);
+        out.push({how: 'run', heads: heads.join('/'), job: p.job, first: p.run, text: p.label || '', badge: flag(c[runi]),
+                  duration: di >= 0 ? n(c[di].textContent) : null}); }
       else if (c.length === 2 && c[0].tagName === 'TH' && n(c[0].textContent) === 'Result')
         out.push({how: 'row', heads: '', job: null, first: '', text: n(c[1].textContent), badge: flag(c[1])}); }); });
   return out; }"""

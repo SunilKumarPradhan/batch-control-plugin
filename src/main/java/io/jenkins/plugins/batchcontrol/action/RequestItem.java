@@ -91,13 +91,20 @@ public class RequestItem implements ModelObject {
     }
 
     /**
-     * #18.4: the page title, app bar heading and last breadcrumb name what the request is about,
-     * not its id; the id is in the summary table's ID row. Escaped where it is shown (Jelly
-     * escape-by-default, core's breadcrumb tag).
+     * #18.4, D3 (owner decision 2026-10-14): the last breadcrumb shows only what the request is
+     * about, the job's full name; core's breadcrumb bar reads it from here. The page title and the
+     * app bar heading say the kind as well ({@link #getPageTitle()}). Not the id, which is in the
+     * summary table's ID row. Escaped where it is shown (Jelly escape-by-default, core's
+     * breadcrumb tag).
      */
     @Override
     public String getDisplayName() {
-        return "Run request: " + request.getJobFullName();
+        return request.getJobFullName();
+    }
+
+    /** #18.4: the {@code <title>} and the app bar heading, {@code Run request: <job>}. */
+    public String getPageTitle() {
+        return "Run request: " + getDisplayName();
     }
 
     /** Jelly helper: human-readable timestamp. */

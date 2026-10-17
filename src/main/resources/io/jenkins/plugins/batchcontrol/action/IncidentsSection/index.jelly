@@ -48,11 +48,11 @@
         <j:otherwise>
           <table class="jenkins-table jenkins-table--small jenkins-!-margin-bottom-0">
             <thead>
+              <!-- #6 (Wave D, D3): the Run cell of the run tables (tags/runCell.jelly: icon, job, #n
+                   and the result label), first as there; no separate Job or Result column. -->
               <tr>
-                <th>Incident</th>
                 <th>Run</th>
-                <th>Job</th>
-                <th>Result</th>
+                <th>Incident</th>
                 <th>Status</th>
                 <th>Created</th>
               </tr>
@@ -60,19 +60,10 @@
             <tbody>
               <j:forEach var="i" items="${it.pageItems}">
                 <tr>
+                  <td><bc:runCell incident="${i}"/></td>
                   <td><a href="${i.id}/">${i.id}</a></td>
-                  <td>
-                    <j:choose>
-                      <j:when test="${it.runUrl(i) != null}">
-                        <a class="model-link" href="${rootURL}/${it.runUrl(i)}">${i.runId}</a>
-                      </j:when>
-                      <j:otherwise>${i.runId}</j:otherwise>
-                    </j:choose>
-                  </td>
-                  <td>${i.jobFullName}</td>
-                  <td><bc:result value="${i.result}"/></td>
-                  <td><bc:status value="${i.status}"/></td>
-                  <td>${it.format(it.createdAt(i))}</td>
+                  <td class="batch-control-nowrap"><bc:status value="${i.status}"/></td>
+                  <td class="batch-control-nowrap">${it.format(it.createdAt(i))}</td>
                 </tr>
               </j:forEach>
             </tbody>

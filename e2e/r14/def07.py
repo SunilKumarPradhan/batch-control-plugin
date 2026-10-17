@@ -51,6 +51,26 @@ def cell_statuses(s, col):
                        if c.locator("[data-batch-control-status]").count() else c.inner_text().strip()) for c in cells.all()))
 
 
+COLUMN_JS = """(name) => { const n = x => (x || '').replace(/\\s+/g, ' ').trim();
+  const t = document.querySelector('#main-panel table'); if (!t) return [];
+  const heads = [...t.querySelectorAll('thead th')].map(h => n(h.textContent)); const i = heads.indexOf(name), runi = heads.indexOf('Run');
+  // Wave D D3 (#6): no Job or Result column; the Run cell shows the icon, the job, "#n" and the result label, in order
+  const parts = c => { const texts = []; const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    for (let x = w.nextNode(); x; x = w.nextNode()) { const v = n(x.data); if (v && !x.parentElement.closest('svg')) texts.push(v); }
+    const r = texts.findIndex(v => /^#\\d+$/.test(v));
+    return {Job: texts.find(v => !/^#\\d+$/.test(v)) || null, Result: r >= 0 && texts[r + 1] && !/^Aborted by/.test(texts[r + 1]) ? texts[r + 1] : null}; };
+  return [...t.querySelectorAll('tbody tr')].map(tr => { const c = [...tr.children];
+    if (i >= 0 && c[i]) return n(c[i].innerText);
+    if (runi >= 0 && c[runi] && (name === 'Job' || name === 'Result')) return parts(c[runi])[name];
+    return null; }); }"""
+
+
+def column(s, name):
+    """The distinct values of the first table's column `name` (Job, Result): read under that heading, or since Wave D D3,
+    where the run tables have neither column, from the Run cell."""
+    return sorted(set(x for x in s.page.evaluate(COLUMN_JS, name) if x is not None))
+
+
 def rows(s):
     return s.page.locator("#main-panel table").first.locator("tbody tr")
 
@@ -93,7 +113,7 @@ def history(role):
     s.page.fill("#filter-job", "fast")
     hidden = submit(s, "Filter")
     ok, keys = clean_url(s.page.url, HKEYS)
-    jobs = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator("tbody tr td:nth-child(2)").all_inner_texts()))
+    jobs = column(s, "Job")
     s.shot(["#main-panel form[data-batch-control-get-form]", "#main-panel table"], f"{tag}-H1-filter-job")
     check(role, "H1 history Filter job=fast: clean URL", ok and dict(q(s.page.url)).get("job") == "fast",
           url=s.page.url.replace(BASE, ""), keys=keys, hidden_before_submit=hidden)
@@ -104,7 +124,7 @@ def history(role):
     if older.count():
         with s.page.expect_navigation():
             older.first.click()
-        jobs2 = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator("tbody tr td:nth-child(2)").all_inner_texts()))
+        jobs2 = column(s, "Job")
         d = dict(q(s.page.url))
         check(role, "H1 pager (page 2) keeps job=fast", d.get("job") == "fast" and d.get("page") == "2" and jobs2 == ["fast"]
               and not (set(d) & FORBIDDEN), url=s.page.url.replace(BASE, ""), jobs=jobs2, pager_hrefs=hrefs, rows=rows(s).count())
@@ -141,7 +161,7 @@ def history(role):
     s.page.fill("#filter-user", "admin")
     hidden = submit(s, "Filter", how="enter", field="#filter-user")
     ok, keys = clean_url(s.page.url, HKEYS)
-    res = sorted(set(t.strip() for t in s.page.locator("#main-panel table").first.locator("tbody tr td:nth-child(6)").all_inner_texts()))
+    res = column(s, "Result")
     s.shot(["#main-panel form[data-batch-control-get-form]", "#main-panel table"], f"{tag}-H2-enter-result")
     # the Result cell reads the label "Failed" since #18.2 (2026-10-14) and the raw "FAILURE" before it
     check(role, "H2 Enter submits; clean URL; result=FAILURE rows only", ok and res in (["FAILURE"], ["Failed"], []) and dict(q(s.page.url)).get("result") == "FAILURE",

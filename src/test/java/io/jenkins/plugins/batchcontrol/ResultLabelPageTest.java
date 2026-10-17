@@ -67,6 +67,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Written from that decision and from pages rendered on this branch (f2e150bc); no src/main
  * knowledge.
  *
+ * <p><b>D3 layout</b> (owner decision of 2026-10-15, note 362 point 10): the dashboard, History &gt;
+ * Runs, the incidents list and History &gt; Incidents have no Job or Result column any more
+ * (T-UI-276/277/284). On those four tables T-UI-269e and T-UI-269f read the result in the Run cell of
+ * the run's row, found by its run link: an element of the cell whose visible whole text is the label
+ * (core's icon and its tooltip may be there in addition, a tooltip alone does not count), the raw
+ * word not in the row's text, nothing in the cell a badge. The incident page's Result row and the
+ * request page's Build table keep their own cells.
+ *
  * <p>T-UI-269j (owner decision of 2026-10-14): the introduction of the incidents list names the
  * results {@code incidentResults} holds, by these labels, in the order FAILURE, UNSTABLE, ABORTED.
  * Written from that decision and the page rendered at 56698c10.
@@ -101,7 +109,9 @@ public class ResultLabelPageTest {
     /**
      * T-UI-269e (owner decision 2 of 2026-10-14): the incidents list, each incident page's Result row
      * and History &gt; Incidents show the result of the FAILURE, UNSTABLE and ABORTED incidents as
-     * Failed, Unstable and Aborted, as plain text (not a badge), never the raw enum word.
+     * Failed, Unstable and Aborted, as plain text (not a badge), never the raw enum word. On the two
+     * lists the result is read in the Run cell of the run's row (D3 layout, owner decision of
+     * 2026-10-15); the incident page's Result row is unchanged.
      */
     @Test
     public void t_ui_269e_incidentScreensShowResultLabels() throws Exception {
@@ -120,7 +130,7 @@ public class ResultLabelPageTest {
         for (String path : List.of("batch-control/incidents/", "batch-control/history/?kind=incidents")) {
             HtmlPage page = page(path);
             for (String result : INCIDENT_RESULTS) {
-                assertResultCell(tableResultCell(page, job(result), path), result, path + ", the incident of " + job(result));
+                assertResultInRunCell(page, job(result), result, path + ", the incident of " + job(result));
             }
         }
         for (Map.Entry<String, Incident> e : incidents.entrySet()) {
@@ -132,7 +142,8 @@ public class ResultLabelPageTest {
     /**
      * T-UI-269f (owner decision 2 of 2026-10-14): History &gt; Runs and the run dashboard show the
      * result of each of the five runs (SUCCESS, UNSTABLE, FAILURE, NOT_BUILT, ABORTED) as its label,
-     * as plain text, never the raw enum word.
+     * as plain text, never the raw enum word, read in the Run cell of the run's row (D3 layout, owner
+     * decision of 2026-10-15).
      */
     @Test
     public void t_ui_269f_runScreensShowResultLabels() throws Exception {
@@ -140,7 +151,7 @@ public class ResultLabelPageTest {
         for (String path : List.of("batch-control/history/?kind=runs", "batch-control/dashboard/")) {
             HtmlPage page = page(path);
             for (String result : ResultFixtures.ALL_RESULTS) {
-                assertResultCell(tableResultCell(page, job(result), path), result, path + ", the run of " + job(result));
+                assertResultInRunCell(page, job(result), result, path + ", the run of " + job(result));
             }
         }
     }
@@ -291,28 +302,30 @@ public class ResultLabelPageTest {
     // ------------------------------------------------------------------ locating the cells
 
     /**
-     * The cell under the "Result" heading in the one row of a listing table whose Job cell reads
-     * {@code job}.
+     * D3 layout (owner decision of 2026-10-15): in the one row of a main-panel table that links run
+     * #1 of {@code job}, the cell under the "Run" heading shows the result's label as an element's
+     * visible whole text, nothing in it is a badge, and the raw word is not the row's text.
      */
-    private static DomElement tableResultCell(HtmlPage page, String job, String where) {
-        List<DomElement> cells = new ArrayList<>();
-        for (DomNode t : page.querySelectorAll("#main-panel table")) {
-            List<String> headings = headings((DomElement) t);
-            int index = headings.indexOf("Result");
-            int jobIndex = headings.indexOf("Job");
-            if (index < 0 || jobIndex < 0) {
-                continue;
-            }
-            for (DomNode r : t.querySelectorAll("tbody tr")) {
-                List<DomElement> tds = cellsOf((DomElement) r);
-                if (index < tds.size() && jobIndex < tds.size() && job.equals(text(tds.get(jobIndex)))) {
-                    cells.add(tds.get(index));
+    private void assertResultInRunCell(HtmlPage page, String job, String raw, String where) throws Exception {
+        String run = new URL(j.getURL(), j.jenkins.getItemByFullName(job).getUrl() + "1/").getPath();
+        List<DomElement> rows = new ArrayList<>();
+        for (DomNode r : page.querySelectorAll("#main-panel table tbody tr")) {
+            for (DomNode a : r.querySelectorAll("a[href]")) {
+                if (page.getFullyQualifiedUrl(((DomElement) a).getAttribute("href")).getPath().equals(run)) {
+                    rows.add((DomElement) r);
+                    break;
                 }
             }
         }
-        assertEquals(1, cells.size(), where + ": premise: one row of a table with a Result column has the Job cell " + job + "; tables"
-                + " read: " + excerpt(tables(page)));
-        return cells.get(0);
+        assertEquals(1, rows.size(), where + ": premise: one row links the run " + run + "; tables read: " + excerpt(tables(page)));
+        DomElement row = rows.get(0);
+        DomElement cell = cellUnder(row, "Run", where);
+        assertNotBadge(cell, where + ", the Run cell");
+        String label = ResultFixtures.RESULT_LABELS.get(raw);
+        assertNotNull(ResultFixtures.visibleLabel(cell, label), where + ": the Run cell must show the result " + raw + " as"
+                + " the visible text '" + label + "' of an element (D3 layout; a tooltip alone is not enough): " + cell.asXml());
+        assertFalse(Pattern.compile("(?<![A-Za-z_])" + raw + "(?![A-Za-z_])").matcher(row.asNormalizedText()).find(), where
+                + ": the raw enum word " + raw + " is not the text of the row: " + row.asNormalizedText());
     }
 
     /** The cell of the incident page's row headed "Result". */

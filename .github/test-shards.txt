@@ -59,6 +59,7 @@ Approv*Test
 DiscoverOnlyRequestScreenTest ExpiryAndCancelTest MissedInvalidationGapTest
 MultiApproverTest PendingCountTest QueueBlockTest RunControlUsabilityTest
 DeprecatedUserCauseTest
+DecisionAreaTest
 OwnerScenario*Test
 # notifications
 EmailNotification*Test ExpiryNoticeIsolationTest Notification*Test
@@ -142,7 +143,7 @@ ValuesFile*Test
 
 [pages forms and config]
 # status and result labels, History filter dropdowns
-FilterDropdownTest ResultLabelPageTest StatusLabelPageTest StatusLabelsTest
+FilterDropdownTest ResultLabelPageTest RunTableColumnsTest StatusLabelPageTest StatusLabelsTest
 # pages, forms and the global configuration
 ConfigPagePolishTest ConfigUsabilityTest ConfigurationValidationGapTest DashboardLimitTest
 FilterFormCrumbTest FormRefusalUsabilityTest PolishMarkupTest SwitchSaveFailureTest

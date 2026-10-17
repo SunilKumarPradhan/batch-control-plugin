@@ -157,6 +157,20 @@ public final class StatusLabels {
     }
 
     /**
+     * #6 (Wave D, D3): the build result named exactly {@code name} (one of {@link #resultNames}),
+     * or {@code null} for anything else, which the Run cell shows as text without a status icon.
+     */
+    @CheckForNull
+    public static Result resultOf(@CheckForNull String name) {
+        for (Result r : RESULTS) {
+            if (r.toString().equals(name)) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    /**
      * The opening of the incidents list's introduction: the configured {@code incidentResults}
      * that can open an incident, as their labels ({@link #ofResult}) in lower case after the first
      * word, in the order of {@link #incidentResultNames} whatever order the setting holds, joined

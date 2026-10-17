@@ -28,7 +28,6 @@ import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
-import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -678,26 +677,8 @@ public class HistorySection implements ModelObject, StaplerProxy {
         return RunLinks.formatDuration(durationMs);
     }
 
-    /** Root-relative build URL for a run record, or null for plain text (D-44). */
-    @CheckForNull
-    public String runUrl(RunRecord record) {
-        return Visibility.runUrl(record.getJobFullName(), record.getNumber());
-    }
-
-    /** Root-relative build URL for an incident's originating run, or null for plain text (D-44). */
-    @CheckForNull
-    public String incidentRunUrl(Incident incident) {
-        return Visibility.runUrlFromRunId(incident.getRunId());
-    }
-
     /** Creation timestamp of an incident. */
     @CheckForNull
     public Instant incidentCreatedAt(Incident incident) {
         return IncidentsSection.creationTime(incident);
-    }
-
-    /** One-line parameter rendering; values come from the record already masked. */
-    public String parameters(Map<String, String> parameters) {
-        return RunLinks.formatParameters(parameters);
-    }
-}
+    }}

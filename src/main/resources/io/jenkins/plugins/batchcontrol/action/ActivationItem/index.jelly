@@ -7,9 +7,9 @@
      input kept. Form targets are absolute because the refusal is rendered at the POST URL. -->
 <j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form"
          xmlns:bc="/io/jenkins/plugins/batchcontrol/tags">
-  <l:layout title="${it.displayName}" type="one-column" permissions="${it.viewPermissions}">
+  <l:layout title="${it.pageTitle}" type="one-column" permissions="${it.viewPermissions}">
     <l:main-panel>
-      <l:app-bar title="${it.displayName}"/>
+      <l:app-bar title="${it.pageTitle}"/>
       <bc:tabs active="activations"/>
 
       <!-- DEF-09: a refusal whose form is no longer shown (the request was decided or cancelled
