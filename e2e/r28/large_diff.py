@@ -27,6 +27,7 @@ M  #35 memory on the real controller (T-09-90's measure in the script console): 
    switches are off (unrecorded), are below 16 MB. Red without the fix (about 64 MB of LCS table at this size).
 cleanup: the four jobs deleted; the switches as they were."""
 import difflib
+import os
 import re
 import subprocess
 import sys
@@ -60,6 +61,23 @@ def xml(desc):
 def config(job):
     """The job's config.xml file on disk (what the plugin diffs: GET config.xml re-serialises the declaration)."""
     return cat(f"/var/jenkins_home/jobs/{job}/config.xml")
+
+
+# A configure page holding thousands of description lines is slow to load and to submit on a slow runner: the page
+# load, the paste and the save each get a timeout in proportion (upstream CI, PR #96, timed out at 20 s typing them).
+SLOW_MS = 90000
+PASTE_JS = """([sel, value]) => { const ta = document.querySelector(sel); ta.focus(); ta.value = value;
+  ta.dispatchEvent(new Event('input', {bubbles: true})); ta.dispatchEvent(new Event('change', {bubbles: true}));
+  return ta.value.length; }"""
+
+
+def open_configure(s, job):
+    rate = os.environ.get("R28_CPU_THROTTLE")  # local check of a slow machine: Chromium's CPU throttling (not in CI)
+    if rate:
+        s.context.new_cdp_session(s.page).send("Emulation.setCPUThrottlingRate", {"rate": float(rate)})
+    s.page.goto(lib.BASE + lib.jpath(job) + "/configure", timeout=SLOW_MS)
+    s.page.wait_for_load_state("load", timeout=SLOW_MS)
+    s.page.locator("button[name=Submit]").first.wait_for(state="visible", timeout=SLOW_MS)
 
 
 def cat(path):
@@ -179,8 +197,8 @@ def sec_A():
             api("admin", lib.jpath(j) + "/doDelete", "POST")
     made = {j: lib.ensure_item(j, xml(lines(n))) for j, n in ((BIG, 4000), (SMALL, 3), (HUGE, 6000), (CONTROL, 4000))}
     s = Session("admin")
-    s.go(lib.jpath(BIG) + "/configure")
-    with s.page.expect_navigation(timeout=60000):
+    open_configure(s, BIG)
+    with s.page.expect_navigation(timeout=SLOW_MS):
         s.page.locator("button[name=Submit]").first.click()
     s.done()
     warm = {j: post_config(j, lines(n)) for j, n in ((SMALL, 3), (HUGE, 6000))}
@@ -196,16 +214,18 @@ def sec_F():
     before, n0 = config(BIG), csv_count(BIG)
     desc = lines(4000, "by the form", every=100)
     s = Session("admin")
-    s.go(lib.jpath(BIG) + "/configure")
+    open_configure(s, BIG)
     mark_ms, mark_s = int(gv("return System.currentTimeMillis()")), time.time() - 2
-    s.page.locator("textarea[name=description]").first.fill(desc)
+    # the 4,000 lines land in the textarea as a paste does (value set, input and change fired), not typed key by key;
+    # the browser still submits the real form (CRLF line breaks, as typed text would be)
+    pasted = s.page.evaluate(PASTE_JS, ["textarea[name=description]", desc])
     t0 = time.time()
-    with s.page.expect_navigation(timeout=120000) as nav:
+    with s.page.expect_navigation(timeout=SLOW_MS) as nav:
         s.page.locator("button[name=Submit]").first.click()
     status, took = (nav.value.status if nav.value else None), round(time.time() - t0, 1)
     landed = s.page.url.replace(lib.BASE, "")
     s.done()
-    note("F", "the form save", status=status, seconds=took, landed=landed)
+    note("F", "the form save", status=status, seconds=took, landed=landed, pasted_chars=pasted, typed_chars=len(desc))
     judge_save("F", BIG, "configure form", status if landed.rstrip("/").endswith(BIG) else None, before, mark_ms, mark_s, n0)
 
 
