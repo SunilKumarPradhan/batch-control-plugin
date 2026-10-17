@@ -326,7 +326,10 @@ pending).
 - Services and ports: none as workflow `services:`. `run.sh` starts Jenkins (`localhost:18080/jenkins`) and mailpit
   (`localhost:18025`) with `docker compose`, building `e2e/Dockerfile` (`jenkins/jenkins:2.568.3-lts-jdk21` plus the
   plugins of `e2e/plugins.txt` from the Jenkins update centre) and pulling `axllent/mailpit`. Network needed:
-  Docker Hub, updates.jenkins.io / get.jenkins.io, Maven Central (JaCoCo), PyPI, the Playwright CDN.
+  Docker Hub, updates.jenkins.io / get.jenkins.io, Maven Central (JaCoCo), PyPI, the Playwright CDN. The unit
+  `r26-store-force` (#34) also builds `r26/strace.Dockerfile` (`alpine:3.24` plus `strace` from the Alpine package
+  mirror) and runs it as a sidecar in the Jenkins container's PID namespace with `--cap-add SYS_PTRACE` (the runner's
+  Docker allows it; the Jenkins container gets no extra capability).
 - Secrets: none. `run.sh` writes `e2e/.env` with random passwords and masks them (`::add-mask::`).
 - Durations: on the runner (run 37883661045, the five earlier groups) 19.8-35.0 min per shard job: about 3.2 min of
   the job's own steps (Jenkins ready after 2.4-2.6 min, image build included), 3.1 min setup, then the units. The seven
@@ -378,6 +381,7 @@ Other profiles:
 | `compose.prefix.yml` | `docker compose -f docker-compose.yml -f compose.prefix.yml up -d --build`; back with `docker compose up -d jenkins` | Jenkins under the context path `/jenkins` (`http://localhost:8080/jenkins/`, Jenkins URL set through `BC_JENKINS_URL`) with the new job page experiment on for every user (`-Dnew-job-page.flag.defaultValue=true`; a user can still turn it off on `/me/experiments/`) (e2e-06) |
 | `compose.jdk25.yml` | `docker compose -f docker-compose.yml -f compose.prefix.yml -f compose.jdk25.yml up -d --build` | The same image built on `jenkins/jenkins:2.568.3-lts-jdk25` (Dockerfile `ARG JENKINS_TAG`), tagged `batch-control-e2e-jenkins:2.568.3-jdk25`; shares the JENKINS_HOME volume, so `down -v` first for a fresh home (e2e-11, R4-1) |
 | `compose.ci-fs.yml` | `BC_CI_FS_DIR=<empty host directory>` with `BC_COMPOSE_EXTRA` (`ci/run.sh`) or as an extra `-f` | `JENKINS_HOME/batch-control` on the host's file system, case-insensitive on default macOS: the S-39-01 premise for `r17/s39.py` P (e2e-17) |
+| `compose.permissions.yml` | extra overlay through `BC_COMPOSE_EXTRA` (`ci/run.sh`): `BC_COMPOSE_EXTRA=$PWD/e2e/compose.permissions.yml BC_UNITS=r27-revert-permissions e2e/ci/run.sh 3/7` | Overall/Manage and Overall/SystemRead switched on by their system properties (`JENKINS_JAVA_OPTS`), as an operator does; without it `r27/revert_permissions.py` switches on what is off through the script console for its pass and says so in its arrangement check (e2e-27) |
 | `compose.coverage.yml` | last overlay, after `ci/fetch-jacoco.sh`; normally through `ci/run.sh` (section below) | JaCoCo agent in the Jenkins JVM (`JAVA_TOOL_OPTIONS`), exec file `/var/jenkins_home/jacoco/jacoco-${BC_SHARD}.exec`, own container names `${BC_CONTAINER}-jenkins` / `-mail` so it can run next to the regular stack (use another `-p` project and other `BC_PORT`/`BC_MAIL_PORT`); `BC_JACOCO_AGENT=<absolute path>` when used with another checkout's compose files |
 
 The permission names in `casc/jenkins.yaml` are `BatchControl/<Name>`; if the

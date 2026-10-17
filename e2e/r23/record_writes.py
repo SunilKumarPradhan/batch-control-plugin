@@ -297,7 +297,8 @@ def decision(sec, job, action, shot):
           all(ids) and all(act_status(i) == "PENDING" for i in ids), ids=ids)
     status, err, text, landed = approve_in_browser(sec, ids[0], shot)
     check(sec, f"screen: approving the {action} with changes/ unwritable answers below 500, the page is no error page "
-          "and says APPROVED", status is not None and status < 500 and not err and "Status APPROVED" in text,
+          "and says APPROVED", status is not None and status < 500 and not err
+          and re.search(r"Status (APPROVED|Approved)(?![,\w])", text),  # Wave D D2: the label "Approved"
           http=status, error=err, landed=landed, text=text[:400])
     stored = [act_status(i) for i in ids]
     state = lib.activation(job)

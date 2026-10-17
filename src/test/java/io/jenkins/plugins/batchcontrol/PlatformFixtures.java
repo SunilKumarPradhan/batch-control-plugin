@@ -32,6 +32,13 @@ import org.junit.jupiter.api.Assumptions;
  * <p>{@link #HOSTILE_ITEM_NAME} is the HTML-sensitive item name of the escaping rows. It keeps the
  * double quote wherever the file system can hold one in a directory name (an item's directory is
  * named after it); NTFS forbids {@code "}, so there the name uses the single quote instead.
+ * {@link #itemName(String)} makes that choice for any item name (T-UI-233 uses it, matrix note 360
+ * (13)).
+ *
+ * <p>The NTFS variant of those names can be run on any platform: start the tests with
+ * {@code -Dbatchcontrol.test.ntfsItemNames=true} ({@link #NTFS_ITEM_NAMES_PROPERTY}). The property
+ * only ever takes the double quote away; unset or {@code false}, the probe decides, so the default
+ * is the platform.
  */
 final class PlatformFixtures {
 
@@ -46,9 +53,14 @@ final class PlatformFixtures {
      * {@code data-injected}) and a script fragment ({@code alert(1)}). With the double quote where the
      * file system allows it in a directory name; otherwise (NTFS) the same text with single quotes.
      */
-    static final String HOSTILE_ITEM_NAME = canNameDirectoryWith('"')
-            ? "x\"onmouseover='alert(1)' data-injected=\"1"
-            : "x'onmouseover='alert(1)' data-injected='1";
+    static final String HOSTILE_ITEM_NAME = itemName("x\"onmouseover='alert(1)' data-injected=\"1");
+
+    /**
+     * System property ({@code -Dbatchcontrol.test.ntfsItemNames=true}) that makes {@link #itemName(String)}
+     * answer the NTFS variant on a platform whose file system would take the double quote, so that
+     * the variant Windows runs can be run anywhere. Unset or {@code false}: the probe decides.
+     */
+    static final String NTFS_ITEM_NAMES_PROPERTY = "batchcontrol.test.ntfsItemNames";
 
     private PlatformFixtures() {
     }
@@ -61,6 +73,31 @@ final class PlatformFixtures {
     /** Skips the row where this process cannot be refused writes to a file or directory it owns. */
     static void assumeCanMakeUnwritable() {
         Assumptions.assumeTrue(Probes.UNWRITABLE, UNWRITABLE_MESSAGE);
+    }
+
+    /**
+     * The item name a row can create on this platform: {@code name} as it is where a directory name
+     * can hold a double quote, and otherwise (NTFS) {@code name} with every {@code "} replaced by
+     * {@code '}, which keeps its length. An item's directory is named after it, so a name with
+     * {@code "} cannot be created on NTFS ({@code InvalidPathException}). Of the characters NTFS
+     * forbids ({@code < > : " / \ | ? *}) the double quote is the only one Jenkins' name check
+     * allows, so it is the only one replaced.
+     */
+    static String itemName(String name) {
+        return itemNamesCanHoldADoubleQuote() ? name : name.replace('"', '\'');
+    }
+
+    /**
+     * Whether an item whose name contains {@code "} can be created here: decided by a real probe
+     * (a directory named with one), unless {@link #NTFS_ITEM_NAMES_PROPERTY} says to behave as NTFS.
+     */
+    static boolean itemNamesCanHoldADoubleQuote() {
+        return !Boolean.getBoolean(NTFS_ITEM_NAMES_PROPERTY) && NameProbe.DOUBLE_QUOTE;
+    }
+
+    /** Lazily computed, once per JVM. */
+    private static final class NameProbe {
+        static final boolean DOUBLE_QUOTE = canNameDirectoryWith('"');
     }
 
     /** Lazily computed probe answers (only rows that build a storage fault pay for them). */

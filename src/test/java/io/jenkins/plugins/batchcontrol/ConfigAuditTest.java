@@ -26,6 +26,7 @@ import org.htmlunit.html.HtmlPage;
 import org.htmlunit.html.HtmlTextArea;
 import org.jenkinsci.plugins.matrixauth.PermissionEntry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
@@ -85,6 +86,7 @@ public class ConfigAuditTest {
      * old and new values of both fields. A second save without a change writes no record.
      */
     @Test
+    @Tag("core")
     public void t_cfg_05_configurationChangeIsRecordedOnceAndANoOpSaveIsNot() throws Exception {
         assertEquals(72, BatchControlGlobalConfiguration.get().getPendingTimeoutHours(), "fixture: default timeout");
         int before = records("CONFIG_CHANGE").size();
@@ -117,6 +119,7 @@ public class ConfigAuditTest {
      * it each write one STRATEGY_CHANGE record by the administrator.
      */
     @Test
+    @Tag("core")
     public void t_cfg_06_strategyInstallAndRevertAreRecorded() throws Exception {
         ProjectMatrixAuthorizationStrategy plain = new ProjectMatrixAuthorizationStrategy();
         plain.add(Jenkins.ADMINISTER, PermissionEntry.user("admin"));
@@ -202,6 +205,7 @@ public class ConfigAuditTest {
      * manager is refused (the check requires POST) without a check result. Note 173.
      */
     @Test
+    @Tag("core")
     public void t_cfg_09_approverCheckIsForManageHoldersAndPostOnly() throws Exception {
         BatchControlMatrixAuthorizationStrategy strategy = (BatchControlMatrixAuthorizationStrategy) j.jenkins.getAuthorizationStrategy();
         strategy.add(Jenkins.READ, PermissionEntry.user("a2"));
@@ -363,9 +367,22 @@ public class ConfigAuditTest {
         fail("fixture: the settings form must offer an approver text field; form was: " + excerpt(form.asXml()));
     }
 
+    /**
+     * True if the page offers the revert anywhere in its DOM, visible or not: since #18.7 (Wave D,
+     * D1) the control sits inside core's Advanced control, whose body is hidden until Advanced is
+     * pressed, and it is a confirmation link that names its endpoint in {@code data-url}.
+     */
     private static boolean offersRevert(HtmlPage page) throws Exception {
-        if (page.asNormalizedText().contains("Revert to the plain strategy")) {
+        if (page.asNormalizedText().contains("Revert to the plain strategy")
+                || page.getDocumentElement().getTextContent().contains("Revert to the plain strategy")) {
             return true;
+        }
+        for (org.htmlunit.html.HtmlElement e : page.getHtmlElementDescendants()) {
+            for (String attribute : new String[] {"data-url", "formaction"}) {
+                if (e.getAttribute(attribute).contains("batch-control-strategy/revert")) {
+                    return true;
+                }
+            }
         }
         for (String action : UsabilityFixtures.formActions(page)) {
             if (action != null && action.contains("batch-control-strategy/revert")) {

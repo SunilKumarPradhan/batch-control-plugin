@@ -1,0 +1,13 @@
+<?jelly escape-by-default='true'?>
+<!-- #18.2 (owner decision 2026-10-14): a build result shown as its readable label (Success,
+     Unstable, Failed, Not built, Aborted: ui.StatusLabels#ofResult, the same words as the Result
+     filter's options), reached through the root action (j:invokeStatic cannot see plugin classes
+     in a real Jenkins). Plain text, never a badge: no element, no class, no tone. A value that is
+     not a result name is shown as it is. CSV exports keep the result names. Escaped by default. -->
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler">
+  <st:documentation>
+    A build result as its readable label, plain text.
+    <st:attribute name="value" use="required">The result name (hudson.model.Result#toString), or null.</st:attribute>
+  </st:documentation>
+  <j:if test="${attrs.value != null}">${app.getExtensionList('io.jenkins.plugins.batchcontrol.action.BatchControlRootAction').get(0).resultLabel(attrs.value)}</j:if>
+</j:jelly>

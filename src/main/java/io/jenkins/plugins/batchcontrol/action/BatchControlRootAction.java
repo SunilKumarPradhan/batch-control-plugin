@@ -6,12 +6,20 @@ import hudson.ExtensionList;
 import hudson.model.RootAction;
 import hudson.security.Permission;
 import io.jenkins.plugins.batchcontrol.config.BatchControlConfigurationLink;
+import io.jenkins.plugins.batchcontrol.model.Incident;
+import io.jenkins.plugins.batchcontrol.model.RequestStatus;
+import io.jenkins.plugins.batchcontrol.model.RunRecord;
 import io.jenkins.plugins.batchcontrol.ui.GrantRequestLinks;
 import io.jenkins.plugins.batchcontrol.ui.GuardInfo;
+import io.jenkins.plugins.batchcontrol.ui.Paging;
+import io.jenkins.plugins.batchcontrol.ui.ParameterLines;
 import io.jenkins.plugins.batchcontrol.ui.ReplayedRuns;
+import io.jenkins.plugins.batchcontrol.ui.RunCell;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
 import io.jenkins.plugins.batchcontrol.ui.SectionTabs;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import java.util.List;
+import java.util.Map;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithContextMenu;
 import org.kohsuke.accmod.Restricted;
@@ -86,15 +94,18 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
      * The breadcrumb dropdown: the same tabs, in the same order and with the same badges, as the
      * tab bar ({@link SectionTabs#current()}, permission-filtered by {@link SectionAccess}), plus
      * the configuration page for a {@code BatchControl/Manage} holder. Read-only; empty for a
-     * user without any Batch Control permission (who gets 404 before reaching it anyway).
+     * user the page does not admit ({@link SectionAccess#canOpenRoot()}, the gate of the tab bar
+     * too), who gets 404 before reaching it anyway.
      */
     // Read-only: served by GET to core's breadcrumb context-menu script; lists only sections the caller may open.
     @SuppressWarnings({"lgtm[jenkins/csrf]", "lgtm[jenkins/no-permission-check]"})
     @Override
     public ContextMenu doContextMenu(StaplerRequest2 request, StaplerResponse2 response) {
         ContextMenu menu = new ContextMenu();
-        if (!Jenkins.get().hasAnyPermission(SectionAccess.anyPermission())) {
-            return menu; // no Batch Control permission: nothing to list (the URL is 404 anyway)
+        // #41: the page's own gate (D-38b), so a requester whose Request is held only on some jobs
+        // or folders gets the same sections as the tab bar, not an empty menu.
+        if (!isVisible()) {
+            return menu; // cannot open the page: nothing to list (the URL is 404 anyway)
         }
         String base = request.getContextPath() + "/" + "batch-control/";
         for (SectionTabs.Tab tab : SectionTabs.current()) {
@@ -114,6 +125,70 @@ public class BatchControlRootAction implements RootAction, ModelObjectWithContex
     /** Permissions for the landing page's {@code l:layout}: any Batch Control permission. */
     public Permission[] getViewPermissions() {
         return SectionAccess.viewPermissions(SectionAccess.anyPermission(), SectionAccess.canOpenRoot());
+    }
+
+    /**
+     * #45: the query string of a {@code bc:pager} link to {@code page} of the list paged with
+     * {@code parameter}, keeping the current URL's other parameters ({@link Paging#query}). The
+     * tag reaches it through this action, as {@code bc:tabs} does, because {@code j:invokeStatic}
+     * loads classes with core's class loader and cannot see plugin classes in a real Jenkins.
+     * {@code long}, so the view's arithmetic on the page number binds whatever its number type.
+     */
+    public String pagerQuery(String parameter, long page) {
+        return Paging.query(parameter, page);
+    }
+
+    /**
+     * #18.2: the readable label of a status or cause for {@code bc:status} ({@link StatusLabels}),
+     * reached through this action for the same reason as {@link #pagerQuery}. With
+     * {@code runRequest}, a run request's APPROVED reads "Approved, waiting to run".
+     */
+    public String statusLabel(@CheckForNull Enum<?> value, boolean runRequest) {
+        return runRequest && value instanceof RequestStatus status ? StatusLabels.ofRunRequest(status) : StatusLabels.of(value);
+    }
+
+    /**
+     * #18.2 (owner decision 2026-10-14): the readable label of a build result for {@code bc:result}
+     * ({@link StatusLabels#ofResult}), reached through this action for the same reason as
+     * {@link #pagerQuery}. A result is plain text, never a badge.
+     */
+    public String resultLabel(@CheckForNull String result) {
+        return StatusLabels.ofResult(result);
+    }
+
+    /**
+     * #18.2 (colour badges): the tone of the badge {@code bc:status} renders for a request or
+     * incident status ({@link StatusLabels#tone}); {@code null} for anything else (a run cause,
+     * a value that is not an enum constant), which the tag then shows as plain text. With
+     * {@code ended}, the badge is in an Ended table, where an approved request is no longer in
+     * effect and is neutral ({@link StatusLabels#endedTone}).
+     */
+    @CheckForNull
+    public String statusTone(@CheckForNull Object value, boolean ended) {
+        if (!(value instanceof Enum<?> constant)) {
+            return null;
+        }
+        return ended ? StatusLabels.endedTone(constant) : StatusLabels.tone(constant);
+    }
+
+    /**
+     * #6 (Wave D, D3): the Run cell of a run record for {@code bc:runCell} ({@link RunCell}); the
+     * job and run links follow the viewer's Item/Read (D-44). Reached through this action for the
+     * same reason as {@link #pagerQuery}.
+     */
+    public RunCell runCell(RunRecord record) {
+        return RunCell.of(record.getJobFullName(), record.getNumber(), record.getRunId(), record.getResult(),
+                record.getAbortedBy());
+    }
+
+    /** #6 (Wave D, D3): the Run cell of an incident's run for {@code bc:runCell}, as {@link #runCell(RunRecord)}. */
+    public RunCell incidentRunCell(Incident incident) {
+        return RunCell.of(incident.getJobFullName(), 0, incident.getRunId(), incident.getResult(), null);
+    }
+
+    /** #6, #18.1 (Wave D, D3): the Parameters cell of a run record for {@code bc:parameters} ({@link ParameterLines}). */
+    public ParameterLines parameterLines(@CheckForNull Map<String, String> parameters) {
+        return ParameterLines.of(parameters);
     }
 
     /** The tabs the viewer may open, with their open-item badges (overview page). */

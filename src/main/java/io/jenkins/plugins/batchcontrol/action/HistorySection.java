@@ -22,12 +22,12 @@ import io.jenkins.plugins.batchcontrol.store.RunMonthStats;
 import io.jenkins.plugins.batchcontrol.store.Store;
 import io.jenkins.plugins.batchcontrol.ui.CsvWriter;
 import io.jenkins.plugins.batchcontrol.ui.Dates;
+import io.jenkins.plugins.batchcontrol.ui.FilterOptions;
 import io.jenkins.plugins.batchcontrol.ui.FilterParser;
 import io.jenkins.plugins.batchcontrol.ui.RunLinks;
 import io.jenkins.plugins.batchcontrol.ui.HttpVerbs;
 import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
-import io.jenkins.plugins.batchcontrol.ui.Visibility;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -294,10 +294,10 @@ public class HistorySection implements ModelObject, StaplerProxy {
         }
     }
 
-    /** The store's existing month buckets inside the filter range (no month cap). */
+    /** The stored month buckets that may hold a record in the period, including neighbouring buckets (#33; no month cap). */
     private List<YearMonth> storedMonths() {
         if (storedMonths == null) {
-            storedMonths = getFilter().months(Store.get().listStoredMonths());
+            storedMonths = Store.get().listStoredMonths(period());
         }
         return storedMonths;
     }
@@ -328,6 +328,36 @@ public class HistorySection implements ModelObject, StaplerProxy {
             }
         }
         return "runs";
+    }
+
+    /**
+     * #18.3: the Result dropdown's options, on the tabs whose records carry a result: every build
+     * result on runs ({@link FilterOptions#results}), only the results that can open an incident
+     * on incidents ({@link FilterOptions#incidentResults}); {@code null} elsewhere, where the view
+     * keeps a result from the URL as a hidden field so switching tabs does not drop it.
+     */
+    @CheckForNull
+    public List<FilterOptions.Option> getResultOptions() {
+        String kind = getKind();
+        FilterParser.Filter f = getFilter();
+        if ("runs".equals(kind)) {
+            return FilterOptions.results(f.getResult(), f.getIgnoredResult());
+        }
+        return "incidents".equals(kind) ? FilterOptions.incidentResults(f.getResult(), f.getIgnoredResult()) : null;
+    }
+
+    /**
+     * #18.3: the Status dropdown's options: the incident statuses on incidents, the run request
+     * statuses on requests; {@code null} elsewhere (kept as a hidden field, as the result).
+     */
+    @CheckForNull
+    public List<FilterOptions.Option> getStatusOptions() {
+        String kind = getKind();
+        String status = getFilter().getStatus();
+        if ("incidents".equals(kind)) {
+            return FilterOptions.incidentStatuses(status, getFilter().getIgnoredStatus());
+        }
+        return "requests".equals(kind) ? FilterOptions.runRequestStatuses(status, getFilter().getIgnoredStatus()) : null;
     }
 
     /** The filter as a query fragment (no kind, no page) for CSV links. */
@@ -647,26 +677,8 @@ public class HistorySection implements ModelObject, StaplerProxy {
         return RunLinks.formatDuration(durationMs);
     }
 
-    /** Root-relative build URL for a run record, or null for plain text (D-44). */
-    @CheckForNull
-    public String runUrl(RunRecord record) {
-        return Visibility.runUrl(record.getJobFullName(), record.getNumber());
-    }
-
-    /** Root-relative build URL for an incident's originating run, or null for plain text (D-44). */
-    @CheckForNull
-    public String incidentRunUrl(Incident incident) {
-        return Visibility.runUrlFromRunId(incident.getRunId());
-    }
-
     /** Creation timestamp of an incident. */
     @CheckForNull
     public Instant incidentCreatedAt(Incident incident) {
         return IncidentsSection.creationTime(incident);
-    }
-
-    /** One-line parameter rendering; values come from the record already masked. */
-    public String parameters(Map<String, String> parameters) {
-        return RunLinks.formatParameters(parameters);
-    }
-}
+    }}

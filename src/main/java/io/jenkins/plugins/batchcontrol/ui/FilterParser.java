@@ -84,6 +84,10 @@ public final class FilterParser {
                 text(param(req, "user")),
                 token(param(req, "result")),
                 token(param(req, "status")));
+        // #18.3: a result or status that is not a token is ignored (as before), but kept for the
+        // dropdown, which shows it selected with a note that it is not applied (SPEC 6).
+        filter.ignoredResult = ignored(param(req, "result"));
+        filter.ignoredStatus = ignored(param(req, "status"));
         filter.fromError = fromError;
         filter.toError = toError;
         filter.fromInput = fromError != null || toError != null ? text(rawFrom) : null;
@@ -137,6 +141,12 @@ public final class FilterParser {
         return trimmed.length() > MAX_TEXT_LENGTH ? trimmed.substring(0, MAX_TEXT_LENGTH) : trimmed;
     }
 
+    /** The trimmed, length-capped text of a given value that {@link #token} refuses, else null. */
+    @CheckForNull
+    private static String ignored(@CheckForNull String raw) {
+        return token(raw) == null ? text(raw) : null;
+    }
+
     /** Enum-name filter value: upper-cased, letters and underscores only, else absent. */
     @CheckForNull
     private static String token(@CheckForNull String raw) {
@@ -176,6 +186,8 @@ public final class FilterParser {
         private String toError;
         private String fromInput;
         private String toInput;
+        private String ignoredResult;
+        private String ignoredStatus;
 
         Filter(LocalDate from, LocalDate to, @CheckForNull String job, @CheckForNull String user,
                 @CheckForNull String result, @CheckForNull String status) {
@@ -242,6 +254,21 @@ public final class FilterParser {
         @CheckForNull
         public String getStatus() {
             return status;
+        }
+
+        /**
+         * #18.3: the {@code result} as given when it is not a result token (so no result filter
+         * applies), for redisplay; else {@code null}. Escaped by the page.
+         */
+        @CheckForNull
+        public String getIgnoredResult() {
+            return ignoredResult;
+        }
+
+        /** #18.3: the {@code status} as given when it is not a status token, as {@link #getIgnoredResult}. */
+        @CheckForNull
+        public String getIgnoredStatus() {
+            return ignoredStatus;
         }
 
         // ------------------------------------------------------------ range helpers

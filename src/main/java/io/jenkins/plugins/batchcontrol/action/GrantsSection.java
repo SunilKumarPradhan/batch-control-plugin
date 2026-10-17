@@ -32,6 +32,7 @@ import io.jenkins.plugins.batchcontrol.ui.Paging;
 import io.jenkins.plugins.batchcontrol.ui.RecordLookup;
 import io.jenkins.plugins.batchcontrol.ui.ScopeDisplay;
 import io.jenkins.plugins.batchcontrol.ui.SectionAccess;
+import io.jenkins.plugins.batchcontrol.ui.StatusLabels;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Instant;
@@ -787,10 +788,17 @@ public class GrantsSection implements ModelObject, StaplerProxy {
             return user;
         }
 
-        /** The request status name, or {@code null} for a window without a stored request. */
+        /**
+         * #18.2 (colour badges): the status of the row's request, which the How cell of an ended
+         * row carries in its badge ({@code tags/status.jelly}) next to its own wording: "Rejected
+         * by a1" for a rejected request, and for an approved one how its window ended ("Expired",
+         * "Revoked by admin"). {@code null} for a window without a stored request, whose cell is
+         * plain text.
+         */
         @CheckForNull
-        public String getStatus() {
-            return request == null ? null : String.valueOf(request.getStatus());
+        public RequestStatus getRequestStatus() {
+            GrantRequest r = request;
+            return r == null ? null : r.getStatus();
         }
 
         /** When the row was created: the request's creation, else the window's start. */
@@ -919,7 +927,7 @@ public class GrantsSection implements ModelObject, StaplerProxy {
             case INVALIDATED:
                 return "Invalidated";
             default:
-                return status.name().charAt(0) + status.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+                return StatusLabels.of(status);
         }
     }
 

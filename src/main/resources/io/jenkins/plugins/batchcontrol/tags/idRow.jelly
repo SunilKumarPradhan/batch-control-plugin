@@ -1,0 +1,21 @@
+<?jelly escape-by-default='true'?>
+<!-- #18.4 (Wave D, D1): the summary-table row of a request page that carries the request's full
+     id, since the page is titled with what the request is about. The id is shown whole, in code
+     style, followed by a copy button that copies exactly that id. Escaped by default.
+     D3 (owner decision 2026-10-14): the button is core's copy button markup (the classes, text
+     and tooltip of l:copyButton, driven by core's lib.layout.copyButton script) without the
+     "message" attribute, which l:copyButton always renders and core's script never reads; the
+     copy is confirmed by the button's check icon, as everywhere in core. -->
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:l="/lib/layout">
+  <st:documentation>
+    A summary-table row headed "ID" with the full id and a copy button.
+    <st:attribute name="value" use="required">The full id.</st:attribute>
+  </st:documentation>
+  <tr>
+    <th style="text-align: left;">ID</th>
+    <td>
+      <code>${attrs.value}</code>${' '}<span data-message-insecure="Copy is only supported with a secure (HTTPS) connection."><button class="copy-button jenkins-button jenkins-button--tertiary jenkins-copy-button" text="${attrs.value}" tooltip="Copy the ID" type="button" data-tooltip-append-to-parent="true"><span class="jenkins-copy-button__icon"><l:icon src="symbol-check"/></span></button></span>
+      <st:adjunct includes="lib.layout.copyButton.copyButton"/>
+    </td>
+  </tr>
+</j:jelly>

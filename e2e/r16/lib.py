@@ -214,11 +214,36 @@ return ids.join(',')""")
     return [x for x in out.split(",") if x]
 
 
+STATUS_ROW = re.compile(r">\s*Status\s*</th>\s*<td[^>]*>((?:(?!</td>).)*)</td>", re.S)
+STATUS_HOOK = re.compile(r'<span[^>]*data-batch-control-status="([A-Z_]+)"[^>]*>(?:(?!</span>).)*</span>', re.S)
+
+
+def status_cell(html):
+    """The Status row of a request or incident page: (the status's enum name, the row's text with the status written as
+    its enum name). Since Wave D D2 the row shows a readable label in an element carrying
+    data-batch-control-status=<ENUM> ("Approved, waiting to run (queued run cancelled: it will not start)" reads
+    "APPROVED (queued run cancelled: it will not start)"); a page without that element shows the enum itself.
+    (None, None) when the page has no Status row."""
+    m = STATUS_ROW.search(html or "")
+    if not m:
+        return None, None
+    cell = m.group(1)
+    h = STATUS_HOOK.search(cell)
+    if h:
+        cell = cell[:h.start()] + h.group(1) + cell[h.end():]
+    text = re.sub(r"\s+", " ", text_of(cell)).strip()
+    return (h.group(1) if h else (text.split() or [None])[0]), text
+
+
 def request_state(rid):
+    """(HTTP status, the run request's status as its page shows it, as the enum name, the page's text)."""
     r = api("admin", f"/batch-control/requests/{rid}/")
     t = text_of(r.text)
-    m = re.search(r"Status (\w+)", t)
-    return r.status_code, (m.group(1) if m else None), t
+    enum = status_cell(r.text)[0]
+    if enum is None:
+        m = re.search(r"Status (\w+)", t)
+        enum = m.group(1) if m else None
+    return r.status_code, enum, t
 
 
 def builds(job):

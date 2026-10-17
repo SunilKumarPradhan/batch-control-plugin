@@ -26,33 +26,52 @@ administrator turns them on.
 - **Audit history independent of builds.** Runs, requests, decisions,
   configuration changes with diffs, and failures are kept append-only under
   `$JENKINS_HOME/batch-control/`, with history screens and CSV export.
-- **Incidents.** Failed and unstable runs open an incident with the last 100
-  console lines, to acknowledge, resolve and rerun through a request.
+- **Incidents.** Failed and unstable runs open an incident (the default;
+  aborted runs can be added in the settings) with the last 100 console lines,
+  to acknowledge, resolve and rerun through a request.
 - **Fits your security setup.** Works through Batch Control variants of Matrix
   Authorization Strategy and Role-based Authorization Strategy; e-mail
   notifications (off by default); configurable with Configuration as Code.
 
 ## Screenshots
 
-**Request Run** on a protected job.
+The frames drawn on each screenshot mark where to look.
 
-![Request Run form of a protected job, with its build parameters, a reason field and approver checkboxes](docs/images/request-run.png)
+### 1. Set it up (administrator)
 
-A pending run request, as its approver sees it.
+**Administrator:** turns on run control, change control or both, and lists the
+approvers.
 
-![An approver's view of a pending run request showing its parameters, reason and requester, with Approve and Reject buttons](docs/images/approval.png)
+![Batch Control section of Manage Jenkins → System. One frame surrounds the Enable run control and Enable change control checkboxes, both checked; another surrounds the Approvers list, which holds approver-1, approver-2 and admin. The other settings follow, down to Send e-mail notifications.](docs/images/global-config.png)
 
-Requesting a permission window.
+### 2. Run a protected job (run control)
 
-![Permission window request form with the job or folder name, the CREATE, CONFIGURE and DELETE actions, a duration and a reason](docs/images/permission-window.png)
+**Requester:** chooses **Request Run** on a job that requires approval, gives a
+reason and picks the approvers.
 
-The History page, Requests view.
+![Request Run form of the job batch » daily-settlement, with Request Run selected in the job's sidebar. A frame surrounds the Reason field, filled in, and the Approvers checkboxes, where approver-1 is checked and approver-2 and admin are not. The job's three build parameters and the Submit Request button follow.](docs/images/request-run.png)
 
-![Batch Control History page in its Requests view, listing eight run requests with their job, requester, approvers, who decided, status (PENDING, EXECUTED, REJECTED, CANCELLED), and created and decided times](docs/images/dashboard.png)
+**Approver:** reads the reason and the parameters, then chooses **Approve** or
+**Reject**.
 
-The global configuration.
+![Pending run request for batch/daily-settlement as its approver sees it: status PENDING, the requester, the approver, the reason, the three parameter values and the job's two recent runs. Under Decision, one frame surrounds the Approve button and another the Reject button.](docs/images/approval.png)
 
-![Batch Control section of the Jenkins global configuration, with the run control and change control switches and the approver list](docs/images/global-config.png)
+**Anyone with the `BatchControl/ViewHistory` permission:** finds that request in
+**History** and sees who asked, who decided and that it ran.
+
+![Batch Control History page in its Requests view, listing eight run requests with their job, requester, approvers, who decided, status, and created and decided times. A frame surrounds the first row: batch/daily-settlement, requested by requester, decided by approver-1, EXECUTED. Of the other seven, four are EXECUTED, one is PENDING, one CANCELLED and one REJECTED.](docs/images/history.png)
+
+### 3. Change a job safely (change control)
+
+**Requester:** requests a permission window, here `CONFIGURE` on one job for 60
+minutes, and gives a reason.
+
+![Request Change Permission form, prefilled for the job batch/nightly-load. One frame surrounds Actions, where Configure is checked and Create and Delete are not, and Duration, set to 60 minutes; another surrounds the Reason field, filled in. Two approvers are checked below, above the Request Grant button.](docs/images/permission-window.png)
+
+**Approver:** reads the request, then chooses **Approve** or **Reject**. An
+approved window closes by itself when the time is up.
+
+![Pending permission window request, titled Grant Request, as its approver sees it: Freestyle project batch/nightly-load, action CONFIGURE, 60 minutes, status PENDING, the requester, the approvers and the reason, with a note that the window does not allow renaming and a warning about the account builds run as. Under Decision, one frame surrounds the Approve button and another the Reject button.](docs/images/permission-window-approval.png)
 
 ## Requirements
 
