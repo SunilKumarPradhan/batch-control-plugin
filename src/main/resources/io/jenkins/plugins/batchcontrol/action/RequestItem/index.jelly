@@ -10,6 +10,14 @@
       <l:app-bar title="${it.pageTitle}"/>
       <bc:tabs active="requests"/>
 
+      <!-- D-88 (#1.9): reached by the redirect of a refused identical submission; shown to this
+           pending request's requester only (RequestItem#isIdenticalNotice). Constant text. -->
+      <j:if test="${it.identicalNotice}">
+        <div class="jenkins-alert jenkins-alert-info" role="status" data-batch-control-identical-notice="true">
+          An identical request of yours is already pending, so it was not submitted again. This is that request.
+        </div>
+      </j:if>
+
       <!-- DEF-09: a refusal whose form is no longer shown (the request was decided or cancelled
            meanwhile) is reported here, above the current state. -->
       <j:if test="${!it.canDecide}">

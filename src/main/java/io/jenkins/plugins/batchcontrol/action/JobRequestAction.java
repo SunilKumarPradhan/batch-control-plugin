@@ -18,6 +18,7 @@ import io.jenkins.plugins.batchcontrol.config.BatchControlGlobalConfiguration;
 import io.jenkins.plugins.batchcontrol.model.Incident;
 import io.jenkins.plugins.batchcontrol.model.RunRequest;
 import io.jenkins.plugins.batchcontrol.ops.IncidentService;
+import io.jenkins.plugins.batchcontrol.policy.IdenticalPendingRequestException;
 import io.jenkins.plugins.batchcontrol.policy.ActivationService;
 import io.jenkins.plugins.batchcontrol.policy.ParameterFiles;
 import io.jenkins.plugins.batchcontrol.policy.RequestBodyLimit;
@@ -29,6 +30,7 @@ import io.jenkins.plugins.batchcontrol.security.GrantService;
 import io.jenkins.plugins.batchcontrol.store.ParameterDisplay;
 import io.jenkins.plugins.batchcontrol.store.StoreWriteException;
 import io.jenkins.plugins.batchcontrol.store.XmlChars;
+import io.jenkins.plugins.batchcontrol.ui.ApprovalRequiredFailure;
 import io.jenkins.plugins.batchcontrol.ui.ApproverInput;
 import io.jenkins.plugins.batchcontrol.ui.ApproverOptions;
 import io.jenkins.plugins.batchcontrol.ui.Dialogs;
@@ -587,6 +589,12 @@ public class JobRequestAction implements Action {
                     rsp.sendRedirect2(req.getContextPath() + "/batch-control/requests/"
                             + Util.rawEncode(request.getId()) + "/");
                     return;
+                } catch (IdenticalPendingRequestException e) {
+                    // D-88 (#1.9): nothing was created, stored or notified. A browser is sent to the
+                    // request the user already has, whose page says so; a script is answered 409
+                    // naming it (ApprovalRequiredFailure#isScriptCaller, the R4-02 rule).
+                    refuseIdentical(req, rsp, e);
+                    return;
                 } catch (RequestTooLargeException e) {
                     // security-37 S-37-01: what the request would keep is over the cap. The service
                     // stored nothing and disposed of the values' files: 413, like an oversized body.
@@ -610,6 +618,25 @@ public class JobRequestAction implements Action {
         }
         // D-66: a refusal is shown where the form was, in the dialog or on this page.
         errors.attach(submitted).render(req, rsp, this, Dialogs.refusalView(req, "index.jelly"));
+    }
+
+    /**
+     * D-88 (#1.9): answers a submission identical to a PENDING request of the same user. A browser
+     * (or the request dialog's page script) is redirected to that request's page with
+     * {@value RequestItem#IDENTICAL_PARAMETER}, which shows that the identical request was not
+     * submitted again; a script gets HTTP 409 with the service's plain-text message, which names
+     * the existing request's id.
+     */
+    private static void refuseIdentical(StaplerRequest2 req, StaplerResponse2 rsp, IdenticalPendingRequestException e)
+            throws IOException {
+        if (ApprovalRequiredFailure.isScriptCaller(req)) {
+            rsp.setStatus(HttpServletResponse.SC_CONFLICT);
+            rsp.setContentType("text/plain;charset=UTF-8");
+            rsp.getWriter().println(e.getMessage());
+            return;
+        }
+        rsp.sendRedirect2(req.getContextPath() + "/batch-control/requests/" + Util.rawEncode(e.getExistingRequestId())
+                + "/?" + RequestItem.IDENTICAL_PARAMETER + "=true");
     }
 
     /**

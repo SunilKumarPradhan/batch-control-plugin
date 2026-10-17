@@ -159,7 +159,7 @@ public class ApprovalRequiredFailure extends Failure {
      * credentials (an API token, {@code curl -u}, {@code requests auth=}) with every request,
      * or names a non-HTML type, or sends no {@code Accept} at all.
      */
-    static boolean isScriptCaller(StaplerRequest2 req) {
+    public static boolean isScriptCaller(StaplerRequest2 req) {
         String accept = req.getHeader("Accept");
         if (accept == null) {
             return true;
