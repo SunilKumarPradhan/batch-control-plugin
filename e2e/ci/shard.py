@@ -345,6 +345,14 @@ UNITS = [
     Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
+    # e2e-28 #35. r28/large_diff.py deletes and re-creates its own items (r28-big, r28-small, r28-huge, r28-control),
+    # saves them through the configure form and REST, switches both switches off for one unrecorded reference save in the
+    # script console and puts them back, and deletes its items at the end.
+    Unit("r28-large-diff", 0.6, [("r28-large-diff", py("r28/large_diff.py"))], group="crawl and ui checks",
+         doc="e2e-28 #35: large job configurations (4,000 and 6,000 description lines) saved through the configure form "
+             "and REST: one CONFIGURE record each, whose diff equals difflib's line by line and reads the same for the "
+             "auditor; the small change and the size-cap note unchanged; no OutOfMemoryError; the saving thread's "
+             "allocation for the diff below 16 MB on the real controller"),
     # e2e-26 #32 (wave B). r26/case_rename.py deletes and re-creates its own items (r26-Nightly, r26-Weekly, folders r26-Team
     # and r26-Ops), renames them through the script console, restarts Jenkins (last) and disables its timer jobs at its
     # end. On the Linux CI volume (case-sensitive) it is the guard of the scenario; with compose.ci-fs.yml on a macOS host
