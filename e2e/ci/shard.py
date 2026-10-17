@@ -347,7 +347,8 @@ UNITS = [
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
     # e2e-28 #35. r28/large_diff.py deletes and re-creates its own items (r28-big, r28-small, r28-huge, r28-control),
     # saves them through the configure form and REST, switches both switches off for one unrecorded reference save in the
-    # script console and puts them back, and deletes its items at the end.
+    # script console and puts them back, and deletes its items at the end. Weight: 22 to 32 s in three runs through
+    # ci/run.sh (two on a fresh stack, one in its group; 2026-10-17, local).
     Unit("r28-large-diff", 0.6, [("r28-large-diff", py("r28/large_diff.py"))], group="crawl and ui checks",
          doc="e2e-28 #35: large job configurations (4,000 and 6,000 description lines) saved through the configure form "
              "and REST: one CONFIGURE record each, whose diff equals difflib's line by line and reads the same for the "
