@@ -644,6 +644,96 @@ public final class FileStore implements Store {
     }
 
     @Override
+    public boolean isSameActivationFile(String oldFullName, String newFullName) {
+        Objects.requireNonNull(oldFullName, "oldFullName");
+        Objects.requireNonNull(newFullName, "newFullName");
+        String oldName = activationFileName(oldFullName);
+        String newName = activationFileName(newFullName);
+        if (oldName.equals(newName)) {
+            return true;
+        }
+        boolean caseOnly = oldName.equalsIgnoreCase(newName);
+        Path oldFile = PathCodec.resolveUnder(activationDir(), oldName);
+        Path newFile = PathCodec.resolveUnder(activationDir(), newName);
+        try {
+            // #32: a probe file under a fresh name decides a case-only difference. A directory entry the
+            // kernel cached for either job name cannot answer for a name nobody looked up before (a
+            // Linux kernel over a case-insensitive host directory caches one entry per spelling, and
+            // a negative one for a spelling looked up before the file existed).
+            if (caseOnly && isCaseInsensitive(activationDir())) {
+                return true;
+            }
+            return Files.exists(oldFile, LinkOption.NOFOLLOW_LINKS) && Files.exists(newFile, LinkOption.NOFOLLOW_LINKS)
+                    && Files.isSameFile(oldFile, newFile);
+        } catch (IOException | RuntimeException e) {
+            // Cannot be told apart: a name that differs in case only is taken to be the same file, so
+            // the caller never deletes it (on a case-sensitive file system that only leaves the old
+            // name's file behind, which is not read for a job of any other name).
+            LOGGER.log(Level.FINE, e, () -> "Could not compare " + oldFile + " and " + newFile);
+            return caseOnly;
+        }
+    }
+
+    /**
+     * Whether names that differ in case only name one file in {@code dir}: a probe file is created
+     * under a fresh name, looked up under its lower-case spelling, and removed. A dot file, so the
+     * {@code *.xml} listing never sees one a crash left behind.
+     */
+    private static boolean isCaseInsensitive(Path dir) throws IOException {
+        Files.createDirectories(dir);
+        Path probe = Files.createTempFile(dir, ".CaseProbe-", ".tmp");
+        try {
+            Path fileName = probe.getFileName();
+            if (fileName == null) {
+                return false;
+            }
+            Path lower = probe.resolveSibling(fileName.toString().toLowerCase(Locale.ROOT));
+            return Files.exists(lower, LinkOption.NOFOLLOW_LINKS) && Files.isSameFile(probe, lower);
+        } finally {
+            deleteQuietly(probe);
+        }
+    }
+
+    @Override
+    public void matchActivationFileCase(String jobFullName) {
+        Objects.requireNonNull(jobFullName, "jobFullName");
+        String wanted = activationFileName(jobFullName);
+        Path target = PathCodec.resolveUnder(activationDir(), wanted);
+        ReentrantLock lock = lockFor(target);
+        lock.lock();
+        try {
+            String stored = storedName(target);
+            if (stored == null || stored.equals(wanted)) {
+                return;
+            }
+            // A case-only rename of one file, in one atomic rename (a plain Files.move sees the same file
+            // and does nothing): a crash leaves it under one spelling or the other, and this file system
+            // finds it under both. Never via a temporary name, where a crash would hide the state from
+            // the next start. A file system that keeps the old case on this rename keeps it.
+            Files.move(target.resolveSibling(stored), target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException | RuntimeException e) {
+            LOGGER.log(Level.WARNING, e, () -> "Could not give the activation state file of '" + jobFullName
+                    + "' the case of its new name; it is still found under that name on this file system");
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** The name {@code file} is listed under in its directory (its case can differ), or {@code null} if none. */
+    @CheckForNull
+    private static String storedName(Path file) throws IOException {
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+            return null;
+        }
+        Path real = file.toRealPath(LinkOption.NOFOLLOW_LINKS).getFileName();
+        return real == null ? null : real.toString();
+    }
+
+    private static String activationFileName(String jobFullName) {
+        return PathCodec.encode(jobFullName) + ".xml";
+    }
+
+    @Override
     public boolean isActivationSchemaMarked() {
         return Files.isRegularFile(PathCodec.resolveUnder(activationDir(), ACTIVATION_SCHEMA_MARKER));
     }
