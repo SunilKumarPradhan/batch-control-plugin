@@ -415,7 +415,9 @@ UNITS = [
     # compose.permissions.yml, and puts everything back (no `last`). Weight: 12.2 to 14.2 s on a fresh stack
     # (2026-10-13, local, 34 checks).
     Unit("r27-revert-permissions", 0.2, [("r27-revert-permissions", py("r27/revert_permissions.py"))],
-         group="job ui other roles",  # other accounts' view of the configuration pages; keeps group 3 under 19.5
+         # other accounts' view of the configuration pages; was in "job ui other roles" until r26-case-rename (1.5, last)
+         # joined it on 2026-10-17 and took it to 20.0: moved with r22-grant-monitor to the lightest group
+         group="crawl and ui checks",
          doc="e2e-27 D1: holders of Overall/Manage and Overall/SystemRead (with and without BatchControl/Manage) get "
              "nothing of the revert on Manage Jenkins > System and the Batch Control page, no Advanced control, the "
              "administrator-only sentence where the section is shown, 403 on the endpoint; a save of System by an "
@@ -452,7 +454,7 @@ ORDER = {u.name: i for i, u in enumerate(UNITS)}
 GROUPS = [
     ("crawl and ui checks", [  # requester's and manager's crawls, the DEF-07 recheck, every control per role, the
         "def07", "crawl-requester", "crawl-manager", "r22-approver-case",  # e2e-12/14 targeted checks, round 3, the Reject colour
-        "actions", "misc", "targeted", "round3", "r21-reject-color"]),
+        "actions", "misc", "targeted", "round3", "r21-reject-color", "r22-grant-monitor"]),
     ("crawls and multibranch", [  # the crawls of admin, reqonly, approver-1 and nobc, the multibranch job pages
         "crawl-admin", "crawl-reqonly", "crawl-approver-1", "crawl-nobc", "multibranch", "r22-cancelled-notice"]),
     ("admin and role strategy", [  # admin's job UI, then the role-strategy profile and its crawl (last)
@@ -463,8 +465,9 @@ GROUPS = [
         "jobui-new-reqonly", "jobui-classic-reqonly", "r22-nonascii-reason",  # removed on disk with reload and restart (last)
         "r16-items", "r16-rename", "r16-follow", "r16-names", "r17-s39", "r19-kinds", "r17-disk"]),
     ("job ui other roles", [  # the job UI of approver-1, manager and nobc; typed parameters (r16-params arranges its
-        "jobui-new-others", "jobui-classic-others", "r22-grant-monitor",  # own items; moved here on 2026-10-14 when the
-        "r16-params"]),  # D2 unit's 2.8 min would have taken "job ui params and restart" to 19.6, above the heaviest 19.5
+        "jobui-new-others", "jobui-classic-others",  # own items; moved here on 2026-10-14 when the D2 unit's 2.8 min
+        "r16-params"]),  # would have taken "job ui params and restart" to 19.6, above the heaviest 19.5; r22-grant-monitor
+    # and r27-revert-permissions left on 2026-10-17 for "crawl and ui checks" when r26-case-rename (last) joined
     ("runs and switches", [  # the run gate, reruns and the prefilled form, triggers, other plugins, the request
         "r16-rerun", "r16-d60",  # lifecycle, then the global switches and the strategy (last)
         "r19-gate", "r22-scripted-build", "r19-plugins", "r19-triggers", "r19-lifecycle", "r18-final"]),
