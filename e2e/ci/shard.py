@@ -345,6 +345,15 @@ UNITS = [
     Unit("r22-rename-queue", 0.8, [("r22-rename-queue", py("r22/rename_queue.py"))], group="runs and switches",
          doc="e2e-22 R2-04: a rename by a user who loses Item/Read on the new name still invalidates the approved request "
              "and drops its queued run, which never builds once a node has the label; control: the administrator's rename"),
+    # e2e-28 #35. r28/large_diff.py deletes and re-creates its own items (r28-big, r28-small, r28-huge, r28-control),
+    # saves them through the configure form and REST, switches both switches off for one unrecorded reference save in the
+    # script console and puts them back, and deletes its items at the end. Weight: 22 to 32 s in three runs through
+    # ci/run.sh (two on a fresh stack, one in its group; 2026-10-17, local).
+    Unit("r28-large-diff", 0.6, [("r28-large-diff", py("r28/large_diff.py"))], group="crawl and ui checks",
+         doc="e2e-28 #35: large job configurations (4,000 and 6,000 description lines) saved through the configure form "
+             "and REST: one CONFIGURE record each, whose diff equals difflib's line by line and reads the same for the "
+             "auditor; the small change and the size-cap note unchanged; no OutOfMemoryError; the saving thread's "
+             "allocation for the diff below 16 MB on the real controller"),
     # e2e-28 #44. r28/grant_blocked.py deletes and re-creates its own item (r28-gb), switches change control off for its
     # sections and puts it back, and cancels the window request it files with change control on. Weight: 5.5 to 6.6 s in
     # three runs through ci/run.sh (two on a fresh stack, one in its group; 2026-10-17, local).
