@@ -160,13 +160,16 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
      * natively puts the job into the "changed under a grant" state: the replayed script is a
      * configuration change that is never saved. Only reads the grant cache and, rarely, writes the
      * grant file; never throws.
+     *
+     * <p>#1.1 (S-31-01): a re-run of a marked run carries the marker whatever the switches say, so
+     * its script is still tracked once change control is on again. The marker is an invisible
+     * action and changes no Jenkins behaviour; refusing a re-run of it stays gated on the switch
+     * ({@link #refuseMarkedSource}). A new mark from a grant needs change control on, since only
+     * then does a window confer anything.
      */
     private static void markReplayUnderGrant(Queue.Task p, List<Action> actions) {
         try {
-            if (!(p instanceof Job) || !BatchControlGlobalConfiguration.get().isChangeControlEnabled()) {
-                return;
-            }
-            if (!isScriptRerun(actions)) {
+            if (!(p instanceof Job) || !isScriptRerun(actions)) {
                 return;
             }
             org.springframework.security.core.Authentication auth = Jenkins.getAuthentication2();
@@ -176,8 +179,13 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
             ReplayUnderGrantAction inherited = source.run() == null ? null
                     : source.run().getAction(ReplayUnderGrantAction.class);
             if (inherited != null) {
-                // DEF-40: recorded as a marker inherited from the marked run, not as the submitter's grant.
-                actions.add(new ReplayUnderGrantAction(auth.getName(), inherited.getGrantId(), source.run().getNumber()));
+                // DEF-40: recorded as a marker inherited from the marked run, not as the submitter's grant;
+                // #1.2: it keeps naming the grant-only user who replayed the script.
+                actions.add(new ReplayUnderGrantAction(auth.getName(), inherited.getGrantId(), source.run().getNumber(),
+                        inherited.getReplayedBy()));
+                return;
+            }
+            if (!BatchControlGlobalConfiguration.get().isChangeControlEnabled()) {
                 return;
             }
             if (ACL.SYSTEM2.equals(auth) || ACL.isAnonymous2(auth)) {
@@ -272,9 +280,12 @@ public class ApprovalQueueDecisionHandler extends Queue.QueueDecisionHandler {
                             : "' - the run's script was replayed under a permission window"),
                     unresolved ? "unresolvedSource" : "replayedUnderGrant");
         } else {
-            recordTriggerBlocked(job, KIND_REPLAY, "replayedUnderGrant", "Blocked a re-run of job '"
-                    + job.getFullName() + "' build #" + source1 + " - the run's script was replayed under a"
-                    + " permission window");
+            // #1.5 (S-32-01): anonymous gets the same wording and switch as a person. SYSTEM never
+            // gets here: it holds Overall/Administer, so its re-run is let through above (D-58c).
+            recordTriggerBlocked(job, KIND_REPLAY, unresolved ? "unresolvedSource" : "replayedUnderGrant",
+                    "Blocked a re-run of job '" + job.getFullName() + "' build #" + source1
+                            + (unresolved ? " - the run it repeats could not be identified"
+                                    : " - the run's script was replayed under a permission window"));
         }
         if (CLICommand.getCurrent() != null) {
             throw new IllegalStateException(message);

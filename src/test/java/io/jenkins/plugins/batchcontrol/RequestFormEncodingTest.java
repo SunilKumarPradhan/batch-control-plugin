@@ -4,6 +4,9 @@ import hudson.model.FreeStyleProject;
 import hudson.model.Item;
 import hudson.model.ParametersDefinitionProperty;
 import hudson.model.StringParameterDefinition;
+import hudson.model.User;
+import hudson.security.ACL;
+import hudson.security.ACLContext;
 import io.jenkins.plugins.batchcontrol.config.BatchControlGlobalConfiguration;
 import io.jenkins.plugins.batchcontrol.config.BatchControlJobProperty;
 import io.jenkins.plugins.batchcontrol.model.RequestStatus;
@@ -113,6 +116,7 @@ public class RequestFormEncodingTest {
         String directId = submitForm(wc, direct, REASON, "a1");
         assertEquals(REASON, RunRequestService.get().load(directId).getReason(),
                 "guard: a first-time browser submission stores the reason as typed");
+        cancelGuardRequest(directId); // D-88: the resubmission below is identical to it (note 359)
 
         Set<String> before = runRequestIds();
         HtmlForm form = TypedParameterFixtures.requestRunForm(j, wc, job);
@@ -150,6 +154,7 @@ public class RequestFormEncodingTest {
         String urlencodedId = accepted(job, false, fields(REASON, "a1", false), "guard: the url-encoded submission with a1");
         assertEquals(REASON, RunRequestService.get().load(urlencodedId).getReason(),
                 "guard: the url-encoded submission stores the reason exactly");
+        cancelGuardRequest(urlencodedId); // D-88: the multipart submission below is identical to it (note 359)
 
         Set<String> beforeMultipart = runRequestIds();
         Page refused = post(job, true, withJson(fields(REASON, null, false), REASON));
@@ -178,6 +183,7 @@ public class RequestFormEncodingTest {
         assertEquals(REASON, urlencoded.getReason(), "guard: the url-encoded raw submission stores the reason exactly");
         assertEquals(NOTE_VALUE, urlencoded.getParameters().get("NOTE"),
                 "guard: the url-encoded raw submission stores NOTE exactly; stored " + urlencoded.getParameters());
+        cancelGuardRequest(urlencodedId); // D-88: the multipart submission below is identical to it (note 359)
 
         Set<String> before = runRequestIds();
         Page refused = post(paramJob, true, fields(REASON, null, true));
@@ -195,6 +201,19 @@ public class RequestFormEncodingTest {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Amended for D-88 (note 359): an identical pending run request is not created twice, so the
+     * guard's request (same job, reason, parameters and approver as the later submission) is
+     * cancelled by its requester first; the later submission still sends exactly the same text.
+     */
+    private static void cancelGuardRequest(String id) {
+        try (ACLContext ignored = ACL.as2(User.getById("u1", true).impersonate2())) {
+            RunRequestService.get().cancel(id);
+        }
+        assertEquals(RequestStatus.CANCELLED, RunRequestService.get().load(id).getStatus(),
+                "fixture: the guard's request is cancelled before the identical submission (D-88)");
+    }
 
     /** reason, optionally one approvers part, optionally the raw NOTE part (parameter named like buildWithParameters). */
     private static List<NameValuePair> fields(String reason, String approver, boolean note) {

@@ -13,6 +13,7 @@ import io.jenkins.plugins.batchcontrol.config.BatchControlGlobalConfiguration;
 import io.jenkins.plugins.batchcontrol.model.Approvers;
 import io.jenkins.plugins.batchcontrol.model.RequestStatus;
 import io.jenkins.plugins.batchcontrol.model.RunRequest;
+import io.jenkins.plugins.batchcontrol.policy.RequestNotPendingException;
 import io.jenkins.plugins.batchcontrol.policy.RunRequestService;
 import io.jenkins.plugins.batchcontrol.security.BatchControlPermissions;
 import io.jenkins.plugins.batchcontrol.ui.ApproverInput;
@@ -56,6 +57,12 @@ import org.springframework.security.core.Authentication;
 public class RequestItem implements ModelObject {
 
     /** How many recent runs of the target job the decision screen shows by default (T-E2E-05). */
+    /**
+     * D-88 (#1.9): the query parameter with which {@code JobRequestAction#doSubmit} sends a browser
+     * here after refusing a submission identical to this request ({@link #isIdenticalNotice()}).
+     */
+    public static final String IDENTICAL_PARAMETER = "identical";
+
     private static final int DEFAULT_RECENT_RUN_LIMIT = 5;
 
     /**
@@ -337,6 +344,18 @@ public class RequestItem implements ModelObject {
         return request.isDesignatedApprover(approver);
     }
 
+    /**
+     * D-88 (#1.9): whether the page says that an identical submission was not created: the page
+     * was reached through the redirect of a refused identical submission
+     * ({@value #IDENTICAL_PARAMETER}) and the viewer is this PENDING request's requester (the
+     * service's change-approver predicate), so a hand-made link shows nothing to anyone else.
+     * Constant text only.
+     */
+    public boolean isIdenticalNotice() {
+        StaplerRequest2 req = Stapler.getCurrentRequest2();
+        return req != null && req.getParameter(IDENTICAL_PARAMETER) != null && isCanChangeApprover();
+    }
+
     /** View gating for the cancel link; the service enforces requester-or-Manage. */
     public boolean isCanCancel() {
         // D-38b: the service's predicate (requester with Request on the job, or Manage).
@@ -454,6 +473,12 @@ public class RequestItem implements ModelObject {
             throws IOException, ServletException {
         try {
             serviceCall.run();
+        } catch (RequestNotPendingException e) {
+            // #1.7 (e2e-05 EX-01): a stale form for a request decided meanwhile. A plain refusal
+            // naming the request's status above the page, not a field error of a form that is no
+            // longer shown.
+            refresh().renderRefusal(req, rsp, errors.message(e.getMessage()));
+            return;
         } catch (IllegalArgumentException | IllegalStateException e) {
             refresh().renderRefusal(req, rsp, filer.apply(e.getMessage()));
             return;

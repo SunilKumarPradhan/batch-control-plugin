@@ -502,8 +502,7 @@ public final class GrantRequestService {
                         "Only the requester may change the approvers of grant request " + id + ".");
             }
             if (request.getStatus() != RequestStatus.PENDING) {
-                throw new IllegalStateException("Grant request " + id + " is "
-                        + request.getStatus() + "; the approvers can only be changed while PENDING.");
+                throw new RequestNotPendingException("permission window request", request.getStatus());
             }
             List<String> designated = ApprovalPolicy.checkDesignation(request.getRequester(), newApprovers, null);
             request.addApproverChange(new GrantRequest.ApproverChange(

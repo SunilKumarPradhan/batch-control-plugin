@@ -53,10 +53,12 @@
 Request*Test
 RunRequest*Test
 JobRunSidebarEntryTest UnsavedExecutionRecoveryTest
+IdenticalPendingRequestTest
 
 [run approval and mail]
 Approv*Test
 DiscoverOnlyRequestScreenTest ExpiryAndCancelTest MissedInvalidationGapTest
+DecidedRequestApproverChangeTest
 MultiApproverTest PendingCountTest QueueBlockTest RunControlUsabilityTest
 DeprecatedUserCauseTest
 DecisionAreaTest
@@ -84,6 +86,7 @@ Trigger*Test
 [permission windows]
 ActiveGrantsRealJenkinsTest ComputedItemWindowTest
 BlockedGrantRequestPermissionTest
+FolderSelfGrantRefusalTextTest
 Grant*Test
 Window*Test
 JobGrantSidebarEntryTest
@@ -97,6 +100,8 @@ OrganizationFolderCreationGapTest
 Authorization*Test
 FailClosedGapTest PlainMatrixMoveGuardTest ResponsePassThroughTest SecurityRegressionTest
 Guard*Test
+MarkedRerunFollowUpTest
+MarkedRunRestartFollowUpTest
 PermissionBoundaryGapTest
 # what a viewer is shown: actions, links, job URLs, section tabs
 ActionVisibilityTest JobUrlRoutingRealJenkinsTest ModelLinkTest RunLinkRuleTest

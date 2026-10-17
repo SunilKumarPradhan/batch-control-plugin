@@ -105,8 +105,10 @@ public class PagerParameterTest {
     @Test
     public void t_ui_146_requestsPagerKeepsTheOtherListsPage() throws Exception {
         String path = "batch-control/requests/";
+        // amended for D-88 (note 359): each pending request has its own reason, so none is identical to another
+        java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
         Set<String> pending = fill(path, PENDING_PAGE, () -> as("u1",
-                () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "pending run", "a1").getId()));
+                () -> RunRequestService.get().create(job, new LinkedHashMap<>(), "pending run " + n.incrementAndGet(), "a1").getId()));
         Set<String> ended = fill(path, ENDED_PAGE, () -> as("u1", () -> {
             String id = RunRequestService.get().create(job, new LinkedHashMap<>(), "cancelled run", "a1").getId();
             RunRequestService.get().cancel(id);

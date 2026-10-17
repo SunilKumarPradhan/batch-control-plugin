@@ -298,6 +298,23 @@ UNITS = [
              "disabled job: Reject only), all in the browser; the 7-column run tables and 4-column incident tables with "
              "the icon/job/#n/label Run cell, the link rule per viewer, folded and cut parameters, no wrapping; the five "
              "setting groups on both configuration pages for admin and manager, saved through the real form"),
+    # e2e-28 #1 follow-ups, one driver (r28/rerun_followups.py) in two units of different groups. The first re-creates
+    # r28-rp, saves the matrix strategy and puts it back (it adds r28-alice and gives anonymous Overall/Read, Job/Read and
+    # Run/Replay), switches change control off and on and puts it back, and revokes the windows it opens; r28-stale's
+    # entry is taken out of Jenkins' item map for section S and put back, and r28-stale, r28-jobj and the folder
+    # r28-team are deleted at the end. Weight: 23 s on a fresh stack with sections S and F (2026-10-18, local).
+    Unit("r28-rerun-markers", 0.4, [("r28-rerun-markers", py("r28/rerun_followups.py", "PMNUSF"))], group="crawls and multibranch",
+         doc="e2e-28 #1: re-runs of a marked run made while change control is off are marked (#1.1); a carried marker's "
+             "record names the re-runner and the original replayer (#1.2); an anonymous re-run with an unresolvable "
+             "source is recorded as unresolved (#1.5); a stale listed name can be marked reviewed by an administrator "
+             "only (#1.4); the folder self-grant refusal names no Batch Control page and asks for direct Configure (#1.6)"),
+    # The second re-creates r28-rq, r28-act and r28-dup and cancels the requests it leaves pending. Weight: 25 to 27 s
+    # (a fresh stack and its group, 2026-10-17, local), counted as 0.4 so the group stays at 19.5 once r28-grant-blocked
+    # (#44, 0.1) joins it.
+    Unit("r28-request-followups", 0.4, [("r28-request-followups", py("r28/rerun_followups.py", "DI"))],
+         group="job ui params and restart",
+         doc="e2e-28 #1: a stale approver change on a decided request names its status (#1.7); an identical pending run "
+             "request is not created twice, from the browser and from a script (#1.9)"),
     # e2e-24 #38 (wave A). r24/deleted_job.py deletes and re-creates its own items (r24-del-*) and cancels what it leaves
     # PENDING.
     Unit("r24-deleted-job", 1.4, [("r24-deleted-job", py("r24/deleted_job.py"))], group="crawls and multibranch",

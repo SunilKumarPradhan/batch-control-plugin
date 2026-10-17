@@ -11,6 +11,7 @@ import io.jenkins.plugins.batchcontrol.model.ActivationRequest;
 import io.jenkins.plugins.batchcontrol.model.Approvers;
 import io.jenkins.plugins.batchcontrol.model.RequestStatus;
 import io.jenkins.plugins.batchcontrol.policy.ActivationService;
+import io.jenkins.plugins.batchcontrol.policy.RequestNotPendingException;
 import io.jenkins.plugins.batchcontrol.security.BatchControlPermissions;
 import io.jenkins.plugins.batchcontrol.ui.ActivationView;
 import io.jenkins.plugins.batchcontrol.ui.ApproverInput;
@@ -222,6 +223,12 @@ public class ActivationItem implements ModelObject {
                       Runnable serviceCall, String... keywords) throws IOException, ServletException {
         try {
             serviceCall.run();
+        } catch (RequestNotPendingException e) {
+            // #1.7 (e2e-05 EX-01): a stale form for a request decided meanwhile. A plain refusal
+            // naming the request's status above the page, not a field error of a form that is no
+            // longer shown.
+            refresh().renderRefusal(req, rsp, errors.message(e.getMessage()));
+            return;
         } catch (IllegalArgumentException | IllegalStateException e) {
             refresh().renderRefusal(req, rsp, errors.fromService(e.getMessage(), keywords));
             return;
