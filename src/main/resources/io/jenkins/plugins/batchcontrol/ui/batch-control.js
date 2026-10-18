@@ -39,12 +39,17 @@ document.addEventListener("click", function (event) {
     })
     .then(
       function () {
-        // Remove the guard so the re-click submits natively: the button's
-        // formaction (…/reject) is honoured and core still appends the crumb.
-        // (form.requestSubmit(button) is equivalent in real browsers, but the
-        // re-click is the path HtmlUnit's form submission is built on.)
-        button.removeAttribute("data-batch-control-confirm-reject");
-        button.click();
+        if (form) {
+          // Post to the button's formaction (…/reject), not the form's default
+          // action. form.submit() is synchronous (unlike a re-click through the
+          // promise) and works in HtmlUnit; the crumb is a hidden field in the
+          // form, so it is sent.
+          var target = button.getAttribute("formaction");
+          if (target) {
+            form.setAttribute("action", target);
+          }
+          form.submit();
+        }
       },
       function () {
         // Cancelled or dismissed: post nothing.
