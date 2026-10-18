@@ -208,7 +208,7 @@ class RejectConfirmationTest {
         return (HtmlPage) answer;
     }
 
-    private JenkinsRule.WebClient client(String user, boolean javaScript) {
+    private JenkinsRule.WebClient client(String user, boolean javaScript) throws Exception {
         JenkinsRule.WebClient wc = j.createWebClient().withThrowExceptionOnFailingStatusCode(false).login(user);
         wc.getOptions().setJavaScriptEnabled(javaScript);
         wc.getOptions().setThrowExceptionOnScriptError(false);
