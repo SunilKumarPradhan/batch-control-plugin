@@ -132,8 +132,8 @@ class RejectConfirmationTest {
         HtmlElement reject = button(page, "Reject");
         assertNotNull(reject, "the Decision section must offer Reject");
         reject.click();
-        page.getWebClient().waitForBackgroundJavaScript(2000);
-        RunRequest decided = RunRequestService.get().load(request.getId());
+        // The dialog confirm resolves async; poll for the rejection (robust on slow runners).
+        RunRequest decided = pollForStatus(request.getId(), RequestStatus.REJECTED, page);
         assertEquals(RequestStatus.REJECTED, decided.getStatus(),
                 "confirming the dialog must reject the request");
         assertEquals("wrong day", decided.getDecisionComment(), "the typed comment is kept");
@@ -156,8 +156,7 @@ class RejectConfirmationTest {
         HtmlElement approve = button(page, "Approve");
         assertNotNull(approve, "the Decision section must offer Approve");
         approve.click();
-        page.getWebClient().waitForBackgroundJavaScript(2000);
-        RunRequest decided = RunRequestService.get().load(request.getId());
+        RunRequest decided = pollForStatus(request.getId(), RequestStatus.APPROVED, page);
         assertEquals(RequestStatus.APPROVED, decided.getStatus(),
                 "Approve must still post with a single click (no confirmation)");
         assertEquals("looks good", decided.getDecisionComment(), "the typed comment is kept");
@@ -261,5 +260,19 @@ class RejectConfirmationTest {
                 "window.__bcDialogCalls && window.__bcDialogCalls.length"
                         + " ? window.__bcDialogCalls[0].message : null").getJavaScriptResult();
         return result == null ? null : String.valueOf(result);
+    }
+
+    /**
+     * Polls the request's status until it becomes {@code expected} or the timeout (30 s) expires.
+     * The dialog confirm resolves async, so a fixed sleep is fragile on slow runners.
+     */
+    private RunRequest pollForStatus(String requestId, RequestStatus expected, HtmlPage page) throws Exception {
+        long deadline = System.currentTimeMillis() + 30000;
+        RunRequest decided = RunRequestService.get().load(requestId);
+        while (decided.getStatus() != expected && System.currentTimeMillis() < deadline) {
+            page.getWebClient().waitForBackgroundJavaScript(500);
+            decided = RunRequestService.get().load(requestId);
+        }
+        return decided;
     }
 }
