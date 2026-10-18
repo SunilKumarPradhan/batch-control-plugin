@@ -39,11 +39,12 @@ document.addEventListener("click", function (event) {
     })
     .then(
       function () {
-        if (form) {
-          // Submits with this button as the submitter, so its formaction
-          // (…/reject) is honoured and core still appends the crumb.
-          form.requestSubmit(button);
-        }
+        // Remove the guard so the re-click submits natively: the button's
+        // formaction (…/reject) is honoured and core still appends the crumb.
+        // (form.requestSubmit(button) is equivalent in real browsers, but the
+        // re-click is the path HtmlUnit's form submission is built on.)
+        button.removeAttribute("data-batch-control-confirm-reject");
+        button.click();
       },
       function () {
         // Cancelled or dismissed: post nothing.
