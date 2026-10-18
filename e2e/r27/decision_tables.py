@@ -221,6 +221,10 @@ def press(s, caption, comment):
     try:  # a form submission always navigates (to the request page after a decision, or the refusal's page)
         with s.page.expect_navigation(timeout=20000) as nav:
             btn.click()
+            # #93: Reject asks for confirmation first (skipped for a blank comment, which the
+            # server refuses anyway); confirm core's dialog so the form posts.
+            if caption.lower() == "reject" and comment.strip() and lib.opened(s.page, timeout=5000):
+                s.page.locator("dialog[open] button[data-id=ok]").first.click()
         return f"navigated ({nav.value.status if nav.value else None})"
     except Exception as e:  # noqa: nothing navigated
         return None if "Timeout" in repr(e) else f"error: {e!r}"[:120]
@@ -364,6 +368,67 @@ def sec_B():
           "and Reject still post to .../approve and .../reject", after is not None and len(after["forms"]) == 1
           and after["forms"][0]["action"] == reject and tgt.get("approve") == approve and tgt.get("reject") == reject,
           forms=(after or {}).get("forms"), buttons=(after or {}).get("buttons"))
+
+
+def sec_R93():
+    """#93 (owner review of PR #102): rejecting a run request asks for confirmation first, in a real browser."""
+    st, rid = lib.submit_run("requester", BATCH, "e2e-27 R93 reject", params={"DAY": "2026-10-09", "MODE": "delta"})
+    s = Session("approver-1")
+    s.go(f"/batch-control/requests/{rid}/")
+    s.page.evaluate(MARK_JS)
+    s.page.locator("[data-r27-box='0']").fill("e2e-27 R93 wrong day")
+    btn = s.page.locator("[data-r27-btn='reject']").first
+    btn.scroll_into_view_if_needed()
+    posts = []
+    s.page.on("response", lambda r: posts.append(r.url) if r.request.method == "POST" else None)
+    btn.click()
+    opened = lib.opened(s.page, timeout=8000)
+    dlg_text = norm(s.page.locator("dialog[open]").first.inner_text()) if opened else None
+    lib.page_shot(s, "R27-R93-01-reject-confirmation")
+    check("R93", "#93 pressing Reject opens core's confirmation carrying the page's sentence",
+          opened and "Rejection is final for this request" in (dlg_text or ""), dialog=dlg_text)
+    closed = False
+    if opened:
+        s.page.locator("dialog[open] button[data-id=cancel]").first.click()
+        closed = lib.gone(s.page)
+    check("R93", "#93 Cancel posts nothing and the request stays PENDING",
+          closed and not posts and lib.stored("run", rid).get("status") == "PENDING",
+          closed=closed, posts=list(posts), stored=lib.stored("run", rid).get("status"))
+    btn.click()
+    opened2 = lib.opened(s.page, timeout=8000)
+    closed2 = False
+    if opened2:
+        s.page.keyboard.press("Escape")
+        closed2 = lib.gone(s.page)
+    check("R93", "#93 Escape posts nothing and the request stays PENDING",
+          closed2 and not posts and lib.stored("run", rid).get("status") == "PENDING",
+          closed=closed2, posts=list(posts), stored=lib.stored("run", rid).get("status"))
+    btn.click()
+    opened3 = lib.opened(s.page, timeout=8000)
+    if opened3:
+        with s.page.expect_navigation(timeout=20000):
+            s.page.locator("dialog[open] button[data-id=ok]").first.click()
+        s.page.wait_for_load_state("load")
+    stored = lib.stored("run", rid)
+    check("R93", "#93 confirming the dialog rejects the request with the typed comment",
+          stored.get("status") == "REJECTED" and stored.get("decidedBy") == "approver-1"
+          and stored.get("decisionComment") == "e2e-27 R93 wrong day", stored=stored)
+    s.done()
+    st2, rid2 = lib.submit_run("requester", BATCH, "e2e-27 R93 approve", params={"DAY": "2026-10-09", "MODE": "delta"})
+    s2 = Session("approver-1")
+    s2.go(f"/batch-control/requests/{rid2}/")
+    s2.page.evaluate(MARK_JS)
+    s2.page.locator("[data-r27-box='0']").fill("e2e-27 R93 ok")
+    abtn = s2.page.locator("[data-r27-btn='approve']").first
+    abtn.scroll_into_view_if_needed()
+    with s2.page.expect_navigation(timeout=20000):
+        abtn.click()
+    s2.page.wait_for_load_state("load")
+    stored2 = lib.stored("run", rid2)
+    check("R93", "#93 Approve still posts with a single click (no confirmation)",
+          stored2.get("status") == "APPROVED" and stored2.get("decisionComment") == "e2e-27 R93 ok",
+          stored=stored2)
+    s2.done()
 
 
 def sec_E():
@@ -1087,5 +1152,5 @@ def cleanup():
          strategy=lib.restore_strategy(), swept=lib.sweep("requester", P))
 
 
-lib.run(sys.argv, {"A": sec_A, "O": sec_O, "P": sec_P, "J": sec_J, "B": sec_B, "E": sec_E, "X": sec_X, "T": sec_T,
+lib.run(sys.argv, {"A": sec_A, "O": sec_O, "P": sec_P, "J": sec_J, "B": sec_B, "R93": sec_R93, "E": sec_E, "X": sec_X, "T": sec_T,
                    "L": sec_L, "I": sec_I, "C": sec_C, "S": sec_S, "D": sec_D, "Q": sec_Q, "Z": sec_Z}, cleanup)
