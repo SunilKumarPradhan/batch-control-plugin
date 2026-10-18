@@ -18,10 +18,10 @@
   <j:set var="bcIdClass" value="${bcIdLong ? 'batch-control-short-id' : null}"/>
   <j:choose>
     <j:when test="${attrs.href != null}">
-      <a href="${attrs.href}" class="${bcIdClass}" title="${bcIdLong ? attrs.value : null}" data-batch-control-id="${attrs.value}">${attrs.value}</a>
+      <a href="${attrs.href}" class="${bcIdClass}" tooltip="${bcIdLong ? attrs.value : null}" data-batch-control-id="${attrs.value}">${attrs.value}</a>
     </j:when>
     <j:otherwise>
-      <span class="${bcIdClass}" title="${bcIdLong ? attrs.value : null}" data-batch-control-id="${attrs.value}">${attrs.value}</span>
+      <span class="${bcIdClass}" tooltip="${bcIdLong ? attrs.value : null}" data-batch-control-id="${attrs.value}">${attrs.value}</span>
     </j:otherwise>
   </j:choose>
 </j:jelly>
