@@ -42,10 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Issue #93, matrix rows T-UI-292 and T-UI-293 (note 365): rejecting a run request from the
  * request page asks for confirmation first.
  *
- * <p>The tests stub {@code window.dialog.confirm} — HtmlUnit has no real browser dialog, so they
- * assert the page <em>asks</em> for confirmation (one call, the page's sentence) and that the
- * form is posted only when the stub confirms. The dialog itself, in a real browser, is covered by
- * the e2e check in {@code e2e/r27/decision_tables.py} (section R93).
+ * <p>The tests stub {@code window.dialog} wholesale — HtmlUnit has no real browser dialog, so
+ * they assert the page <em>asks</em> for confirmation (one call, the page's sentence) and that
+ * the form is posted only when the stub confirms. The dialog itself, in a real browser, is
+ * covered by the e2e check in {@code e2e/r27/decision_tables.py} (section R93).
  *
  * <p>Written from the TEST-MATRIX rows and note 365; no src/main knowledge beyond the matrix.
  */
@@ -85,18 +85,22 @@ class RejectConfirmationTest {
     void t_ui_292_rejectOpensConfirmationWithThePageSentence() throws Exception {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
-        stubDialog(page, true);
+        // The stub records the call but never resolves: the dialog stays open, so the form
+        // is never posted and the page cannot navigate while the test reads the recording.
+        // (A resolving stub would post asynchronously on a background thread and could
+        // navigate before the recording is read — racy on fast runners.)
+        stubDialogOpenOnly(page);
+        waitForPageSettled(page);
         typeComment(page, "wrong day");
         HtmlElement reject = button(page, "Reject");
         assertNotNull(reject, "the Decision section must offer Reject");
         reject.click();
-        // dialog.confirm is called synchronously by the click handler, so the recording is already
-        // there; the confirmation itself (and the post) resolves in background JavaScript.
+        // The click handler calls dialog.confirm synchronously, so the recording is already
+        // there — and with the dialog still open, no navigation can race the assertions.
         assertEquals(1, dialogCalls(page), "pressing Reject must open the confirmation exactly once");
         assertEquals("Reject this run request?", dialogTitle(page), "the dialog title");
         assertEquals("Rejection is final for this request; a rejected request cannot be reopened.",
                 dialogMessage(page), "the dialog message must match the sentence on the page");
-        page.getWebClient().waitForBackgroundJavaScript(2000);
     }
 
     /**
@@ -108,6 +112,7 @@ class RejectConfirmationTest {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
         stubDialog(page, false); // the stub rejects: Cancel / Escape
+        waitForPageSettled(page);
         typeComment(page, "wrong day");
         HtmlElement reject = button(page, "Reject");
         assertNotNull(reject, "the Decision section must offer Reject");
@@ -128,6 +133,7 @@ class RejectConfirmationTest {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
         stubDialog(page, true); // the stub confirms
+        waitForPageSettled(page);
         typeComment(page, "wrong day");
         HtmlElement reject = button(page, "Reject");
         assertNotNull(reject, "the Decision section must offer Reject");
@@ -142,23 +148,30 @@ class RejectConfirmationTest {
 
     /**
      * T-UI-292 (#93): Approve still posts with a single click — it must never ask for
-     * confirmation. The stub throws if it is called, so any confirmation on Approve fails loudly.
+     * confirmation. The recording stub counts dialog calls, so any confirmation on Approve
+     * fails the zero-calls assertion below.
      */
     @Test
     void t_ui_292_approveIsStillSingleClick() throws Exception {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
-        page.executeJavaScript("if (!window.dialog) { window.dialog = {}; }"
-                + "window.dialog.confirm = function () {"
-                + "  throw new Error('Approve must not ask for confirmation');"
-                + "};");
+        stubDialog(page, true); // recording stub; Approve must never call it
+        waitForPageSettled(page);
         typeComment(page, "looks good");
         HtmlElement approve = button(page, "Approve");
         assertNotNull(approve, "the Decision section must offer Approve");
         approve.click();
-        RunRequest decided = pollForStatus(request.getId(), RequestStatus.APPROVED, page);
-        assertEquals(RequestStatus.APPROVED, decided.getStatus(),
-                "Approve must still post with a single click (no confirmation)");
+        // Read the recording from the window's current page: the Approve click submits the
+        // form and navigates, and the assertion must run against the live page.
+        HtmlPage live = (HtmlPage) page.getWebClient().getCurrentWindow().getEnclosedPage();
+        assertEquals(0, dialogCalls(live), "Approve must never open the confirmation dialog");
+        // The approved run is picked up by an executor; on fast runners it reaches
+        // EXECUTED before the first poll, so either approved outcome is accepted —
+        // what matters is that the request left PENDING with a single click.
+        RunRequest decided = pollForLeavingStatus(request.getId(), RequestStatus.PENDING, page);
+        assertTrue(decided.getStatus() == RequestStatus.APPROVED
+                        || decided.getStatus() == RequestStatus.EXECUTED,
+                "Approve must post with a single click (no confirmation); got " + decided.getStatus());
         assertEquals("looks good", decided.getDecisionComment(), "the typed comment is kept");
     }
 
@@ -173,11 +186,11 @@ class RejectConfirmationTest {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
         page.executeJavaScript("window.__bcDialogOpened = false;"
-                + "if (!window.dialog) { window.dialog = {}; }"
-                + "window.dialog.confirm = function () {"
+                + "window.dialog = { confirm: function () {"
                 + "  window.__bcDialogOpened = true;"
                 + "  return Promise.resolve();"
-                + "};");
+                + "} };");
+        waitForPageSettled(page);
         typeComment(page, "   ");
         HtmlElement reject = button(page, "Reject");
         assertNotNull(reject, "the Decision section must offer Reject");
@@ -225,20 +238,55 @@ class RejectConfirmationTest {
     }
 
     /**
-     * Records {@code window.dialog.confirm} calls and resolves (confirm) or rejects (Cancel /
-     * Escape) them.
+     * Bounded poll (no fixed sleep): lets the page's own scripts — including the adjunct that
+     * intercepts Reject — finish running before the test clicks. Linux runners schedule
+     * background JavaScript differently, so a fixed sleep is fragile here.
+     */
+    private void waitForPageSettled(HtmlPage page) {
+        long deadline = System.currentTimeMillis() + 10000;
+        while (System.currentTimeMillis() < deadline) {
+            page.getWebClient().waitForBackgroundJavaScript(500);
+            Object readyState = page.executeJavaScript("document.readyState").getJavaScriptResult();
+            if ("complete".equals(String.valueOf(readyState))) {
+                page.getWebClient().waitForBackgroundJavaScript(1000);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Replaces the whole {@code window.dialog} object with a recording stub: core may define
+     * the property late or as non-writable, in which case assigning to
+     * {@code window.dialog.confirm} silently fails and the real dialog would be called.
+     * Resolves (confirm) or rejects (Cancel / Escape) the recorded calls.
      */
     private void stubDialog(HtmlPage page, boolean confirm) {
         page.executeJavaScript("window.__bcDialogCalls = [];"
-                + "if (!window.dialog) { window.dialog = {}; }"
-                + "window.dialog.confirm = function (title, opts) {"
+                + "window.dialog = { confirm: function (title, opts) {"
                 + "  window.__bcDialogCalls.push({"
                 + "    title: String(title),"
                 + "    message: opts && opts.message ? String(opts.message) : '',"
                 + "    okText: opts && opts.okText ? String(opts.okText) : ''"
                 + "  });"
                 + "  return " + (confirm ? "Promise.resolve()" : "Promise.reject(new Error('dismissed'))") + ";"
-                + "};");
+                + "} };");
+    }
+
+    /**
+     * Records {@code window.dialog.confirm} calls but never resolves: the dialog stays open,
+     * so the form is never posted and the page cannot navigate while the test reads the
+     * recording. For asserting that the confirmation opens (and its text) deterministically.
+     */
+    private void stubDialogOpenOnly(HtmlPage page) {
+        page.executeJavaScript("window.__bcDialogCalls = [];"
+                + "window.dialog = { confirm: function (title, opts) {"
+                + "  window.__bcDialogCalls.push({"
+                + "    title: String(title),"
+                + "    message: opts && opts.message ? String(opts.message) : '',"
+                + "    okText: opts && opts.okText ? String(opts.okText) : ''"
+                + "  });"
+                + "  return new Promise(function () {});" // the approver hasn't answered yet
+                + "} };");
     }
 
     private int dialogCalls(HtmlPage page) {
@@ -270,6 +318,21 @@ class RejectConfirmationTest {
         long deadline = System.currentTimeMillis() + 30000;
         RunRequest decided = RunRequestService.get().load(requestId);
         while (decided.getStatus() != expected && System.currentTimeMillis() < deadline) {
+            page.getWebClient().waitForBackgroundJavaScript(500);
+            decided = RunRequestService.get().load(requestId);
+        }
+        return decided;
+    }
+
+    /**
+     * Polls until the request leaves {@code initial} status or the timeout (30 s) expires.
+     * Used where the terminal state is timing-dependent (e.g. an approved run may already be
+     * EXECUTED on fast runners) — what matters is that the decision was posted.
+     */
+    private RunRequest pollForLeavingStatus(String requestId, RequestStatus initial, HtmlPage page) throws Exception {
+        long deadline = System.currentTimeMillis() + 30000;
+        RunRequest decided = RunRequestService.get().load(requestId);
+        while (decided.getStatus() == initial && System.currentTimeMillis() < deadline) {
             page.getWebClient().waitForBackgroundJavaScript(500);
             decided = RunRequestService.get().load(requestId);
         }
