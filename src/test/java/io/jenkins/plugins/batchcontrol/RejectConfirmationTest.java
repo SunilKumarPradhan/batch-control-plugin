@@ -146,29 +146,33 @@ class RejectConfirmationTest {
         assertEquals("a1", decided.getDecidedBy(), "the designated approver decides");
     }
 
-    /**
-     * T-UI-292 (#93): Approve still posts with a single click. Confirmation-dialog
-     * behavior is covered by the Reject tests; here only the approval outcome (the
-     * request leaves PENDING) and the kept comment are verified.
-     */
     @Test
     void t_ui_292_approveIsStillSingleClick() throws Exception {
         RunRequest request = request("order check");
         HtmlPage page = page("a1", request);
-        stubDialog(page, true); // recording stub; Approve must never call it
+
+        // If Approve accidentally invokes the confirmation dialog, the test fails immediately.
+        page.executeJavaScript("window.dialog = { confirm: function () {"
+                + "throw new Error('Approve must not ask for confirmation');"
+                + "} };");
+
         waitForPageSettled(page);
         typeComment(page, "looks good");
+
         HtmlElement approve = button(page, "Approve");
         assertNotNull(approve, "the Decision section must offer Approve");
+
         approve.click();
-        // The approved run is picked up by an executor; on fast runners it reaches
-        // EXECUTED before the first poll, so either approved outcome is accepted —
-        // what matters is that the request left PENDING with a single click.
+
+        // Do not inspect window.__bcDialogCalls after navigation.
+        // The throwing stub above already proves Approve did not call dialog.confirm.
         RunRequest decided = pollForLeavingStatus(request.getId(), RequestStatus.PENDING, page);
+
         assertTrue(decided.getStatus() == RequestStatus.APPROVED
                         || decided.getStatus() == RequestStatus.EXECUTED,
                 "Approve must post with a single click (no confirmation); got " + decided.getStatus());
-        assertEquals("looks good", decided.getDecisionComment(), "the typed comment is kept");
+        assertEquals("looks good", decided.getDecisionComment(),
+                "the typed comment is kept");
     }
 
     /**
