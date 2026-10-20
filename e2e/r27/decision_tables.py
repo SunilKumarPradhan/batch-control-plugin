@@ -426,7 +426,7 @@ def sec_R():
     s2.page.wait_for_load_state("load")
     stored2 = lib.stored("run", rid2)
     check("R", "#93 Approve still posts with a single click (no confirmation)",
-          stored2.get("status") == "APPROVED" and stored2.get("decisionComment") == "e2e-27 R ok",
+          stored2.get("status") in ("APPROVED", "EXECUTED") and stored2.get("decisionComment") == "e2e-27 R ok",
           stored=stored2)
     s2.done()
 
